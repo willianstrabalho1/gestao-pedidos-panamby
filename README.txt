@@ -1,21 +1,26 @@
-GESTOR COMERCIAL - VERSÃO COMPLETA COM WHATSAPP
+GESTOR COMERCIAL PANAMBY - DASHBOARD COM GRÁFICOS
 
-Novidades:
-- Botão WhatsApp em cada cliente
-- Escolha entre Telefone 1 e Telefone 2
-- Mensagens rápidas:
-  * Follow-up
-  * Cliente sem comprar
-  * Novidades / Catálogo
-  * Pedido / Retorno
-  * Mensagem personalizada
-- Abertura direta do WhatsApp Web / aplicativo
-- Mantém o mesmo armazenamento local KEY = gestor_comercial_v4
-- Backup e restauração
-- Dashboard, pedidos, metas, alertas e follow-ups mantidos
+NOVIDADES DESTA VERSÃO
+- Campo VENDAS para lançamentos manuais
+- Busca de cliente pelo código no lançamento da venda
+- Preenchimento automático do nome e representante
+- Valor, pedido, data, status e observação
+- Dashboard com filtros por mês, representante e região
+- KPIs: faturamento, quantidade, ticket médio, região líder,
+  representante líder, clientes compradores, alertas e follow-ups
+- Gráfico de evolução diária das vendas
+- Gráfico de faturamento por região
+- Gráfico por representante
+- Gráfico de participação por região
+- Ranking dos maiores clientes
+- Acompanhamento de meta por representante
+- Mantém WhatsApp, alertas, follow-up, backup e Excel
+- Importador de pedidos mais flexível para relatórios de Digitação de Ordens
 
-IMPORTANTE:
-Ao substituir index.html, style.css e app.js no mesmo GitHub Pages,
-o link continua o mesmo. Como a chave de armazenamento foi mantida,
-os dados já salvos no mesmo navegador/site devem continuar disponíveis.
-Mesmo assim, faça backup antes de atualizar.
+DADOS EXISTENTES
+A chave localStorage continua sendo gestor_comercial_v4.
+Assim, ao substituir os arquivos no MESMO GitHub Pages e abrir no MESMO navegador,
+os dados anteriores devem continuar disponíveis.
+
+ATENÇÃO
+Faça backup antes de atualizar.

@@ -1,25 +1,21 @@
-GESTOR COMERCIAL - VERSÃO DASHBOARD
+GESTOR COMERCIAL - VERSÃO COMPLETA COM WHATSAPP
 
 Novidades:
-- Pesquisa de clientes pelo código, nome, CNPJ, cidade e responsável
-- Pedidos organizados e filtrados por mês
-- Filtro de pedidos por representante
-- Dashboard do mês com faturamento, quantidade de pedidos e região líder
-- Ranking de vendas por região
-- Meta mensal por representante
-- Cálculo automático de quanto cada representante vendeu e quanto falta
-- Follow-ups e alertas por cliente
-- Notificações do Windows usando a API de notificações do navegador
-- Importação separada de clientes e pedidos
-- Exportação completa para Excel
+- Botão WhatsApp em cada cliente
+- Escolha entre Telefone 1 e Telefone 2
+- Mensagens rápidas:
+  * Follow-up
+  * Cliente sem comprar
+  * Novidades / Catálogo
+  * Pedido / Retorno
+  * Mensagem personalizada
+- Abertura direta do WhatsApp Web / aplicativo
+- Mantém o mesmo armazenamento local KEY = gestor_comercial_v4
+- Backup e restauração
+- Dashboard, pedidos, metas, alertas e follow-ups mantidos
 
-IMPORTANTE SOBRE AS NOTIFICAÇÕES:
-No formato atual (HTML aberto no Chrome/Edge), a notificação do Windows funciona quando o
-aplicativo está aberto no navegador e a permissão foi concedida. Para receber alertas com o
-programa totalmente fechado, é necessário transformar esta versão em um aplicativo Windows
-instalável (por exemplo, Electron) com execução em segundo plano.
-
-IMPORTAÇÃO DE PEDIDOS:
-O importador procura automaticamente cabeçalhos comuns, incluindo:
-ORDEM/PEDIDO, CODIGO CLIENTE, CLIENTE, DIGITAÇÃO/DATA,
-REPRESENTANTE, VALOR LÍQUIDO/VALOR, CIDADE, UF e STATUS.
+IMPORTANTE:
+Ao substituir index.html, style.css e app.js no mesmo GitHub Pages,
+o link continua o mesmo. Como a chave de armazenamento foi mantida,
+os dados já salvos no mesmo navegador/site devem continuar disponíveis.
+Mesmo assim, faça backup antes de atualizar.

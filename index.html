@@ -35,14 +35,8 @@
   </div>
 
   <div class="grid2">
-    <div class="card">
-      <h3>🗺️ Vendas por região</h3>
-      <div id="regiaoRanking"></div>
-    </div>
-    <div class="card">
-      <h3>🎯 Representantes x meta</h3>
-      <div id="repRanking"></div>
-    </div>
+    <div class="card"><h3>🗺️ Vendas por região</h3><div id="regiaoRanking"></div></div>
+    <div class="card"><h3>🎯 Representantes x meta</h3><div id="repRanking"></div></div>
   </div>
 
   <div class="grid2">
@@ -84,7 +78,7 @@
 <section id="alertas" class="tab">
   <div class="card intro">
     <h3>🔔 Alertas de clientes</h3>
-    <p>Marque clientes para retorno. Quando a data chegar, o sistema mostra o alerta no painel e, se autorizado, envia uma notificação do Windows enquanto o aplicativo estiver aberto.</p>
+    <p>Marque clientes para retorno. Quando a data chegar, o sistema mostra o alerta no painel e pode notificar o Windows enquanto o aplicativo estiver aberto.</p>
   </div>
   <div id="alertList"></div>
 </section>
@@ -92,7 +86,6 @@
 <section id="metas" class="tab">
   <div class="card intro">
     <h3>🎯 Meta por representante</h3>
-    <p>Defina a meta mensal de cada representante. O dashboard calcula automaticamente vendido, percentual atingido e quanto falta.</p>
     <div class="formrow">
       <select id="metaRep"></select>
       <input id="metaValor" type="number" min="0" step="0.01" placeholder="Valor da meta">
@@ -106,22 +99,25 @@
   <div class="grid2">
     <div class="card">
       <h3>👥 Importar clientes</h3>
-      <p class="muted">Use sua planilha TESTE APLICATIVO.xls.</p>
       <input type="file" id="clientesFile" accept=".xls,.xlsx">
       <button class="primary" onclick="importClientes()">Importar clientes</button>
       <p id="clientesMsg"></p>
     </div>
     <div class="card">
       <h3>🧾 Importar pedidos</h3>
-      <p class="muted">Aceita relatórios com campos como Ordem, Código/Cliente, Digitação/Data, Representante, Valor Líquido, Cidade e UF.</p>
       <input type="file" id="pedidosFile" accept=".xls,.xlsx">
       <button class="primary" onclick="importPedidos()">Importar pedidos</button>
       <p id="pedidosMsg"></p>
     </div>
   </div>
+
   <div class="card intro">
-    <h3>📤 Exportação</h3>
-    <button onclick="exportExcel()">Exportar acompanhamento completo</button>
+    <h3>💾 Backup e exportação</h3>
+    <p class="muted">Salva clientes, pedidos, follow-ups, alertas e metas.</p>
+    <button class="primary" onclick="backupDados()">💾 Fazer backup</button>
+    <button onclick="document.getElementById('restoreFile').click()">♻️ Restaurar backup</button>
+    <input type="file" id="restoreFile" accept=".json" style="display:none" onchange="restaurarBackup(event)">
+    <button onclick="exportExcel()">📗 Exportar para Excel</button>
   </div>
 </section>
 </main>
@@ -146,6 +142,30 @@
 <label>Prioridade<select id="aPrioridade"><option>Normal</option><option>Importante</option><option>Urgente</option></select></label>
 <button class="primary" onclick="saveAlert()">Salvar alerta</button>
 </div></div>
+
+<div class="modal" id="whatsModal"><div class="modalbox">
+<button class="x" onclick="closeModal('whatsModal')">×</button>
+<h3>💬 Enviar pelo WhatsApp</h3>
+<input type="hidden" id="wClienteId">
+<div id="wClienteNome" class="client-name"></div>
+<label>Telefone
+  <select id="wTelefone"></select>
+</label>
+<label>Mensagem rápida
+  <select id="wModelo" onchange="aplicarModeloWhats()">
+    <option value="follow">Follow-up</option>
+    <option value="parado">Cliente sem comprar</option>
+    <option value="catalogo">Novidades / Catálogo</option>
+    <option value="pedido">Pedido / Retorno</option>
+    <option value="personalizada">Mensagem personalizada</option>
+  </select>
+</label>
+<label>Mensagem
+  <textarea id="wMensagem" rows="6"></textarea>
+</label>
+<button class="whatsapp-main" onclick="abrirWhatsApp()">💬 Abrir WhatsApp</button>
+</div></div>
+
 <script src="app.js"></script>
 </body>
 </html>

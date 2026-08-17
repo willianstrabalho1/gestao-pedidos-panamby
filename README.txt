@@ -26,3 +26,6 @@ Faça backup antes de substituir os arquivos.
 
 
 CORREÇÃO: importador robusto para cabeçalhos com acentos, espaços e parênteses diferentes, com diagnóstico de colunas e totais após importar.
+
+
+CORREÇÃO V2: corrigido campo ausente dashValor/kLiquido que causava erro 'Cannot read properties of null (reading value)'.

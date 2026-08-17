@@ -63,7 +63,7 @@ $("dashMes").value=$("mesPedido").value=$("mesVenda").value=monthNow();
 ["buscaCliente","filtroDias"].forEach(id=>$(id).oninput=renderClientes);
 ["buscaPedido","mesPedido","repPedido"].forEach(id=>$(id).oninput=renderPedidos);
 ["buscaVenda","mesVenda"].forEach(id=>$(id).oninput=renderVendas);
-["dashMes","dashRep","dashRegiao","dashValor"].forEach(id=>$(id).onchange=renderDashboard);
+["dashMes","dashRep","dashRegiao","dashValor"].forEach(id=>{const el=$(id); if(el) el.onchange=renderDashboard});
 
 let charts={};
 function setChart(id,type,labels,data,label){
@@ -75,11 +75,11 @@ function filteredDashboardSales(){
  return combinedSales().filter(s=>(!mes||(s.data||"").slice(0,7)===mes)&&(!rep||norm(s.representante)===norm(rep))&&(!reg||saleRegion(s)===reg)&&norm(s.status)!=="CANCELADO")
 }
 function renderDashboard(){
- let arr=filteredDashboardSales(), metric=$("dashValor").value||"semImpostos";
+ let arr=filteredDashboardSales(), metric=($("dashValor")?.value)||"semImpostos";
  let totalSem=arr.reduce((a,b)=>a+metricValue(b,"semImpostos"),0);
  let totalLiq=arr.reduce((a,b)=>a+metricValue(b,"liquido"),0);
  let totalGraf=arr.reduce((a,b)=>a+metricValue(b,metric),0),q=arr.length;
- $("kVendas").textContent=money(totalSem);$("kLiquido").textContent=money(totalLiq);
+ if($("kVendas")) $("kVendas").textContent=money(totalSem); if($("kLiquido")) $("kLiquido").textContent=money(totalLiq);
  $("kPedidos").textContent=q;$("kTicket").textContent=money(q?totalGraf/q:0);
  let regAgg={},repAgg={},cliAgg={},diaAgg={};
  arr.forEach(s=>{
@@ -270,7 +270,7 @@ function importPedidos(){
      `</details></div>`;
   }catch(err){
    console.error(err);
-   alert("Erro ao importar o relatório: "+err.message);
+   alert("Erro ao importar o relatório: "+err.message+"\n\nSe continuar, envie um print desta mensagem.");
   }
  };
  r.readAsArrayBuffer(f);

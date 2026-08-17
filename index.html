@@ -46,11 +46,19 @@
         <option>Nordeste</option><option>Centro-Oeste</option><option>Norte</option>
       </select>
     </div>
-    <button class="primary" onclick="renderDashboard()">Atualizar dashboard</button>
+    <div>
+          <label>Valor dos gráficos</label>
+          <select id="dashValor">
+            <option value="semImpostos">Sem impostos</option>
+            <option value="liquido">Valor líquido</option>
+          </select>
+        </div>
+        <button class="primary" onclick="renderDashboard()">Atualizar dashboard</button>
   </div>
 
   <div class="kpis">
-    <div class="card kpi"><small>Faturamento</small><strong id="kVendas">R$ 0,00</strong><span id="kVendasSub">mês selecionado</span></div>
+    <div class="card kpi"><small>💰 Vendas sem impostos</small><strong id="kVendas">R$ 0,00</strong><span>Vr Total (s/impostos)</span></div>
+        <div class="card kpi"><small>🧾 Valor líquido</small><strong id="kLiquido">R$ 0,00</strong><span>Vr Total (Líquido)</span></div>
     <div class="card kpi"><small>Pedidos/Vendas</small><strong id="kPedidos">0</strong><span id="kPedidosSub">registros</span></div>
     <div class="card kpi"><small>Ticket médio</small><strong id="kTicket">R$ 0,00</strong><span>valor médio</span></div>
     <div class="card kpi"><small>Região líder</small><strong id="kRegiao">—</strong><span id="kRegiaoValor">R$ 0,00</span></div>

@@ -5,6 +5,19 @@ const $=id=>document.getElementById(id),today=()=>new Date().toISOString().slice
 const norm=v=>String(v??"").trim().toUpperCase();
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2);
 const money=v=>Number(v||0).toLocaleString("pt-BR",{style:"currency",currency:"BRL"});
+function numBR(v){
+ if(typeof v==="number") return v;
+ let s=String(v??"").trim();
+ if(!s)return 0;
+ s=s.replace(/R\$/gi,"").replace(/\s/g,"");
+ if(s.includes(",") && s.includes(".")) s=s.replace(/\./g,"").replace(",",".");
+ else if(s.includes(",")) s=s.replace(",",".");
+ return Number(s.replace(/[^0-9.-]/g,""))||0;
+}
+function metricValue(s,metric){
+ if(metric==="liquido") return Number(s.valorLiquido ?? s.valor ?? 0);
+ return Number(s.valorSemImpostos ?? s.valor ?? 0);
+}
 const esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 function save(){localStorage.setItem(KEY,JSON.stringify(db));render()}
 function brdate(v){if(!v)return"—";let d=new Date(v+"T12:00:00");return isNaN(d)?esc(v):d.toLocaleDateString("pt-BR")}
@@ -28,7 +41,7 @@ $("dashMes").value=$("mesPedido").value=$("mesVenda").value=monthNow();
 ["buscaCliente","filtroDias"].forEach(id=>$(id).oninput=renderClientes);
 ["buscaPedido","mesPedido","repPedido"].forEach(id=>$(id).oninput=renderPedidos);
 ["buscaVenda","mesVenda"].forEach(id=>$(id).oninput=renderVendas);
-["dashMes","dashRep","dashRegiao"].forEach(id=>$(id).onchange=renderDashboard);
+["dashMes","dashRep","dashRegiao","dashValor"].forEach(id=>$(id).onchange=renderDashboard);
 
 let charts={};
 function setChart(id,type,labels,data,label){
@@ -40,22 +53,42 @@ function filteredDashboardSales(){
  return combinedSales().filter(s=>(!mes||(s.data||"").slice(0,7)===mes)&&(!rep||norm(s.representante)===norm(rep))&&(!reg||saleRegion(s)===reg)&&norm(s.status)!=="CANCELADO")
 }
 function renderDashboard(){
- let arr=filteredDashboardSales(),total=arr.reduce((a,b)=>a+Number(b.valor||0),0),q=arr.length;
- $("kVendas").textContent=money(total);$("kPedidos").textContent=q;$("kTicket").textContent=money(q?total/q:0);
+ let arr=filteredDashboardSales(), metric=$("dashValor").value||"semImpostos";
+ let totalSem=arr.reduce((a,b)=>a+metricValue(b,"semImpostos"),0);
+ let totalLiq=arr.reduce((a,b)=>a+metricValue(b,"liquido"),0);
+ let totalGraf=arr.reduce((a,b)=>a+metricValue(b,metric),0),q=arr.length;
+ $("kVendas").textContent=money(totalSem);$("kLiquido").textContent=money(totalLiq);
+ $("kPedidos").textContent=q;$("kTicket").textContent=money(q?totalGraf/q:0);
  let regAgg={},repAgg={},cliAgg={},diaAgg={};
- arr.forEach(s=>{let r=saleRegion(s);regAgg[r]=(regAgg[r]||0)+Number(s.valor||0);let rp=s.representante||"Sem representante";repAgg[rp]=(repAgg[rp]||0)+Number(s.valor||0);let cli=s.cliente||getClient(s.clienteId)?.razao||"Cliente não identificado";cliAgg[cli]=(cliAgg[cli]||0)+Number(s.valor||0);let d=(s.data||"").slice(8,10);if(d)diaAgg[d]=(diaAgg[d]||0)+Number(s.valor||0)});
+ arr.forEach(s=>{
+   let val=metricValue(s,metric),r=saleRegion(s);
+   regAgg[r]=(regAgg[r]||0)+val;
+   let rp=s.representante||"Sem representante";repAgg[rp]=(repAgg[rp]||0)+val;
+   let cli=s.cliente||getClient(s.clienteId)?.razao||"Cliente não identificado";cliAgg[cli]=(cliAgg[cli]||0)+val;
+   let d=(s.data||"").slice(8,10);if(d)diaAgg[d]=(diaAgg[d]||0)+val
+ });
  let regs=Object.entries(regAgg).sort((a,b)=>b[1]-a[1]),rps=Object.entries(repAgg).sort((a,b)=>b[1]-a[1]),cls=Object.entries(cliAgg).sort((a,b)=>b[1]-a[1]);
- $("kRegiao").textContent=regs[0]?.[0]||"—";$("kRegiaoValor").textContent=money(regs[0]?.[1]||0);$("kRepLider").textContent=rps[0]?.[0]||"—";$("kRepValor").textContent=money(rps[0]?.[1]||0);
- $("kClientesCompradores").textContent=Object.keys(cliAgg).length;$("kAlertas").textContent=db.alertas.filter(a=>!a.done&&a.data<=today()).length;$("kFollowups").textContent=db.followups.filter(f=>!f.done).length;
- setChart("chartEvolucao","line",Object.keys(diaAgg).sort((a,b)=>Number(a)-Number(b)),Object.keys(diaAgg).sort((a,b)=>Number(a)-Number(b)).map(k=>diaAgg[k]),"Faturamento");
- setChart("chartRegiao","bar",regs.map(x=>x[0]),regs.map(x=>x[1]),"Faturamento");
- setChart("chartRep","bar",rps.slice(0,12).map(x=>x[0]),rps.slice(0,12).map(x=>x[1]),"Faturamento");
- setChart("chartPizza","pie",regs.map(x=>x[0]),regs.map(x=>x[1]),"Participação");
+ $("kRegiao").textContent=regs[0]?.[0]||"—";$("kRegiaoValor").textContent=money(regs[0]?.[1]||0);
+ $("kRepLider").textContent=rps[0]?.[0]||"—";$("kRepValor").textContent=money(rps[0]?.[1]||0);
+ $("kClientesCompradores").textContent=Object.keys(cliAgg).length;
+ $("kAlertas").textContent=db.alertas.filter(a=>!a.done&&a.data<=today()).length;
+ $("kFollowups").textContent=db.followups.filter(f=>!f.done).length;
+ let label=metric==="liquido"?"Valor líquido":"Sem impostos";
+ setChart("chartEvolucao","line",Object.keys(diaAgg).sort((a,b)=>Number(a)-Number(b)),Object.keys(diaAgg).sort((a,b)=>Number(a)-Number(b)).map(k=>diaAgg[k]),label);
+ setChart("chartRegiao","bar",regs.map(x=>x[0]),regs.map(x=>x[1]),label);
+ setChart("chartRep","bar",rps.slice(0,12).map(x=>x[0]),rps.slice(0,12).map(x=>x[1]),label);
+ setChart("chartPizza","pie",regs.map(x=>x[0]),regs.map(x=>x[1]),label);
  $("topClientes").innerHTML=cls.slice(0,10).map((x,i)=>`<div class="rankline"><span>${i+1}. ${esc(x[0])}</span><b>${money(x[1])}</b></div>`).join("")||'<p class="muted">Sem vendas no período.</p>';
  let month=$("dashMes").value;
- $("repRanking").innerHTML=reps().map(rep=>{let sold=combinedSales().filter(s=>(s.data||"").slice(0,7)===month&&norm(s.representante)===norm(rep)&&norm(s.status)!=="CANCELADO").reduce((a,b)=>a+Number(b.valor||0),0),goal=Number(db.metas[rep]||0),pct=goal?Math.min(sold/goal*100,100):0,left=Math.max(goal-sold,0);return `<div class="barrow"><div class="barlabel"><b>${esc(rep)}</b><span>${goal?pct.toFixed(1)+"%":"Sem meta"}</span></div><div class="muted">Vendido ${money(sold)} • Falta ${goal?money(left):"—"}</div>${goal?`<div class="bartrack"><div class="barfill" style="width:${pct}%"></div></div>`:""}</div>`}).join("")||'<p class="muted">Sem representantes.</p>';
- let aa=db.alertas.filter(a=>!a.done&&a.data<=today()).sort((a,b)=>a.data.localeCompare(b.data)).slice(0,6);$("painelAlertas").innerHTML=aa.length?aa.map(alertHtml).join(""):'<p class="muted">Nenhum alerta.</p>';
- let ff=db.followups.filter(f=>!f.done).sort((a,b)=>a.data.localeCompare(b.data)).slice(0,6);$("painelFollow").innerHTML=ff.length?ff.map(followHtml).join(""):'<p class="muted">Nenhum follow-up.</p>';
+ $("repRanking").innerHTML=reps().map(rep=>{
+   let sold=combinedSales().filter(s=>(s.data||"").slice(0,7)===month&&norm(s.representante)===norm(rep)&&norm(s.status)!=="CANCELADO").reduce((a,b)=>a+metricValue(b,"semImpostos"),0),
+   goal=Number(db.metas[rep]||0),pct=goal?Math.min(sold/goal*100,100):0,left=Math.max(goal-sold,0);
+   return `<div class="barrow"><div class="barlabel"><b>${esc(rep)}</b><span>${goal?pct.toFixed(1)+"%":"Sem meta"}</span></div><div class="muted">Vendido ${money(sold)} • Falta ${goal?money(left):"—"}</div>${goal?`<div class="bartrack"><div class="barfill" style="width:${pct}%"></div></div>`:""}</div>`
+ }).join("")||'<p class="muted">Sem representantes.</p>';
+ let aa=db.alertas.filter(a=>!a.done&&a.data<=today()).sort((a,b)=>a.data.localeCompare(b.data)).slice(0,6);
+ $("painelAlertas").innerHTML=aa.length?aa.map(alertHtml).join(""):'<p class="muted">Nenhum alerta.</p>';
+ let ff=db.followups.filter(f=>!f.done).sort((a,b)=>a.data.localeCompare(b.data)).slice(0,6);
+ $("painelFollow").innerHTML=ff.length?ff.map(followHtml).join(""):'<p class="muted">Nenhum follow-up.</p>';
 }
 function renderClientes(){
  let q=norm($("buscaCliente").value),dias=Number($("filtroDias").value||0);
@@ -72,7 +105,7 @@ function renderPedidos(){
  let q=norm($("buscaPedido").value),mes=$("mesPedido").value,rep=$("repPedido").value;
  let arr=db.pedidos.filter(p=>(!mes||(p.data||"").slice(0,7)===mes)&&(!rep||norm(p.representante)===norm(rep))&&(!q||norm([p.ordem,p.codigoCliente,p.cliente,p.representante,p.cidade,p.uf].join(" ")).includes(q)));
  let total=arr.reduce((a,b)=>a+Number(b.valor||0),0);$("pTotal").textContent=money(total);$("pQtd").textContent=arr.length;$("pTicket").textContent=money(arr.length?total/arr.length:0);
- $("pedidosList").innerHTML=arr.sort((a,b)=>(b.data||"").localeCompare(a.data||"")).map(p=>`<div class="order"><div class="ordertop"><div><h3>Pedido ${esc(p.ordem||"—")} • ${esc(p.codigoCliente||"")} ${esc(p.cliente||"")}</h3><span class="muted">${brdate(p.data)} • ${esc(p.representante||"Sem representante")} • ${esc(p.cidade||"")}/${esc(p.uf||"")}</span></div><b>${money(p.valor)}</b></div>${p.status?`<div class="tags"><span class="tag">${esc(p.status)}</span></div>`:""}</div>`).join("")||'<div class="card muted">Nenhum pedido.</div>'
+ $("pedidosList").innerHTML=arr.sort((a,b)=>(b.data||"").localeCompare(a.data||"")).map(p=>`<div class="order"><div class="ordertop"><div><h3>Pedido ${esc(p.ordem||"—")} • ${esc(p.codigoCliente||"")} ${esc(p.cliente||"")}</h3><span class="muted">${brdate(p.data)} • ${esc(p.representante||"Sem representante")} • ${esc(p.cidade||"")}/${esc(p.uf||"")}</span></div><div style="text-align:right"><b>Sem impostos: ${money(p.valorSemImpostos??p.valor)}</b><br><span class="muted">Líquido: ${money(p.valorLiquido??p.valor)}</span></div></div>${p.status?`<div class="tags"><span class="tag">${esc(p.status)}</span></div>`:""}</div>`).join("")||'<div class="card muted">Nenhum pedido.</div>'
 }
 function fillSelectors(){
  let r=reps(),opts='<option value="">Todos</option>'+r.map(x=>`<option>${esc(x)}</option>`).join("");
@@ -112,7 +145,13 @@ function checkNotifications(){if(!("Notification"in window)||Notification.permis
 function excelDate(v){if(v instanceof Date)return v.toISOString().slice(0,10);if(typeof v==="number"){let d=XLSX.SSF.parse_date_code(v);return d?`${d.y}-${String(d.m).padStart(2,"0")}-${String(d.d).padStart(2,"0")}`:""}if(!v)return"";let s=String(v).trim(),m=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);if(m)return`${m[3]}-${m[2].padStart(2,"0")}-${m[1].padStart(2,"0")}`;let d=new Date(s);return isNaN(d)?"":d.toISOString().slice(0,10)}
 function pick(row,names){for(let n of names)for(let k of Object.keys(row))if(norm(k)===norm(n))return row[k];return""}
 function importClientes(){let f=$("clientesFile").files[0];if(!f)return alert("Selecione a planilha.");let r=new FileReader();r.onload=e=>{try{let wb=XLSX.read(e.target.result,{type:"array",cellDates:true}),rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{defval:""}),map=new Map(db.clientes.map(c=>[String(c.codigo),c]));rows.forEach(row=>{let codigo=pick(row,["CODIGO CLIENTE","CÓDIGO CLIENTE","CODIGO","CÓDIGO"]);if(codigo==="")return;let old=map.get(String(codigo));map.set(String(codigo),{id:old?.id||uid(),codigo,razao:pick(row,["RAZAO CLIENTE","RAZÃO CLIENTE","CLIENTE","NOME CLIENTE"]),cnpj:pick(row,["CNPJ"]),representante:pick(row,["REPRESENTANTE","VENDEDOR"]),cidade:pick(row,["CIDADE"]),uf:pick(row,["UF","ESTADO"]),ultima:excelDate(pick(row,["ULTIMA COMPRA","ÚLTIMA COMPRA"])),dias:Number(pick(row,["DIAS SEM COMPRAR"])||0),valor:Number(pick(row,["VALOR ULTIMA COMPRA","VALOR ÚLTIMA COMPRA"])||0),responsavel:pick(row,["RESPONSAVEL","RESPONSÁVEL"]),tel1:pick(row,["TELEFONE 1","TELEFONE"]),tel2:pick(row,["TELEFONE 2"])})});db.clientes=[...map.values()];$("clientesMsg").textContent=`${db.clientes.length} clientes disponíveis.`;save()}catch(err){alert(err.message)}};r.readAsArrayBuffer(f)}
-function importPedidos(){let f=$("pedidosFile").files[0];if(!f)return alert("Selecione o relatório.");let r=new FileReader();r.onload=e=>{try{let wb=XLSX.read(e.target.result,{type:"array",cellDates:true}),existing=new Map(db.pedidos.map(p=>[String(p.ordem),p])),count=0;wb.SheetNames.forEach(sn=>{let raw=XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,defval:""});let headerRow=raw.findIndex(row=>row.some(c=>/ordem|pedido|cliente|representante|valor/i.test(String(c))));if(headerRow<0)return;let headers=raw[headerRow].map(x=>String(x).trim());raw.slice(headerRow+1).forEach(vals=>{let row={};headers.forEach((h,i)=>row[h]=vals[i]);let ordem=pick(row,["ORDEM","PEDIDO","Nº PEDIDO","NUMERO PEDIDO","NÚMERO PEDIDO","ORDEM VENDA"]);if(ordem==="")return;let codigo=pick(row,["CODIGO CLIENTE","CÓDIGO CLIENTE","COD CLIENTE","COD CLIENTE FAT","CÓDIGO"]);let cli=codigo!==""?findClientByCode(codigo):null;let p={id:existing.get(String(ordem))?.id||uid(),ordem,codigoCliente:codigo||cli?.codigo||"",cliente:pick(row,["NOME DO CLIENTE","CLIENTE","RAZAO CLIENTE","RAZÃO SOCIAL","NOME CLIENTE"])||cli?.razao||"",data:excelDate(pick(row,["DIGITAÇÃO","DIGITACAO","DATA","DATA PEDIDO","EMISSÃO","EMISSAO","DATA DIGITAÇÃO"])),representante:pick(row,["REPRESENTANTE","VENDEDOR","REPRESENTANTE COMERCIAL"])||cli?.representante||"",valor:Number(String(pick(row,["VALOR LÍQUIDO","VALOR LIQUIDO","VALOR","TOTAL","VLR LIQUIDO","VL LIQUIDO"])||0).replace(/\./g,"").replace(",",".")),cidade:pick(row,["CIDADE"])||cli?.cidade||"",uf:pick(row,["UF","ESTADO"])||cli?.uf||"",status:pick(row,["STATUS","ETAPA","SITUAÇÃO","SITUACAO"]),aba:sn};existing.set(String(ordem),p);count++})});db.pedidos=[...existing.values()];$("pedidosMsg").textContent=`${count} registros lidos; ${db.pedidos.length} pedidos únicos.`;save()}catch(err){alert("Erro ao importar: "+err.message)}};r.readAsArrayBuffer(f)}
+function importPedidos(){let f=$("pedidosFile").files[0];if(!f)return alert("Selecione o relatório.");let r=new FileReader();r.onload=e=>{try{let wb=XLSX.read(e.target.result,{type:"array",cellDates:true}),existing=new Map(db.pedidos.map(p=>[String(p.ordem),p])),count=0;wb.SheetNames.forEach(sn=>{let raw=XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,defval:""});let headerRow=raw.findIndex(row=>row.some(c=>/ordem|pedido|cliente|representante|valor/i.test(String(c))));if(headerRow<0)return;let headers=raw[headerRow].map(x=>String(x).trim());raw.slice(headerRow+1).forEach(vals=>{let row={};headers.forEach((h,i)=>row[h]=vals[i]);let ordem=pick(row,["ORDEM","PEDIDO","Nº PEDIDO","NUMERO PEDIDO","NÚMERO PEDIDO","ORDEM VENDA"]);if(ordem==="")return;let codigo=pick(row,["CODIGO CLIENTE","CÓDIGO CLIENTE","COD CLIENTE","COD CLIENTE FAT","CÓDIGO"]);let cli=codigo!==""?findClientByCode(codigo):null;let p={id:existing.get(String(ordem))?.id||uid(),ordem,codigoCliente:codigo||cli?.codigo||"",cliente:pick(row,["NOME DO CLIENTE","CLIENTE","RAZAO CLIENTE","RAZÃO SOCIAL","NOME CLIENTE"])||cli?.razao||"",data:excelDate(pick(row,["DIGITAÇÃO","DIGITACAO","DATA","DATA PEDIDO","EMISSÃO","EMISSAO","DATA DIGITAÇÃO"])),representante:pick(row,["REPRESENTANTE","VENDEDOR","REPRESENTANTE COMERCIAL"])||cli?.representante||"",valorSemImpostos:numBR(pick(row,["VR TOTAL (S/IMPOSTOS)","VR TOTAL(S/IMPOSTOS)","VR TOTAL S/IMPOSTOS","VALOR S/IMPOSTOS","VALOR SEM IMPOSTOS"])),
+valorLiquido:numBR(pick(row,["VR TOTAL (LIQUIDO)","VR TOTAL (LÍQUIDO)","VR TOTAL(LIQUIDO)","VR TOTAL(LÍQUIDO)","VALOR LÍQUIDO","VALOR LIQUIDO","VLR LIQUIDO","VL LIQUIDO"])),
+valor:numBR(pick(row,["VR TOTAL (S/IMPOSTOS)","VR TOTAL(S/IMPOSTOS)","VR TOTAL S/IMPOSTOS","VALOR S/IMPOSTOS","VALOR SEM IMPOSTOS","VALOR","TOTAL"])),cidade:pick(row,["CIDADE"])||cli?.cidade||"",uf:pick(row,["UF","ESTADO"])||cli?.uf||"",status:pick(row,["STATUS","ETAPA","SITUAÇÃO","SITUACAO"]),aba:sn};existing.set(String(ordem),p);count++})});db.pedidos=[...existing.values()];
+let tsi=db.pedidos.reduce((a,p)=>a+Number(p.valorSemImpostos??p.valor??0),0);
+let tliq=db.pedidos.reduce((a,p)=>a+Number(p.valorLiquido??p.valor??0),0);
+$("pedidosMsg").innerHTML=`<b>${count} registros lidos • ${db.pedidos.length} pedidos únicos</b><br>💰 Sem impostos: <b>${money(tsi)}</b> • 🧾 Líquido: <b>${money(tliq)}</b>`;
+save()}catch(err){alert("Erro ao importar: "+err.message)}};r.readAsArrayBuffer(f)}
 function exportExcel(){let wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(db.clientes),"Clientes");XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(db.vendas),"Vendas");XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(db.pedidos),"Pedidos");XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(db.followups),"Follow-ups");XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(db.alertas),"Alertas");XLSX.writeFile(wb,"Gestor_Comercial_Completo.xlsx")}
 function backupDados(){let blob=new Blob([JSON.stringify({aplicativo:"Gestor Comercial",versao:5,criadoEm:new Date().toISOString(),dados:db},null,2)],{type:"application/json"}),a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=`Backup_Gestor_Comercial_${today()}.json`;a.click()}
 function restaurarBackup(e){let f=e.target.files[0];if(!f)return;if(!confirm("Substituir os dados atuais pelo backup?"))return;let r=new FileReader();r.onload=x=>{try{let p=JSON.parse(x.target.result),d=p.dados||p;db={clientes:d.clientes||[],pedidos:d.pedidos||[],vendas:d.vendas||[],followups:d.followups||[],alertas:d.alertas||[],metas:d.metas||{}};save();alert("Backup restaurado.")}catch{alert("Backup inválido.")}};r.readAsText(f)}

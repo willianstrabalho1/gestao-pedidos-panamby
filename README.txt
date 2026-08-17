@@ -1,26 +1,25 @@
-GESTOR COMERCIAL PANAMBY - DASHBOARD COM GRÁFICOS
+GESTOR COMERCIAL PANAMBY — VERSÃO DOIS VALORES
 
-NOVIDADES DESTA VERSÃO
-- Campo VENDAS para lançamentos manuais
-- Busca de cliente pelo código no lançamento da venda
-- Preenchimento automático do nome e representante
-- Valor, pedido, data, status e observação
-- Dashboard com filtros por mês, representante e região
-- KPIs: faturamento, quantidade, ticket médio, região líder,
-  representante líder, clientes compradores, alertas e follow-ups
-- Gráfico de evolução diária das vendas
-- Gráfico de faturamento por região
-- Gráfico por representante
-- Gráfico de participação por região
-- Ranking dos maiores clientes
-- Acompanhamento de meta por representante
-- Mantém WhatsApp, alertas, follow-up, backup e Excel
-- Importador de pedidos mais flexível para relatórios de Digitação de Ordens
+IMPORTAÇÃO DO RELATÓRIO DIGITAÇÃO DE ORDENS
+O sistema agora lê separadamente:
+- Vr Total (s/impostos)
+- Vr Total (Líquido)
 
-DADOS EXISTENTES
-A chave localStorage continua sendo gestor_comercial_v4.
-Assim, ao substituir os arquivos no MESMO GitHub Pages e abrir no MESMO navegador,
-os dados anteriores devem continuar disponíveis.
+DASHBOARD
+- Mostra os dois totais simultaneamente
+- Filtros por mês, representante e região
+- Parâmetro dos gráficos: Sem impostos ou Valor líquido
+- Evolução diária
+- Vendas por região
+- Vendas por representante
+- Participação por região
+- Ranking de clientes
+- Metas por representante (base: valor sem impostos)
 
-ATENÇÃO
-Faça backup antes de atualizar.
+PEDIDOS
+- Mostra valor sem impostos e valor líquido lado a lado.
+
+IMPORTANTE
+A chave localStorage permanece gestor_comercial_v4 para preservar os dados
+da versão anterior no mesmo navegador e no mesmo endereço do GitHub Pages.
+Faça backup antes de substituir os arquivos.

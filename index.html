@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gestor Comercial Pessoal</title>
+<link rel="stylesheet" href="style.css">
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+</head>
+<body>
+<div class="app">
+<aside>
+  <h1>📈 Gestor Comercial</h1>
+  <p>Follow-up • Pedidos • Metas</p>
+  <button class="nav active" data-tab="painel">📊 Dashboard</button>
+  <button class="nav" data-tab="clientes">👥 Clientes</button>
+  <button class="nav" data-tab="pedidos">🧾 Pedidos</button>
+  <button class="nav" data-tab="followups">📞 Follow-ups</button>
+  <button class="nav" data-tab="alertas">🔔 Alertas</button>
+  <button class="nav" data-tab="metas">🎯 Metas</button>
+  <button class="nav" data-tab="excel">📗 Excel</button>
+</aside>
+<main>
+<header>
+  <div><h2 id="title">Dashboard</h2><small id="date"></small></div>
+  <button id="notifyBtn" class="primary" onclick="enableNotifications()">🔔 Ativar notificações</button>
+</header>
+
+<section id="painel" class="tab active">
+  <div class="kpis">
+    <div class="card"><small>Vendas do mês</small><strong id="kVendas">R$ 0,00</strong></div>
+    <div class="card"><small>Pedidos no mês</small><strong id="kPedidos">0</strong></div>
+    <div class="card"><small>Alertas hoje/atrasados</small><strong id="kAlertas">0</strong></div>
+    <div class="card"><small>Região líder</small><strong id="kRegiao">—</strong></div>
+  </div>
+
+  <div class="grid2">
+    <div class="card">
+      <h3>🗺️ Vendas por região</h3>
+      <div id="regiaoRanking"></div>
+    </div>
+    <div class="card">
+      <h3>🎯 Representantes x meta</h3>
+      <div id="repRanking"></div>
+    </div>
+  </div>
+
+  <div class="grid2">
+    <div class="card"><h3>🔔 Alertas importantes</h3><div id="painelAlertas"></div></div>
+    <div class="card"><h3>📞 Próximos follow-ups</h3><div id="painelFollow"></div></div>
+  </div>
+</section>
+
+<section id="clientes" class="tab">
+  <div class="toolbar">
+    <input id="buscaCliente" placeholder="Pesquisar por código, razão social, CNPJ, cidade ou responsável...">
+    <select id="filtroDias">
+      <option value="">Todos</option><option value="30">+30 dias sem comprar</option>
+      <option value="60">+60 dias</option><option value="90">+90 dias</option><option value="180">+180 dias</option>
+    </select>
+  </div>
+  <div id="clientesList"></div>
+</section>
+
+<section id="pedidos" class="tab">
+  <div class="toolbar">
+    <input id="buscaPedido" placeholder="Pesquisar por ordem, código, cliente ou representante...">
+    <input type="month" id="mesPedido">
+    <select id="repPedido"><option value="">Todos os representantes</option></select>
+  </div>
+  <div class="kpis smallkpis">
+    <div class="card"><small>Total filtrado</small><strong id="pTotal">R$ 0,00</strong></div>
+    <div class="card"><small>Pedidos filtrados</small><strong id="pQtd">0</strong></div>
+    <div class="card"><small>Ticket médio</small><strong id="pTicket">R$ 0,00</strong></div>
+  </div>
+  <div id="pedidosList"></div>
+</section>
+
+<section id="followups" class="tab">
+  <div class="toolbar"><button class="primary" onclick="openFollow()">+ Novo follow-up</button></div>
+  <div id="followList"></div>
+</section>
+
+<section id="alertas" class="tab">
+  <div class="card intro">
+    <h3>🔔 Alertas de clientes</h3>
+    <p>Marque clientes para retorno. Quando a data chegar, o sistema mostra o alerta no painel e, se autorizado, envia uma notificação do Windows enquanto o aplicativo estiver aberto.</p>
+  </div>
+  <div id="alertList"></div>
+</section>
+
+<section id="metas" class="tab">
+  <div class="card intro">
+    <h3>🎯 Meta por representante</h3>
+    <p>Defina a meta mensal de cada representante. O dashboard calcula automaticamente vendido, percentual atingido e quanto falta.</p>
+    <div class="formrow">
+      <select id="metaRep"></select>
+      <input id="metaValor" type="number" min="0" step="0.01" placeholder="Valor da meta">
+      <button class="primary" onclick="saveMeta()">Salvar meta</button>
+    </div>
+  </div>
+  <div id="metasList"></div>
+</section>
+
+<section id="excel" class="tab">
+  <div class="grid2">
+    <div class="card">
+      <h3>👥 Importar clientes</h3>
+      <p class="muted">Use sua planilha TESTE APLICATIVO.xls.</p>
+      <input type="file" id="clientesFile" accept=".xls,.xlsx">
+      <button class="primary" onclick="importClientes()">Importar clientes</button>
+      <p id="clientesMsg"></p>
+    </div>
+    <div class="card">
+      <h3>🧾 Importar pedidos</h3>
+      <p class="muted">Aceita relatórios com campos como Ordem, Código/Cliente, Digitação/Data, Representante, Valor Líquido, Cidade e UF.</p>
+      <input type="file" id="pedidosFile" accept=".xls,.xlsx">
+      <button class="primary" onclick="importPedidos()">Importar pedidos</button>
+      <p id="pedidosMsg"></p>
+    </div>
+  </div>
+  <div class="card intro">
+    <h3>📤 Exportação</h3>
+    <button onclick="exportExcel()">Exportar acompanhamento completo</button>
+  </div>
+</section>
+</main>
+</div>
+
+<div class="modal" id="followModal"><div class="modalbox">
+<button class="x" onclick="closeModal('followModal')">×</button>
+<h3>Novo follow-up</h3>
+<label>Cliente<select id="fCliente"></select></label>
+<label>Data<input type="date" id="fData"></label>
+<label>Assunto<textarea id="fTexto"></textarea></label>
+<button class="primary" onclick="saveFollow()">Salvar follow-up</button>
+</div></div>
+
+<div class="modal" id="alertModal"><div class="modalbox">
+<button class="x" onclick="closeModal('alertModal')">×</button>
+<h3>🔔 Criar alerta</h3>
+<input type="hidden" id="aClienteId">
+<div id="aClienteNome" class="client-name"></div>
+<label>Data<input type="date" id="aData"></label>
+<label>Motivo<textarea id="aTexto"></textarea></label>
+<label>Prioridade<select id="aPrioridade"><option>Normal</option><option>Importante</option><option>Urgente</option></select></label>
+<button class="primary" onclick="saveAlert()">Salvar alerta</button>
+</div></div>
+<script src="app.js"></script>
+</body>
+</html>

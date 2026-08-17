@@ -3,6 +3,28 @@ let db=JSON.parse(localStorage.getItem(KEY)||'{"clientes":[],"pedidos":[],"venda
 if(!db.vendas)db.vendas=[];
 const $=id=>document.getElementById(id),today=()=>new Date().toISOString().slice(0,10);
 const norm=v=>String(v??"").trim().toUpperCase();
+function normHeader(v){
+ return String(v??"")
+   .normalize("NFD").replace(/[\u0300-\u036f]/g,"")
+   .toUpperCase()
+   .replace(/[^A-Z0-9]+/g," ")
+   .replace(/\s+/g," ")
+   .trim();
+}
+function findCol(headers, aliases){
+ const hs=headers.map(normHeader);
+ for(const alias of aliases){
+   const a=normHeader(alias);
+   let i=hs.findIndex(h=>h===a);
+   if(i>=0)return i;
+ }
+ for(const alias of aliases){
+   const a=normHeader(alias);
+   let i=hs.findIndex(h=>h.includes(a) || a.includes(h));
+   if(i>=0)return i;
+ }
+ return -1;
+}
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2);
 const money=v=>Number(v||0).toLocaleString("pt-BR",{style:"currency",currency:"BRL"});
 function numBR(v){
@@ -145,13 +167,114 @@ function checkNotifications(){if(!("Notification"in window)||Notification.permis
 function excelDate(v){if(v instanceof Date)return v.toISOString().slice(0,10);if(typeof v==="number"){let d=XLSX.SSF.parse_date_code(v);return d?`${d.y}-${String(d.m).padStart(2,"0")}-${String(d.d).padStart(2,"0")}`:""}if(!v)return"";let s=String(v).trim(),m=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);if(m)return`${m[3]}-${m[2].padStart(2,"0")}-${m[1].padStart(2,"0")}`;let d=new Date(s);return isNaN(d)?"":d.toISOString().slice(0,10)}
 function pick(row,names){for(let n of names)for(let k of Object.keys(row))if(norm(k)===norm(n))return row[k];return""}
 function importClientes(){let f=$("clientesFile").files[0];if(!f)return alert("Selecione a planilha.");let r=new FileReader();r.onload=e=>{try{let wb=XLSX.read(e.target.result,{type:"array",cellDates:true}),rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{defval:""}),map=new Map(db.clientes.map(c=>[String(c.codigo),c]));rows.forEach(row=>{let codigo=pick(row,["CODIGO CLIENTE","CÓDIGO CLIENTE","CODIGO","CÓDIGO"]);if(codigo==="")return;let old=map.get(String(codigo));map.set(String(codigo),{id:old?.id||uid(),codigo,razao:pick(row,["RAZAO CLIENTE","RAZÃO CLIENTE","CLIENTE","NOME CLIENTE"]),cnpj:pick(row,["CNPJ"]),representante:pick(row,["REPRESENTANTE","VENDEDOR"]),cidade:pick(row,["CIDADE"]),uf:pick(row,["UF","ESTADO"]),ultima:excelDate(pick(row,["ULTIMA COMPRA","ÚLTIMA COMPRA"])),dias:Number(pick(row,["DIAS SEM COMPRAR"])||0),valor:Number(pick(row,["VALOR ULTIMA COMPRA","VALOR ÚLTIMA COMPRA"])||0),responsavel:pick(row,["RESPONSAVEL","RESPONSÁVEL"]),tel1:pick(row,["TELEFONE 1","TELEFONE"]),tel2:pick(row,["TELEFONE 2"])})});db.clientes=[...map.values()];$("clientesMsg").textContent=`${db.clientes.length} clientes disponíveis.`;save()}catch(err){alert(err.message)}};r.readAsArrayBuffer(f)}
-function importPedidos(){let f=$("pedidosFile").files[0];if(!f)return alert("Selecione o relatório.");let r=new FileReader();r.onload=e=>{try{let wb=XLSX.read(e.target.result,{type:"array",cellDates:true}),existing=new Map(db.pedidos.map(p=>[String(p.ordem),p])),count=0;wb.SheetNames.forEach(sn=>{let raw=XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,defval:""});let headerRow=raw.findIndex(row=>row.some(c=>/ordem|pedido|cliente|representante|valor/i.test(String(c))));if(headerRow<0)return;let headers=raw[headerRow].map(x=>String(x).trim());raw.slice(headerRow+1).forEach(vals=>{let row={};headers.forEach((h,i)=>row[h]=vals[i]);let ordem=pick(row,["ORDEM","PEDIDO","Nº PEDIDO","NUMERO PEDIDO","NÚMERO PEDIDO","ORDEM VENDA"]);if(ordem==="")return;let codigo=pick(row,["CODIGO CLIENTE","CÓDIGO CLIENTE","COD CLIENTE","COD CLIENTE FAT","CÓDIGO"]);let cli=codigo!==""?findClientByCode(codigo):null;let p={id:existing.get(String(ordem))?.id||uid(),ordem,codigoCliente:codigo||cli?.codigo||"",cliente:pick(row,["NOME DO CLIENTE","CLIENTE","RAZAO CLIENTE","RAZÃO SOCIAL","NOME CLIENTE"])||cli?.razao||"",data:excelDate(pick(row,["DIGITAÇÃO","DIGITACAO","DATA","DATA PEDIDO","EMISSÃO","EMISSAO","DATA DIGITAÇÃO"])),representante:pick(row,["REPRESENTANTE","VENDEDOR","REPRESENTANTE COMERCIAL"])||cli?.representante||"",valorSemImpostos:numBR(pick(row,["VR TOTAL (S/IMPOSTOS)","VR TOTAL(S/IMPOSTOS)","VR TOTAL S/IMPOSTOS","VALOR S/IMPOSTOS","VALOR SEM IMPOSTOS"])),
-valorLiquido:numBR(pick(row,["VR TOTAL (LIQUIDO)","VR TOTAL (LÍQUIDO)","VR TOTAL(LIQUIDO)","VR TOTAL(LÍQUIDO)","VALOR LÍQUIDO","VALOR LIQUIDO","VLR LIQUIDO","VL LIQUIDO"])),
-valor:numBR(pick(row,["VR TOTAL (S/IMPOSTOS)","VR TOTAL(S/IMPOSTOS)","VR TOTAL S/IMPOSTOS","VALOR S/IMPOSTOS","VALOR SEM IMPOSTOS","VALOR","TOTAL"])),cidade:pick(row,["CIDADE"])||cli?.cidade||"",uf:pick(row,["UF","ESTADO"])||cli?.uf||"",status:pick(row,["STATUS","ETAPA","SITUAÇÃO","SITUACAO"]),aba:sn};existing.set(String(ordem),p);count++})});db.pedidos=[...existing.values()];
-let tsi=db.pedidos.reduce((a,p)=>a+Number(p.valorSemImpostos??p.valor??0),0);
-let tliq=db.pedidos.reduce((a,p)=>a+Number(p.valorLiquido??p.valor??0),0);
-$("pedidosMsg").innerHTML=`<b>${count} registros lidos • ${db.pedidos.length} pedidos únicos</b><br>💰 Sem impostos: <b>${money(tsi)}</b> • 🧾 Líquido: <b>${money(tliq)}</b>`;
-save()}catch(err){alert("Erro ao importar: "+err.message)}};r.readAsArrayBuffer(f)}
+function importPedidos(){
+ let f=$("pedidosFile").files[0];
+ if(!f)return alert("Selecione o relatório de Digitação de Ordens.");
+ let r=new FileReader();
+ r.onload=e=>{
+  try{
+   let wb=XLSX.read(e.target.result,{type:"array",cellDates:true,raw:true});
+   let existing=new Map(db.pedidos.map(p=>[String(p.ordem),p]));
+   let count=0, sheetsRead=0;
+   let diagnosticos=[];
+
+   wb.SheetNames.forEach(sn=>{
+    let raw=XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,defval:"",raw:true});
+    if(!raw.length)return;
+
+    let headerRow=-1;
+    for(let i=0;i<Math.min(raw.length,50);i++){
+      let row=raw[i].map(normHeader);
+      let hasOrdem=row.some(x=>x==="ORDEM" || x.includes("ORDEM"));
+      let hasCliente=row.some(x=>x.includes("RAZAO SOCIAL") || x.includes("CLIENTE"));
+      let hasValor=row.some(x=>x.includes("VR TOTAL") || x.includes("VALOR"));
+      if(hasOrdem && (hasCliente || hasValor)){headerRow=i;break}
+    }
+    if(headerRow<0){
+      diagnosticos.push(`${sn}: cabeçalho não encontrado`);
+      return;
+    }
+
+    let headers=raw[headerRow].map(x=>String(x??"").trim());
+    let cOrdem=findCol(headers,["Ordem","Nº Ordem","Numero Ordem"]);
+    let cRazao=findCol(headers,["Razão Social","Razao Social","Nome do Cliente","Cliente"]);
+    let cDigitacao=findCol(headers,["Digitação","Digitacao","Data Digitação","Data Digitacao"]);
+    let cFaturamento=findCol(headers,["Faturamento","Data Faturamento"]);
+    let cLiberacao=findCol(headers,["Data Liberação/Crédito","Data Liberacao/Credito","Data Liberação","Data Liberacao"]);
+    let cSemImp=findCol(headers,["Vr Total (s/impostos)","Vr Total s/impostos","Vr Total sem impostos","Valor sem impostos","Total s impostos"]);
+    let cLiq=findCol(headers,["Vr Total (Líquido)","Vr Total (Liquido)","Vr Total Liquido","Valor Líquido","Valor Liquido"]);
+    let cRep=findCol(headers,["Representante","Vendedor","Representante Comercial"]);
+    let cCodigo=findCol(headers,["Código Cliente","Codigo Cliente","Cod Cliente"]);
+    let cCidade=findCol(headers,["Cidade"]);
+    let cUF=findCol(headers,["UF","Estado"]);
+    let cStatus=findCol(headers,["Status","Etapa","Situação","Situacao"]);
+
+    diagnosticos.push(
+      `${sn}: linha ${headerRow+1} | Ordem=${cOrdem>=0?"OK":"NÃO"} | `+
+      `Sem impostos=${cSemImp>=0?headers[cSemImp]:"NÃO"} | Líquido=${cLiq>=0?headers[cLiq]:"NÃO"}`
+    );
+
+    if(cOrdem<0)return;
+    sheetsRead++;
+
+    for(let ri=headerRow+1;ri<raw.length;ri++){
+      let vals=raw[ri];
+      let ordem=vals[cOrdem];
+      if(ordem==="" || ordem===null || ordem===undefined)continue;
+      let ordemStr=String(ordem).trim();
+      if(!/\d/.test(ordemStr))continue;
+
+      let codigo=cCodigo>=0?vals[cCodigo]:"";
+      let cli=codigo!==""?findClientByCode(codigo):null;
+      let razao=cRazao>=0?vals[cRazao]:"";
+      let semImp=cSemImp>=0?numBR(vals[cSemImp]):0;
+      let liq=cLiq>=0?numBR(vals[cLiq]):0;
+      let antigo=existing.get(ordemStr);
+
+      existing.set(ordemStr,{
+        id:antigo?.id||uid(),
+        ordem:ordemStr,
+        codigoCliente:codigo||antigo?.codigoCliente||cli?.codigo||"",
+        cliente:razao||antigo?.cliente||cli?.razao||"",
+        data:excelDate(cDigitacao>=0?vals[cDigitacao]:"")||antigo?.data||"",
+        faturamento:excelDate(cFaturamento>=0?vals[cFaturamento]:""),
+        liberacao:excelDate(cLiberacao>=0?vals[cLiberacao]:""),
+        representante:(cRep>=0?vals[cRep]:"")||antigo?.representante||cli?.representante||"",
+        valorSemImpostos:semImp,
+        valorLiquido:liq,
+        valor:semImp,
+        cidade:(cCidade>=0?vals[cCidade]:"")||antigo?.cidade||cli?.cidade||"",
+        uf:(cUF>=0?vals[cUF]:"")||antigo?.uf||cli?.uf||"",
+        status:(cStatus>=0?vals[cStatus]:"")||antigo?.status||"",
+        aba:sn
+      });
+      count++;
+    }
+   });
+
+   db.pedidos=[...existing.values()];
+   let tsi=db.pedidos.reduce((a,p)=>a+Number(p.valorSemImpostos||0),0);
+   let tliq=db.pedidos.reduce((a,p)=>a+Number(p.valorLiquido||0),0);
+
+   localStorage.setItem(KEY,JSON.stringify(db));
+   render();
+
+   $("pedidosMsg").innerHTML=
+     `<div style="line-height:1.7"><b>✅ Importação concluída</b><br>`+
+     `Abas reconhecidas: <b>${sheetsRead}</b><br>`+
+     `Registros lidos: <b>${count}</b> • Pedidos únicos: <b>${db.pedidos.length}</b><br>`+
+     `💰 Sem impostos: <b>${money(tsi)}</b><br>`+
+     `🧾 Valor líquido: <b>${money(tliq)}</b><br>`+
+     `<details style="margin-top:8px"><summary>Diagnóstico das colunas</summary>`+
+     diagnosticos.map(x=>`<div>${esc(x)}</div>`).join("")+
+     `</details></div>`;
+  }catch(err){
+   console.error(err);
+   alert("Erro ao importar o relatório: "+err.message);
+  }
+ };
+ r.readAsArrayBuffer(f);
+}
 function exportExcel(){let wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(db.clientes),"Clientes");XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(db.vendas),"Vendas");XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(db.pedidos),"Pedidos");XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(db.followups),"Follow-ups");XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(db.alertas),"Alertas");XLSX.writeFile(wb,"Gestor_Comercial_Completo.xlsx")}
 function backupDados(){let blob=new Blob([JSON.stringify({aplicativo:"Gestor Comercial",versao:5,criadoEm:new Date().toISOString(),dados:db},null,2)],{type:"application/json"}),a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=`Backup_Gestor_Comercial_${today()}.json`;a.click()}
 function restaurarBackup(e){let f=e.target.files[0];if(!f)return;if(!confirm("Substituir os dados atuais pelo backup?"))return;let r=new FileReader();r.onload=x=>{try{let p=JSON.parse(x.target.result),d=p.dados||p;db={clientes:d.clientes||[],pedidos:d.pedidos||[],vendas:d.vendas||[],followups:d.followups||[],alertas:d.alertas||[],metas:d.metas||{}};save();alert("Backup restaurado.")}catch{alert("Backup inválido.")}};r.readAsText(f)}

@@ -26,8 +26,6 @@
 .flow-badge{font-size:11px;color:#5b6475}
 
 .apuracao-kpis{grid-template-columns:repeat(4,1fr)!important}
-#apuracao .chart-card{min-height:430px}
-#chartMetas{max-height:350px}
 @media(max-width:1000px){.apuracao-kpis{grid-template-columns:1fr 1fr!important}}
 @media(max-width:650px){.apuracao-kpis{grid-template-columns:1fr!important}}
 

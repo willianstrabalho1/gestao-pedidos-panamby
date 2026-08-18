@@ -1,5 +1,5 @@
 console.info("Gestor Comercial Panamby GITHUB FINAL 2026.08.18");
-const KEY="gestor_comercial_v6_zerado";
+const KEY="gestor_comercial_v8_limpo_20260818";
 let db=JSON.parse(localStorage.getItem(KEY)||'{"clientes":[],"pedidos":[],"vendas":[],"followups":[],"alertas":[],"metas":{}}');
 if(!db.vendas)db.vendas=[];if(!db.pedidos)db.pedidos=[];if(!db.clientes)db.clientes=[];if(!db.followups)db.followups=[];if(!db.alertas)db.alertas=[];if(!db.orcamentos)db.orcamentos=[];if(!db.apuracaoMetas)db.apuracaoMetas=[];if(!db.apuracaoLinhas)db.apuracaoLinhas=[];
 const $=id=>document.getElementById(id),today=()=>new Date().toISOString().slice(0,10);
@@ -67,12 +67,19 @@ function reps(){return [...new Set([...db.clientes.map(x=>x.representante),...db
 function regionFromUF(uf){const m={SP:"Sudeste",RJ:"Sudeste",MG:"Sudeste",ES:"Sudeste",PR:"Sul",SC:"Sul",RS:"Sul",BA:"Nordeste",SE:"Nordeste",AL:"Nordeste",PE:"Nordeste",PB:"Nordeste",RN:"Nordeste",CE:"Nordeste",PI:"Nordeste",MA:"Nordeste",GO:"Centro-Oeste",MT:"Centro-Oeste",MS:"Centro-Oeste",DF:"Centro-Oeste",AM:"Norte",PA:"Norte",AC:"Norte",RO:"Norte",RR:"Norte",AP:"Norte",TO:"Norte"};return m[norm(uf)]||"Não informado"}
 function saleRegion(s){return regionFromUF(s.uf||getClient(s.clienteId)?.uf)}
 function combinedSales(){
- const fromOrders=db.pedidos.map(p=>({...p,origem:"Pedido importado",clienteId:p.clienteId||findClientByCode(p.codigoCliente)?.id||"",pedido:p.ordem}));
- const manual=db.vendas.map(v=>({...v,origem:"Venda manual"}));
- const map=new Map();
- fromOrders.forEach(x=>map.set("P-"+String(x.ordem||x.id),x));
- manual.forEach(x=>map.set("V-"+String(x.id),x));
- return [...map.values()]
+ // O Dashboard considera cada negócio uma única vez.
+ // 1) Pedidos importados/criados são a fonte principal.
+ const pedidos=db.pedidos.map(p=>({...p,origem:p.origem||"Pedido",clienteId:p.clienteId||findClientByCode(p.codigoCliente)?.id||"",pedido:p.ordem}));
+
+ // 2) Vendas manuais só entram se NÃO estiverem ligadas a um pedido já existente.
+ const ordens=new Set(pedidos.map(p=>String(p.ordem||"").trim()).filter(Boolean));
+ const vendasAvulsas=db.vendas.filter(v=>{
+   if(v.pedidoId) return false;
+   const ordem=String(v.ordem||v.pedido||"").trim();
+   return !ordem || !ordens.has(ordem);
+ }).map(v=>({...v,origem:v.origem||"Venda manual"}));
+
+ return [...pedidos,...vendasAvulsas]
 }
 document.querySelectorAll(".nav").forEach(b=>b.onclick=()=>{document.querySelectorAll(".nav,.tab").forEach(x=>x.classList.remove("active"));b.classList.add("active");const tab=$(b.dataset.tab);if(tab)tab.classList.add("active");setText("title",b.textContent.replace(/^[^\s]+\s/,""))});
 setText("date",new Date().toLocaleDateString("pt-BR",{weekday:"long",day:"2-digit",month:"long",year:"numeric"}));
@@ -305,13 +312,6 @@ function renderApuracao(){
    <td>${x.pct.toFixed(1)}%</td><td>${esc(x.supervisor||"—")}</td></tr>`).join("")||'<tr><td colspan="8">Importe a planilha de Apuração das Metas.</td></tr>';
 
  let rank=resumo.map(x=>{let m=Number(x.meta||0),v=Number(x.vrAtingido||0);return {...x,pct:m?v/m*100:0}}).sort((a,b)=>b.pct-a.pct);
- setHTML("rankingMetas",rank.slice(0,10).map((x,i)=>`<div class="rankline"><div><b>${i+1}. ${esc(x.representante||"—")}</b><div class="muted">${esc(x.supervisor||"")}</div></div><div style="text-align:right"><b>${x.pct.toFixed(1)}%</b><div class="muted">${money(x.vrAtingido)}</div></div></div>`).join("")||'<p class="muted">Sem dados.</p>');
-
- if(typeof Chart!=="undefined"&&$("chartMetas")){
-   if(charts["chartMetas"])charts["chartMetas"].destroy();
-   let top=rank.slice(0,15);
-   charts["chartMetas"]=new Chart($("chartMetas"),{type:"bar",data:{labels:top.map(x=>x.representante||"—"),datasets:[{label:"% da meta",data:top.map(x=>Number(x.pct.toFixed(2))),borderWidth:1}]},options:{responsive:true,maintainAspectRatio:false,indexAxis:"y",plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>Number(c.raw).toFixed(1)+"%"}}},scales:{x:{beginAtZero:true,suggestedMax:100,ticks:{callback:v=>v+"%"}}}}})
- }
 }
 function refreshSupervisorFilter(){
  let el=$("filtroSupervisor");if(!el)return;let cur=el.value,sups=[...new Set(db.apuracaoMetas.map(x=>x.supervisor).filter(Boolean))].sort();el.innerHTML='<option value="">Todos os supervisores</option>'+sups.map(x=>`<option>${esc(x)}</option>`).join("");el.value=cur
@@ -498,20 +498,12 @@ function importPedidos(){
 function exportExcel(){let wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(db.clientes),"Clientes");XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(db.vendas),"Vendas");XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(db.pedidos),"Pedidos");XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(db.orcamentos.map(o=>({...o,itens:JSON.stringify(o.itens)}))),"Orçamentos");XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(db.apuracaoLinhas||[]),"Apuração Metas");XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(db.followups),"Follow-ups");XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(db.alertas),"Alertas");XLSX.writeFile(wb,"Gestor_Comercial_Completo.xlsx")}
 
 function limparTudo(){
- if(!confirm("ATENÇÃO: isso apagará todos os dados salvos neste navegador para esta versão. Deseja continuar?")) return;
- db={
-   clientes:[],
-   pedidos:[],
-   vendas:[],
-   orcamentos:[],
-   followups:[],
-   alertas:[],
-   apuracaoLinhas:[],
-   apuracaoMetas:[]
- };
+ if(!confirm("Isso vai apagar TODOS os dados desta versão neste navegador. Deseja continuar?"))return;
+ localStorage.removeItem(KEY);
+ db={clientes:[],pedidos:[],vendas:[],orcamentos:[],followups:[],alertas:[],apuracaoLinhas:[],apuracaoMetas:[]};
  localStorage.setItem(KEY,JSON.stringify(db));
  render();
- alert("Todos os dados desta versão foram apagados.");
+ alert("Sistema zerado. Agora só aparecerão dados depois da importação/cadastro.");
 }
 
 function backupDados(){let blob=new Blob([JSON.stringify({aplicativo:"Gestor Comercial",versao:5,criadoEm:new Date().toISOString(),dados:db},null,2)],{type:"application/json"}),a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=`Backup_Gestor_Comercial_${today()}.json`;a.click()}

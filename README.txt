@@ -1,88 +1,28 @@
-GESTOR COMERCIAL PANAMBY — VERSÃO DOIS VALORES
+GESTOR COMERCIAL PANAMBY — VERSÃO FINAL CONSOLIDADA
 
-IMPORTAÇÃO DO RELATÓRIO DIGITAÇÃO DE ORDENS
-O sistema agora lê separadamente:
-- Vr Total (s/impostos)
-- Vr Total (Líquido)
+RECURSOS
+- Dashboard com filtros por mês, representante, região e métrica.
+- Dois valores separados: Vr Total (s/impostos) e Vr Total (Líquido).
+- Gráficos de evolução, região, representante e participação.
+- Clientes com pesquisa por código.
+- WhatsApp direto.
+- Follow-ups e alertas.
+- Vendas manuais.
+- Pedidos importados do relatório de Digitação de Ordens.
+- Orçamentos com itens, desconto, validade, impressão e WhatsApp.
+- Fluxo Orçamento -> Pedido -> Venda.
+- Apuração de Metas vinculada à planilha.
+- Tabela detalhada, percentual por representante, ranking, gráfico e KPIs.
+- Backup completo, restauração e exportação para Excel.
 
-DASHBOARD
-- Mostra os dois totais simultaneamente
-- Filtros por mês, representante e região
-- Parâmetro dos gráficos: Sem impostos ou Valor líquido
-- Evolução diária
-- Vendas por região
-- Vendas por representante
-- Participação por região
-- Ranking de clientes
-- Metas por representante (base: valor sem impostos)
+APURAÇÃO
+A tabela preserva as linhas da planilha.
+Os KPIs agrupam representantes para evitar somar Meta e Vr Atingido repetidos.
 
-PEDIDOS
-- Mostra valor sem impostos e valor líquido lado a lado.
+DADOS
+Mantida a chave localStorage gestor_comercial_v4 para preservar os dados já existentes
+no mesmo navegador e no mesmo endereço do GitHub Pages.
 
-IMPORTANTE
-A chave localStorage permanece gestor_comercial_v4 para preservar os dados
-da versão anterior no mesmo navegador e no mesmo endereço do GitHub Pages.
-Faça backup antes de substituir os arquivos.
-
-
-CORREÇÃO: importador robusto para cabeçalhos com acentos, espaços e parênteses diferentes, com diagnóstico de colunas e totais após importar.
-
-
-CORREÇÃO V2: corrigido campo ausente dashValor/kLiquido que causava erro 'Cannot read properties of null (reading value)'.
-
-
-NOVOS MÓDULOS
-1) APURAÇÃO DE METAS
-- Importa o relatório 3.2.5 - Apuração das metas de vendas.
-- Tabela: Atingido, Representante, Razão Social, Meta, Vr Atingido, Falta, % e Supervisor.
-- Filtros por texto, supervisor e meta atingida.
-- KPIs de meta total, valor atingido e quanto falta.
-
-2) ORÇAMENTOS
-- Cliente selecionado pelo código.
-- Representante preenchido automaticamente.
-- Vários itens com quantidade e preço unitário.
-- Desconto e cálculo automático do total.
-- Validade e observações.
-- Aprovar, recusar, imprimir e enviar via WhatsApp.
-- Botão VIRAR PEDIDO transforma o orçamento em pedido e preserva o vínculo.
-- O pedido criado entra automaticamente na área Pedidos e no Dashboard.
-
-A chave localStorage continua gestor_comercial_v4 para preservar os dados existentes.
-
-CORREÇÃO APURAÇÃO DE METAS
-- Linhas repetidas do mesmo representante não são mais somadas.
-- Agrupamento por representante.
-- Meta e Vr Atingido são considerados uma única vez por representante.
-- A importação informa: linhas lidas, representantes únicos, Meta total,
-  Valor atingido e quanto falta.
-
-CORREÇÃO COLUNAS: leitura por posição da linha real de cabeçalho; tabela preserva todas as linhas originais e KPIs agrupam representantes.
-
-METAS VINCULADAS À PLANILHA
-- O botão 🎯 Metas não usa mais preenchimento manual.
-- A área é alimentada automaticamente ao importar Apuração das metas de vendas.
-- Mostra por representante: Razão Social, Supervisor, Meta, Vr Atingido, Falta, % e Status.
-- Barras de progresso por representante.
-- Ranking de desempenho.
-- Gráfico horizontal com percentual atingido.
-- Filtros por representante/supervisor/status.
-- KPIs de Meta total, Atingido, Falta e quantidade de representantes que bateram a meta.
-
-ATUALIZAÇÃO FLUXO COMERCIAL
-- Removido botão 🎯 Metas do menu.
-- A Apuração de Metas continua vinculada à planilha.
-- Fluxo: Orçamento → Pedido → Venda.
-- Orçamento convertido preserva o número/origem no pedido.
-- Pedido possui ação Confirmar venda.
-- Confirmar venda cria automaticamente o registro em Vendas.
-- Cliente, representante, cidade, UF, valores, itens e vínculos são preservados.
-- Pedido passa para Venda confirmada.
-- Orçamento original passa para Venda concluída.
-- Venda guarda a origem: Orçamento → Pedido.
-
-CORREÇÃO V2
-- Corrigido erro Cannot set properties of null (setting 'innerHTML').
-- Importação de Apuração agora usa elementos protegidos.
-- Área removida de Metas não interfere mais na importação.
-- Apuração continua funcionando mesmo se algum campo visual opcional não existir.
+ANTES DE ATUALIZAR
+Faça um backup pelo aplicativo.
+Depois substitua index.html, app.js, style.css e README.txt no GitHub.

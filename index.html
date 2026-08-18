@@ -175,10 +175,15 @@
       <option value="Não">Meta não atingida</option>
     </select>
   </div>
-  <div class="kpis smallkpis">
+  <div class="kpis smallkpis apuracao-kpis">
     <div class="card kpi"><small>Meta total</small><strong id="aMetaTotal">R$ 0,00</strong></div>
     <div class="card kpi"><small>Valor atingido</small><strong id="aAtingidoTotal">R$ 0,00</strong></div>
     <div class="card kpi"><small>Falta para meta</small><strong id="aFaltaTotal">R$ 0,00</strong></div>
+    <div class="card kpi"><small>Representantes na meta</small><strong id="aQtdMeta">0</strong><span id="aPctMeta">0%</span></div>
+  </div>
+  <div class="grid2">
+    <div class="card chart-card"><h3>📊 Percentual por representante</h3><canvas id="chartMetas"></canvas></div>
+    <div class="card"><h3>🏆 Ranking de desempenho</h3><div id="rankingMetas"></div></div>
   </div>
   <div class="card table-card">
     <div class="table-scroll">
@@ -210,7 +215,7 @@
   </div>
   <div class="card intro">
     <h3>📋 Importar Apuração das Metas</h3>
-    <p class="muted">Importa: Atingido, Representante, Razão Social, Meta, Vr Atingido e Nome do Supervisor.</p>
+    <p class="muted">Atualiza automaticamente a tabela, percentuais, ranking, gráfico e indicadores da Apuração de Metas.</p>
     <input type="file" id="apuracaoFile" accept=".xls,.xlsx">
     <button class="primary" onclick="importApuracao()">Importar apuração</button>
     <p id="apuracaoMsg"></p>

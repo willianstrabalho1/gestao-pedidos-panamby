@@ -1,6 +1,6 @@
 const KEY="gestor_comercial_v4";
 let db=JSON.parse(localStorage.getItem(KEY)||'{"clientes":[],"pedidos":[],"vendas":[],"followups":[],"alertas":[],"metas":{}}');
-if(!db.vendas)db.vendas=[]; if(!db.orcamentos)db.orcamentos=[]; if(!db.apuracaoMetas)db.apuracaoMetas=[]; if(!db.apuracaoLinhas)db.apuracaoLinhas=[];
+if(!db.vendas)db.vendas=[];if(!db.pedidos)db.pedidos=[];if(!db.clientes)db.clientes=[];if(!db.followups)db.followups=[];if(!db.alertas)db.alertas=[];if(!db.orcamentos)db.orcamentos=[];if(!db.apuracaoMetas)db.apuracaoMetas=[];if(!db.apuracaoLinhas)db.apuracaoLinhas=[];
 const $=id=>document.getElementById(id),today=()=>new Date().toISOString().slice(0,10);
 const norm=v=>String(v??"").trim().toUpperCase();
 function normHeader(v){
@@ -107,12 +107,11 @@ function renderDashboard(){
  setChart("chartRep","bar",rps.slice(0,12).map(x=>x[0]),rps.slice(0,12).map(x=>x[1]),label);
  setChart("chartPizza","pie",regs.map(x=>x[0]),regs.map(x=>x[1]),label);
  $("topClientes").innerHTML=cls.slice(0,10).map((x,i)=>`<div class="rankline"><span>${i+1}. ${esc(x[0])}</span><b>${money(x[1])}</b></div>`).join("")||'<p class="muted">Sem vendas no período.</p>';
- let month=$("dashMes").value;
- $("repRanking").innerHTML=reps().map(rep=>{
-   let sold=combinedSales().filter(s=>(s.data||"").slice(0,7)===month&&norm(s.representante)===norm(rep)&&norm(s.status)!=="CANCELADO").reduce((a,b)=>a+metricValue(b,"semImpostos"),0),
-   goal=Number(db.metas[rep]||0),pct=goal?Math.min(sold/goal*100,100):0,left=Math.max(goal-sold,0);
-   return `<div class="barrow"><div class="barlabel"><b>${esc(rep)}</b><span>${goal?pct.toFixed(1)+"%":"Sem meta"}</span></div><div class="muted">Vendido ${money(sold)} • Falta ${goal?money(left):"—"}</div>${goal?`<div class="bartrack"><div class="barfill" style="width:${pct}%"></div></div>`:""}</div>`
- }).join("")||'<p class="muted">Sem representantes.</p>';
+ let metasDash=(db.apuracaoMetas||[]).map(x=>{
+   let meta=Number(x.meta||0), ating=Number(x.vrAtingido||0), pct=meta?ating/meta*100:0;
+   return {...x,pct,falta:Math.max(meta-ating,0)}
+ }).sort((a,b)=>b.pct-a.pct);
+ $("repRanking").innerHTML=metasDash.slice(0,10).map(x=>`<div class="barrow"><div class="barlabel"><b>${esc(x.representante||"—")}</b><span>${x.pct.toFixed(1)}%</span></div><div class="muted">Meta ${money(x.meta)} • Atingido ${money(x.vrAtingido)} • Falta ${money(x.falta)}</div><div class="bartrack"><div class="barfill" style="width:${Math.min(x.pct,100)}%"></div></div></div>`).join("")||'<p class="muted">Importe a Apuração das Metas.</p>';
  let aa=db.alertas.filter(a=>!a.done&&a.data<=today()).sort((a,b)=>a.data.localeCompare(b.data)).slice(0,6);
  $("painelAlertas").innerHTML=aa.length?aa.map(alertHtml).join(""):'<p class="muted">Nenhum alerta.</p>';
  let ff=db.followups.filter(f=>!f.done).sort((a,b)=>a.data.localeCompare(b.data)).slice(0,6);
@@ -267,17 +266,33 @@ function whatsOrcamento(id){
 
 function renderApuracao(){
  let q=norm($("buscaApuracao")?.value),sup=$("filtroSupervisor")?.value||"",at=$("filtroAtingido")?.value||"";
- // A tabela usa as LINHAS ORIGINAIS da planilha para não perder nenhuma coluna.
  let fonte=(db.apuracaoLinhas&&db.apuracaoLinhas.length)?db.apuracaoLinhas:db.apuracaoMetas;
- let arr=fonte.filter(x=>(!q||norm([x.representante,x.razaoSocial,x.supervisor].join(" ")).includes(q))&&(!sup||x.supervisor===sup)&&(!at||x.atingido===at));
- // KPIs usam representantes agrupados para não duplicar meta.
+ let arr=fonte.map(x=>{
+   let meta=Number(x.meta||0),vr=Number(x.vrAtingido||0);
+   return {...x,pct:meta?vr/meta*100:0,falta:Math.max(meta-vr,0)}
+ }).filter(x=>(!q||norm([x.representante,x.razaoSocial,x.supervisor].join(" ")).includes(q))&&(!sup||x.supervisor===sup)&&(!at||x.atingido===at));
+
  let resumo=db.apuracaoMetas||[];
  let meta=resumo.reduce((s,x)=>s+Number(x.meta||0),0),ating=resumo.reduce((s,x)=>s+Number(x.vrAtingido||0),0);
+ let qtd=resumo.filter(x=>Number(x.meta||0)>0&&Number(x.vrAtingido||0)>=Number(x.meta||0)).length;
+ let pctEquipe=resumo.length?qtd/resumo.length*100:0;
  setText("aMetaTotal",money(meta));setText("aAtingidoTotal",money(ating));setText("aFaltaTotal",money(Math.max(meta-ating,0)));
- if($("apuracaoBody")) $("apuracaoBody").innerHTML=arr.map(x=>{
-   let falta=Math.max(Number(x.meta||0)-Number(x.vrAtingido||0),0),pct=Number(x.meta)?Number(x.vrAtingido)/Number(x.meta)*100:0;
-   return `<tr><td class="${x.atingido==="Sim"?"status-ok":"status-no"}">${esc(x.atingido)}</td><td>${esc(x.representante)}</td><td>${esc(x.razaoSocial)}</td><td>${money(x.meta)}</td><td>${money(x.vrAtingido)}</td><td>${money(falta)}</td><td>${pct.toFixed(1)}%</td><td>${esc(x.supervisor)}</td></tr>`
- }).join("")||'<tr><td colspan="8">Nenhum dado importado.</td></tr>'
+ setText("aQtdMeta",qtd);setText("aPctMeta",pctEquipe.toFixed(1)+"% da equipe");
+
+ if($("apuracaoBody")) $("apuracaoBody").innerHTML=arr.map(x=>`<tr>
+   <td class="${x.atingido==="Sim"?"status-ok":"status-no"}">${esc(x.atingido)}</td>
+   <td><b>${esc(x.representante||"—")}</b></td><td>${esc(x.razaoSocial||"—")}</td>
+   <td>${money(x.meta)}</td><td>${money(x.vrAtingido)}</td><td>${money(x.falta)}</td>
+   <td>${x.pct.toFixed(1)}%</td><td>${esc(x.supervisor||"—")}</td></tr>`).join("")||'<tr><td colspan="8">Importe a planilha de Apuração das Metas.</td></tr>';
+
+ let rank=resumo.map(x=>{let m=Number(x.meta||0),v=Number(x.vrAtingido||0);return {...x,pct:m?v/m*100:0}}).sort((a,b)=>b.pct-a.pct);
+ setHTML("rankingMetas",rank.slice(0,10).map((x,i)=>`<div class="rankline"><div><b>${i+1}. ${esc(x.representante||"—")}</b><div class="muted">${esc(x.supervisor||"")}</div></div><div style="text-align:right"><b>${x.pct.toFixed(1)}%</b><div class="muted">${money(x.vrAtingido)}</div></div></div>`).join("")||'<p class="muted">Sem dados.</p>');
+
+ if(typeof Chart!=="undefined"&&$("chartMetas")){
+   if(charts["chartMetas"])charts["chartMetas"].destroy();
+   let top=rank.slice(0,15);
+   charts["chartMetas"]=new Chart($("chartMetas"),{type:"bar",data:{labels:top.map(x=>x.representante||"—"),datasets:[{label:"% da meta",data:top.map(x=>Number(x.pct.toFixed(2))),borderWidth:1}]},options:{responsive:true,maintainAspectRatio:false,indexAxis:"y",plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>Number(c.raw).toFixed(1)+"%"}}},scales:{x:{beginAtZero:true,suggestedMax:100,ticks:{callback:v=>v+"%"}}}}})
+ }
 }
 function refreshSupervisorFilter(){
  let el=$("filtroSupervisor");if(!el)return;let cur=el.value,sups=[...new Set(db.apuracaoMetas.map(x=>x.supervisor).filter(Boolean))].sort();el.innerHTML='<option value="">Todos os supervisores</option>'+sups.map(x=>`<option>${esc(x)}</option>`).join("");el.value=cur
@@ -332,7 +347,7 @@ function importApuracao(){
    localStorage.setItem(KEY,JSON.stringify(db));
    render();
    let mt=db.apuracaoMetas.reduce((s,x)=>s+Number(x.meta||0),0),va=db.apuracaoMetas.reduce((s,x)=>s+Number(x.vrAtingido||0),0);
-   setHTML("apuracaoMsg", `✅ <b>${linhas.length}</b> linhas da tabela importadas • <b>${db.apuracaoMetas.length}</b> representantes únicos • 🎯 Área Metas atualizada<br>🎯 Meta: <b>${money(mt)}</b> • 💰 Atingido: <b>${money(va)}</b><details><summary>Ver colunas reconhecidas</summary>${diagnostico.map(x=>`<div>${esc(x)}</div>`).join("")}</details>`);
+   setHTML("apuracaoMsg", `✅ <b>${linhas.length}</b> linhas da tabela importadas • <b>${db.apuracaoMetas.length}</b> representantes únicos • 📋 Apuração atualizada<br>🎯 Meta: <b>${money(mt)}</b> • 💰 Atingido: <b>${money(va)}</b><details><summary>Ver colunas reconhecidas</summary>${diagnostico.map(x=>`<div>${esc(x)}</div>`).join("")}</details>`);
   }catch(err){console.error(err);console.error("Erro importando apuração:",err); alert("Erro ao importar apuração: "+err.message)}
  };
  r.readAsArrayBuffer(f);
@@ -349,98 +364,7 @@ function saveVenda(){
  db.vendas.push({id:uid(),clienteId:c.id,codigoCliente:c.codigo,cliente:c.razao,representante:$("vRepresentante").value||c.representante||"",data:$("vData").value,pedido:$("vPedido").value.trim(),valor:Number($("vValor").value),status:$("vStatus").value,obs:$("vObs").value.trim(),cidade:c.cidade,uf:c.uf});closeModal("vendaModal");save()
 }
 function deleteVenda(id){if(confirm("Excluir esta venda?")){db.vendas=db.vendas.filter(v=>v.id!==id);save()}}
-function saveMeta(){let rep=$("metaRep").value;if(!rep)return alert("Selecione um representante.");db.metas[rep]=Number($("metaValor").value||0);save()}
-function renderMetas(){
- let dados=(db.apuracaoMetas||[]);
- let q=norm($("buscaMetas")?.value),sup=$("metasSupervisor")?.value||"",st=$("metasStatus")?.value||"";
 
- // Atualiza filtro de supervisor da área Metas
- let supEl=$("metasSupervisor");
- if(supEl){
-   let atual=supEl.value;
-   let sups=[...new Set(dados.map(x=>x.supervisor).filter(Boolean))].sort();
-   supEl.innerHTML='<option value="">Todos os supervisores</option>'+sups.map(s=>`<option>${esc(s)}</option>`).join("");
-   supEl.value=atual;
- }
-
- let filtrados=dados.map(x=>{
-   let meta=Number(x.meta||0),ating=Number(x.vrAtingido||0);
-   let pct=meta>0?(ating/meta*100):0;
-   let falta=Math.max(meta-ating,0);
-   return {...x,pct,falta};
- }).filter(x=>{
-   let okBusca=!q||norm([x.representante,x.razaoSocial,x.supervisor].join(" ")).includes(q);
-   let okSup=!sup||x.supervisor===sup;
-   let okStatus=!st ||
-     (st==="atingida" && x.pct>=100) ||
-     (st==="nao" && x.pct<100) ||
-     (st==="proximo" && x.pct>=80);
-   return okBusca&&okSup&&okStatus;
- }).sort((a,b)=>b.pct-a.pct);
-
- let metaTotal=dados.reduce((s,x)=>s+Number(x.meta||0),0);
- let atingTotal=dados.reduce((s,x)=>s+Number(x.vrAtingido||0),0);
- let faltaTotal=Math.max(metaTotal-atingTotal,0);
- let qtdAtingiram=dados.filter(x=>Number(x.meta||0)>0&&Number(x.vrAtingido||0)>=Number(x.meta||0)).length;
- let pctEquipe=dados.length?qtdAtingiram/dados.length*100:0;
-
- if($("mMetaTotal"))$("mMetaTotal").textContent=money(metaTotal);
- if($("mAtingidoTotal"))$("mAtingidoTotal").textContent=money(atingTotal);
- if($("mFaltaTotal"))$("mFaltaTotal").textContent=money(faltaTotal);
- if($("mQtdAtingiram"))$("mQtdAtingiram").textContent=qtdAtingiram;
- if($("mPctAtingiram"))$("mPctAtingiram").textContent=`${pctEquipe.toFixed(1)}% da equipe`;
- if($("metasAtualizacao"))$("metasAtualizacao").textContent=dados.length?`${dados.length} representantes importados`:"Aguardando importação";
-
- // Tabela detalhada
- if($("metasBody")){
-   $("metasBody").innerHTML=filtrados.map((x,i)=>{
-     let status=x.pct>=100?"Atingida":x.pct>=80?"Próxima":"Abaixo";
-     let cls=x.pct>=100?"status-ok":x.pct>=80?"status-near":"status-no";
-     return `<tr>
-       <td>${i+1}</td>
-       <td><b>${esc(x.representante||"—")}</b></td>
-       <td>${esc(x.razaoSocial||"—")}</td>
-       <td>${esc(x.supervisor||"—")}</td>
-       <td>${money(x.meta)}</td>
-       <td>${money(x.vrAtingido)}</td>
-       <td>${money(x.falta)}</td>
-       <td>
-         <div class="pct-cell"><b>${x.pct.toFixed(1)}%</b>
-           <div class="mini-track"><div class="mini-fill ${cls}" style="width:${Math.min(x.pct,100)}%"></div></div>
-         </div>
-       </td>
-       <td><span class="status-pill ${cls}">${status}</span></td>
-     </tr>`
-   }).join("") || '<tr><td colspan="9">Importe a planilha de Apuração das Metas para preencher esta área.</td></tr>';
- }
-
- // Ranking
- if($("rankingMetas")){
-   $("rankingMetas").innerHTML=filtrados.slice(0,10).map((x,i)=>`
-     <div class="rankline">
-       <div><b>${i+1}. ${esc(x.representante||"—")}</b><div class="muted">${esc(x.supervisor||"")}</div></div>
-       <div style="text-align:right"><b>${x.pct.toFixed(1)}%</b><div class="muted">${money(x.vrAtingido)}</div></div>
-     </div>`).join("") || '<p class="muted">Sem dados de metas.</p>';
- }
-
- // Gráfico percentual por representante
- if(typeof Chart!=="undefined" && $("chartMetasRep")){
-   if(charts["chartMetasRep"])charts["chartMetasRep"].destroy();
-   let top=filtrados.slice(0,15);
-   charts["chartMetasRep"]=new Chart($("chartMetasRep"),{
-     type:"bar",
-     data:{
-       labels:top.map(x=>x.representante||"—"),
-       datasets:[{label:"% da meta",data:top.map(x=>Number(x.pct.toFixed(2))),borderWidth:1}]
-     },
-     options:{
-       responsive:true,maintainAspectRatio:false,indexAxis:"y",
-       plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`${c.raw.toFixed(1)}%`}}},
-       scales:{x:{beginAtZero:true,suggestedMax:100,ticks:{callback:v=>v+"%"}}}
-     }
-   });
- }
-}
 function openFollow(id){fillSelectors();if(id)$("fCliente").value=id;$("fData").value=today();$("fTexto").value="";$("followModal").classList.add("open")}
 function saveFollow(){if(!$("fCliente").value||!$("fData").value||!$("fTexto").value.trim())return alert("Preencha todos os campos.");db.followups.push({id:uid(),clienteId:$("fCliente").value,data:$("fData").value,texto:$("fTexto").value.trim(),done:false});closeModal("followModal");save()}
 function followHtml(f){let c=getClient(f.clienteId);return `<div class="rowitem ${f.done?"done":""}"><b>${esc(c?.codigo||"")} ${esc(c?.razao||"Cliente")}</b><div class="muted">${brdate(f.data)} • ${esc(f.texto)}</div><button onclick="toggleFollow('${f.id}')">${f.done?"Reabrir":"Concluir"}</button></div>`}
@@ -569,7 +493,7 @@ function importPedidos(){
  };
  r.readAsArrayBuffer(f);
 }
-function exportExcel(){let wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(db.clientes),"Clientes");XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(db.vendas),"Vendas");XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(db.pedidos),"Pedidos");XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(db.orcamentos.map(o=>({...o,itens:JSON.stringify(o.itens)}))),"Orçamentos");XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(db.apuracaoMetas),"Apuração Metas");XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(db.followups),"Follow-ups");XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(db.alertas),"Alertas");XLSX.writeFile(wb,"Gestor_Comercial_Completo.xlsx")}
+function exportExcel(){let wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(db.clientes),"Clientes");XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(db.vendas),"Vendas");XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(db.pedidos),"Pedidos");XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(db.orcamentos.map(o=>({...o,itens:JSON.stringify(o.itens)}))),"Orçamentos");XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(db.apuracaoLinhas||[]),"Apuração Metas");XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(db.followups),"Follow-ups");XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(db.alertas),"Alertas");XLSX.writeFile(wb,"Gestor_Comercial_Completo.xlsx")}
 function backupDados(){let blob=new Blob([JSON.stringify({aplicativo:"Gestor Comercial",versao:5,criadoEm:new Date().toISOString(),dados:db},null,2)],{type:"application/json"}),a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=`Backup_Gestor_Comercial_${today()}.json`;a.click()}
 function restaurarBackup(e){let f=e.target.files[0];if(!f)return;if(!confirm("Substituir os dados atuais pelo backup?"))return;let r=new FileReader();r.onload=x=>{try{let p=JSON.parse(x.target.result),d=p.dados||p;db={clientes:d.clientes||[],pedidos:d.pedidos||[],vendas:d.vendas||[],orcamentos:d.orcamentos||[],apuracaoMetas:d.apuracaoMetas||[],apuracaoLinhas:d.apuracaoLinhas||[],followups:d.followups||[],alertas:d.alertas||[],metas:d.metas||{}};save();alert("Backup restaurado.")}catch{alert("Backup inválido.")}};r.readAsText(f)}
 function render(){fillSelectors();refreshSupervisorFilter();renderClientes();renderVendas();renderPedidos();renderOrcamentos();renderFollow();renderAlerts();try{renderApuracao()}catch(e){console.warn("renderApuracao:",e)}renderDashboard();checkNotifications()}

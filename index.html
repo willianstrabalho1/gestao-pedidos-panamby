@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Gestor Comercial Panamby</title>
 <link rel="stylesheet" href="style.css">
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
@@ -12,8 +12,8 @@
 <div class="app">
 <aside>
   <h1>📈 Gestor Comercial</h1>
-  <p>Organização comercial</p>
-  <button class="nav active" data-tab="dashboard">📊 Dashboard</button>
+  <p>Clientes • Vendas • Pedidos • Metas</p>
+  <button class="nav active" data-tab="painel">📊 Dashboard</button>
   <button class="nav" data-tab="clientes">👥 Clientes</button>
   <button class="nav" data-tab="vendas">💰 Vendas</button>
   <button class="nav" data-tab="pedidos">🧾 Pedidos</button>
@@ -26,98 +26,297 @@
 
 <main>
 <header>
-  <div><h2 id="pageTitle">Dashboard</h2><small id="todayText"></small></div>
+  <div><h2 id="title">Dashboard</h2><small id="date"></small></div>
   <button id="notifyBtn" class="primary" onclick="enableNotifications()">🔔 Ativar notificações</button>
 </header>
 
-<section id="dashboard" class="tab active">
-  <div class="filters card">
-    <label>Mês<input type="month" id="dashMes"></label>
-    <label>Representante<select id="dashRep"><option value="">Todos</option></select></label>
-    <label>Região<select id="dashRegiao"><option value="">Todas</option><option>Sudeste</option><option>Sul</option><option>Nordeste</option><option>Centro-Oeste</option><option>Norte</option></select></label>
-    <label>Valor<select id="dashMetric"><option value="sem">Sem impostos</option><option value="liq">Valor líquido</option></select></label>
+<section id="painel" class="tab active">
+  <div class="card dashboard-filter">
+    <div>
+      <label>Mês</label>
+      <input type="month" id="dashMes">
+    </div>
+    <div>
+      <label>Representante</label>
+      <select id="dashRep"><option value="">Todos</option></select>
+    </div>
+    <div>
+      <label>Região</label>
+      <select id="dashRegiao">
+        <option value="">Todas</option><option>Sudeste</option><option>Sul</option>
+        <option>Nordeste</option><option>Centro-Oeste</option><option>Norte</option>
+      </select>
+    </div>
+    <div>
+          <label>Valor dos gráficos</label>
+          <select id="dashValor">
+            <option value="semImpostos">Sem impostos</option>
+            <option value="liquido">Valor líquido</option>
+          </select>
+        </div>
+        <button class="primary" onclick="renderDashboard()">Atualizar dashboard</button>
   </div>
 
   <div class="kpis">
-    <div class="card kpi"><small>Vendas sem impostos</small><strong id="kSem">R$ 0,00</strong></div>
-    <div class="card kpi"><small>Valor líquido</small><strong id="kLiq">R$ 0,00</strong></div>
-    <div class="card kpi"><small>Pedidos/Vendas</small><strong id="kQtd">0</strong></div>
-    <div class="card kpi"><small>Ticket médio</small><strong id="kTicket">R$ 0,00</strong></div>
-  </div>
-  <div class="kpis">
-    <div class="card kpi"><small>Região líder</small><strong id="kRegiao">—</strong></div>
-    <div class="card kpi"><small>Representante líder</small><strong id="kRep">—</strong></div>
-    <div class="card kpi"><small>Alertas pendentes</small><strong id="kAlertas">0</strong></div>
-    <div class="card kpi"><small>Follow-ups pendentes</small><strong id="kFollow">0</strong></div>
+    <div class="card kpi"><small>💰 Vendas sem impostos</small><strong id="kVendas">R$ 0,00</strong><span>Vr Total (s/impostos)</span></div>
+        <div class="card kpi"><small>🧾 Valor líquido</small><strong id="kLiquido">R$ 0,00</strong><span>Vr Total (Líquido)</span></div>
+    <div class="card kpi"><small>Pedidos/Vendas</small><strong id="kPedidos">0</strong><span id="kPedidosSub">registros</span></div>
+    <div class="card kpi"><small>Ticket médio</small><strong id="kTicket">R$ 0,00</strong><span>valor médio</span></div>
+    <div class="card kpi"><small>Região líder</small><strong id="kRegiao">—</strong><span id="kRegiaoValor">R$ 0,00</span></div>
   </div>
 
-  <div class="chartgrid">
-    <div class="card chart"><h3>📅 Evolução diária</h3><canvas id="chDia"></canvas></div>
-    <div class="card chart"><h3>👔 Por representante</h3><canvas id="chRep"></canvas></div>
-    <div class="card chart"><h3>🗺️ Por região</h3><canvas id="chReg"></canvas></div>
-    <div class="card"><h3>🏆 Maiores clientes</h3><div id="topClientes"></div></div>
+  <div class="kpis second">
+    <div class="card kpi"><small>Representante líder</small><strong id="kRepLider">—</strong><span id="kRepValor">R$ 0,00</span></div>
+    <div class="card kpi"><small>Clientes compradores</small><strong id="kClientesCompradores">0</strong><span>clientes únicos</span></div>
+    <div class="card kpi"><small>Alertas pendentes</small><strong id="kAlertas">0</strong><span>hoje/atrasados</span></div>
+    <div class="card kpi"><small>Follow-ups pendentes</small><strong id="kFollowups">0</strong><span>acompanhamentos</span></div>
+  </div>
+
+  <div class="chart-grid">
+    <div class="card chart-card"><h3>📅 Evolução das vendas no mês</h3><canvas id="chartEvolucao"></canvas></div>
+    <div class="card chart-card"><h3>🗺️ Faturamento por região</h3><canvas id="chartRegiao"></canvas></div>
+    <div class="card chart-card"><h3>👔 Vendas por representante</h3><canvas id="chartRep"></canvas></div>
+    <div class="card chart-card"><h3>🥧 Participação por região</h3><canvas id="chartPizza"></canvas></div>
+  </div>
+
+  <div class="grid2">
+    <div class="card"><h3>🎯 Metas dos representantes</h3><div id="repRanking"></div></div>
+    <div class="card"><h3>🏆 Maiores clientes do período</h3><div id="topClientes"></div></div>
+  </div>
+
+  <div class="grid2">
+    <div class="card"><h3>🔔 Alertas importantes</h3><div id="painelAlertas"></div></div>
+    <div class="card"><h3>📞 Próximos follow-ups</h3><div id="painelFollow"></div></div>
   </div>
 </section>
 
 <section id="clientes" class="tab">
-  <div class="toolbar"><input id="qCliente" placeholder="Código, cliente, CNPJ, cidade, telefone..."><select id="diasCliente"><option value="">Todos</option><option value="30">+30 dias</option><option value="60">+60 dias</option><option value="90">+90 dias</option><option value="180">+180 dias</option></select></div>
+  <div class="toolbar">
+    <input id="buscaCliente" placeholder="Pesquisar por código, cliente, CNPJ, cidade, telefone ou responsável...">
+    <select id="filtroDias">
+      <option value="">Todos</option><option value="30">+30 dias sem comprar</option>
+      <option value="60">+60 dias</option><option value="90">+90 dias</option><option value="180">+180 dias</option>
+    </select>
+  </div>
   <div id="clientesList"></div>
 </section>
 
 <section id="vendas" class="tab">
-  <div class="toolbar"><button class="primary" onclick="openVenda()">+ Registrar venda</button><input id="qVenda" placeholder="Pedido, código, cliente, representante..."><input type="month" id="mesVenda"></div>
-  <div class="kpis small"><div class="card kpi"><small>Total sem impostos</small><strong id="vSem">R$ 0,00</strong></div><div class="card kpi"><small>Total líquido</small><strong id="vLiq">R$ 0,00</strong></div><div class="card kpi"><small>Quantidade</small><strong id="vQtd">0</strong></div></div>
+  <div class="toolbar">
+    <button class="primary" onclick="openVenda()">+ Registrar venda</button>
+    <input id="buscaVenda" placeholder="Pesquisar pedido, código, cliente ou representante...">
+    <input type="month" id="mesVenda">
+  </div>
+  <div class="kpis smallkpis">
+    <div class="card kpi"><small>Total</small><strong id="vTotal">R$ 0,00</strong></div>
+    <div class="card kpi"><small>Quantidade</small><strong id="vQtd">0</strong></div>
+    <div class="card kpi"><small>Ticket médio</small><strong id="vTicket">R$ 0,00</strong></div>
+  </div>
   <div id="vendasList"></div>
 </section>
 
 <section id="pedidos" class="tab">
-  <div class="toolbar"><input id="qPedido" placeholder="Ordem, código, cliente, representante..."><input type="month" id="mesPedido"><select id="repPedido"><option value="">Todos</option></select></div>
-  <div class="kpis small"><div class="card kpi"><small>Sem impostos</small><strong id="pSem">R$ 0,00</strong></div><div class="card kpi"><small>Líquido</small><strong id="pLiq">R$ 0,00</strong></div><div class="card kpi"><small>Pedidos</small><strong id="pQtd">0</strong></div></div>
+  <div class="toolbar">
+    <input id="buscaPedido" placeholder="Pesquisar por ordem, código, cliente ou representante...">
+    <input type="month" id="mesPedido">
+    <select id="repPedido"><option value="">Todos os representantes</option></select>
+  </div>
+  <div class="kpis smallkpis">
+    <div class="card kpi"><small>Total filtrado</small><strong id="pTotal">R$ 0,00</strong></div>
+    <div class="card kpi"><small>Pedidos filtrados</small><strong id="pQtd">0</strong></div>
+    <div class="card kpi"><small>Ticket médio</small><strong id="pTicket">R$ 0,00</strong></div>
+  </div>
   <div id="pedidosList"></div>
 </section>
 
+
 <section id="orcamentos" class="tab">
-  <div class="toolbar"><button class="primary" onclick="openOrcamento()">+ Novo orçamento</button><input id="qOrc" placeholder="Número, código, cliente..."><select id="statusOrc"><option value="">Todos</option><option>Em aberto</option><option>Aprovado</option><option>Virou pedido</option><option>Venda concluída</option><option>Recusado</option></select></div>
+  <div class="toolbar">
+    <button class="primary" onclick="openOrcamento()">+ Novo orçamento</button>
+    <input id="buscaOrcamento" placeholder="Pesquisar nº, código, cliente ou representante...">
+    <select id="statusOrcamento">
+      <option value="">Todos os status</option>
+      <option>Em aberto</option>
+      <option>Aprovado</option>
+      <option>Virou pedido</option>
+      <option>Recusado</option>
+      <option>Expirado</option>
+    </select>
+  </div>
+  <div class="kpis smallkpis">
+    <div class="card kpi"><small>Orçamentos</small><strong id="oQtd">0</strong></div>
+    <div class="card kpi"><small>Valor em aberto</small><strong id="oAberto">R$ 0,00</strong></div>
+    <div class="card kpi"><small>Convertidos em pedido</small><strong id="oConvertidos">0</strong></div>
+  </div>
   <div id="orcamentosList"></div>
 </section>
 
-<section id="followups" class="tab"><div class="toolbar"><button class="primary" onclick="openFollow()">+ Novo follow-up</button></div><div id="followList"></div></section>
-<section id="alertas" class="tab"><div id="alertList"></div></section>
+<section id="followups" class="tab">
+  <div class="toolbar"><button class="primary" onclick="openFollow()">+ Novo follow-up</button></div>
+  <div id="followList"></div>
+</section>
+
+<section id="alertas" class="tab">
+  <div class="card intro"><h3>🔔 Alertas de clientes</h3><p>Crie lembretes com data e prioridade. O sistema pode enviar notificação pelo Windows enquanto o navegador estiver aberto.</p></div>
+  <div id="alertList"></div>
+</section>
+
+
+
+
 
 <section id="apuracao" class="tab">
-  <div class="toolbar"><input id="qMeta" placeholder="Representante, razão social, supervisor..."><select id="supMeta"><option value="">Todos os supervisores</option></select><select id="statusMeta"><option value="">Todos</option><option value="sim">Meta atingida</option><option value="nao">Meta não atingida</option><option value="80">Acima de 80%</option></select></div>
-  <div class="kpis small"><div class="card kpi"><small>Meta total</small><strong id="mMeta">R$ 0,00</strong></div><div class="card kpi"><small>Vr Atingido</small><strong id="mAtingido">R$ 0,00</strong></div><div class="card kpi"><small>Falta</small><strong id="mFalta">R$ 0,00</strong></div></div>
-  <div class="grid3 meta-summary-grid">
-    <div class="card"><h3>🏆 Top 5 acima da meta</h3><div id="metaTop5"></div></div>
-    <div class="card"><h3>🎯 Mais próximos de 100%</h3><div id="metaProximos"></div></div>
-    <div class="card"><h3>⚠️ Mais distantes da meta</h3><div id="metaAbaixo"></div></div>
+  <div class="toolbar">
+    <input id="buscaApuracao" placeholder="Pesquisar representante, razão social ou supervisor...">
+    <select id="filtroSupervisor"><option value="">Todos os supervisores</option></select>
+    <select id="filtroAtingido">
+      <option value="">Todos</option>
+      <option value="Sim">Meta atingida</option>
+      <option value="Não">Meta não atingida</option>
+    </select>
   </div>
-  <div class="card chart compact-chart"><h3>📊 Top 10 por percentual</h3><canvas id="chMeta"></canvas></div>
-  <div class="card tablebox"><table><thead><tr><th>#</th><th>Atingido</th><th>Representante</th><th>Razão Social</th><th>Meta</th><th>Vr Atingido</th><th>Falta</th><th>%</th><th>Supervisor</th></tr></thead><tbody id="metaBody"></tbody></table></div>
+  <div class="kpis smallkpis apuracao-kpis">
+    <div class="card kpi"><small>Meta total</small><strong id="aMetaTotal">R$ 0,00</strong></div>
+    <div class="card kpi"><small>Valor atingido</small><strong id="aAtingidoTotal">R$ 0,00</strong></div>
+    <div class="card kpi"><small>Falta para meta</small><strong id="aFaltaTotal">R$ 0,00</strong></div>
+    <div class="card kpi"><small>Representantes na meta</small><strong id="aQtdMeta">0</strong><span id="aPctMeta">0%</span></div>
+  </div>
+  <div class="grid2">
+    <div class="card chart-card"><h3>📊 Percentual por representante</h3><canvas id="chartMetas"></canvas></div>
+    <div class="card"><h3>🏆 Ranking de desempenho</h3><div id="rankingMetas"></div></div>
+  </div>
+  <div class="card table-card">
+    <div class="table-scroll">
+      <table class="data-table">
+        <thead><tr>
+          <th>Atingido</th><th>Representante</th><th>Razão Social</th>
+          <th>Meta</th><th>Vr Atingido</th><th>Falta</th><th>%</th><th>Supervisor</th>
+        </tr></thead>
+        <tbody id="apuracaoBody"></tbody>
+      </table>
+    </div>
+  </div>
 </section>
 
 <section id="excel" class="tab">
   <div class="grid2">
-    <div class="card"><h3>👥 Importar clientes</h3><input type="file" id="fileClientes" accept=".xls,.xlsx"><button class="primary" onclick="importClientes()">Importar clientes</button><div id="msgClientes"></div></div>
-    <div class="card"><h3>🧾 Importar Digitação de Ordens</h3><input type="file" id="filePedidos" accept=".xls,.xlsx"><button class="primary" onclick="importPedidos()">Importar pedidos</button><div id="msgPedidos"></div></div>
-    <div class="card"><h3>📋 Importar Apuração das Metas</h3><input type="file" id="fileMetas" accept=".xls,.xlsx"><button class="primary" onclick="importMetas()">Importar metas</button><div id="msgMetas"></div></div>
-    <div class="card"><h3>💾 Backup</h3><button class="primary" onclick="backup()">Fazer backup</button><button onclick="document.getElementById('restore').click()">Restaurar backup</button><input id="restore" type="file" accept=".json" style="display:none" onchange="restoreBackup(event)"><button onclick="exportExcel()">Exportar Excel</button></div>
+    <div class="card">
+      <h3>👥 Importar clientes</h3>
+      <input type="file" id="clientesFile" accept=".xls,.xlsx">
+      <button class="primary" onclick="importClientes()">Importar clientes</button>
+      <p id="clientesMsg"></p>
+    </div>
+    <div class="card">
+      <h3>🧾 Importar pedidos / Digitação de ordens</h3>
+      <input type="file" id="pedidosFile" accept=".xls,.xlsx">
+      <button class="primary" onclick="importPedidos()">Importar relatório</button>
+      <p id="pedidosMsg"></p>
+    </div>
+  </div>
+  <div class="card intro">
+    <h3>📋 Importar Apuração das Metas</h3>
+    <p class="muted">Atualiza automaticamente a tabela, percentuais, ranking, gráfico e indicadores da Apuração de Metas.</p>
+    <input type="file" id="apuracaoFile" accept=".xls,.xlsx">
+    <button class="primary" onclick="importApuracao()">Importar apuração</button>
+    <p id="apuracaoMsg"></p>
+  </div>
+  <div class="card intro">
+    <h3>💾 Backup e exportação</h3>
+    <button class="primary" onclick="backupDados()">💾 Fazer backup</button>
+    <button onclick="document.getElementById('restoreFile').click()">♻️ Restaurar backup</button>
+    <input type="file" id="restoreFile" accept=".json" style="display:none" onchange="restaurarBackup(event)">
+    <button onclick="exportExcel()">📗 Exportar para Excel</button>
   </div>
 </section>
 </main>
 </div>
 
-<div class="modal" id="vendaModal"><div class="modalbox"><button class="x" onclick="closeModal('vendaModal')">×</button><h3>💰 Registrar venda</h3><label>Código<input id="vCodigo" oninput="lookupVenda()"></label><label>Cliente<input id="vCliente" readonly></label><input type="hidden" id="vClienteId"><label>Representante<select id="vRep"></select></label><label>Data<input id="vData" type="date"></label><label>Pedido/Ordem<input id="vOrdem"></label><label>Sem impostos<input id="vValorSem" type="number" step="0.01"></label><label>Valor líquido<input id="vValorLiq" type="number" step="0.01"></label><label>Observação<textarea id="vObs"></textarea></label><button class="primary" onclick="saveVenda()">Salvar</button></div></div>
+<div class="modal" id="vendaModal"><div class="modalbox">
+<button class="x" onclick="closeModal('vendaModal')">×</button>
+<h3>💰 Registrar venda</h3>
+<label>Código do cliente<input id="vCodigo" placeholder="Digite o código" oninput="buscarClienteVenda()"></label>
+<label>Cliente<input id="vClienteNome" readonly></label>
+<input type="hidden" id="vClienteId">
+<label>Representante<select id="vRepresentante"></select></label>
+<label>Data<input id="vData" type="date"></label>
+<label>Nº Pedido / Ordem<input id="vPedido"></label>
+<label>Valor da venda<input id="vValor" type="number" min="0" step="0.01"></label>
+<label>Status<select id="vStatus"><option>Faturado</option><option>Digitado</option><option>Liberado</option><option>Pendente</option><option>Cancelado</option></select></label>
+<label>Observação<textarea id="vObs"></textarea></label>
+<button class="primary" onclick="saveVenda()">Salvar venda</button>
+</div></div>
 
-<div class="modal" id="followModal"><div class="modalbox"><button class="x" onclick="closeModal('followModal')">×</button><h3>📞 Follow-up</h3><label>Cliente<select id="fCliente"></select></label><label>Data<input id="fData" type="date"></label><label>Assunto<textarea id="fTexto"></textarea></label><button class="primary" onclick="saveFollow()">Salvar</button></div></div>
+<div class="modal" id="followModal"><div class="modalbox">
+<button class="x" onclick="closeModal('followModal')">×</button>
+<h3>Novo follow-up</h3>
+<label>Cliente<select id="fCliente"></select></label>
+<label>Data<input type="date" id="fData"></label>
+<label>Assunto<textarea id="fTexto"></textarea></label>
+<button class="primary" onclick="saveFollow()">Salvar follow-up</button>
+</div></div>
 
-<div class="modal" id="alertModal"><div class="modalbox"><button class="x" onclick="closeModal('alertModal')">×</button><h3>🔔 Alerta</h3><input type="hidden" id="aClienteId"><div class="clientname" id="aClienteNome"></div><label>Data<input id="aData" type="date"></label><label>Motivo<textarea id="aTexto"></textarea></label><label>Prioridade<select id="aPrio"><option>Normal</option><option>Importante</option><option>Urgente</option></select></label><button class="primary" onclick="saveAlert()">Salvar</button></div></div>
+<div class="modal" id="alertModal"><div class="modalbox">
+<button class="x" onclick="closeModal('alertModal')">×</button>
+<h3>🔔 Criar alerta</h3>
+<input type="hidden" id="aClienteId">
+<div id="aClienteNome" class="client-name"></div>
+<label>Data<input type="date" id="aData"></label>
+<label>Motivo<textarea id="aTexto"></textarea></label>
+<label>Prioridade<select id="aPrioridade"><option>Normal</option><option>Importante</option><option>Urgente</option></select></label>
+<button class="primary" onclick="saveAlert()">Salvar alerta</button>
+</div></div>
 
-<div class="modal" id="waModal"><div class="modalbox"><button class="x" onclick="closeModal('waModal')">×</button><h3>💬 WhatsApp</h3><input type="hidden" id="waClienteId"><label>Telefone<select id="waPhone"></select></label><label>Mensagem<textarea id="waMsg" rows="6"></textarea></label><button class="whatsapp" onclick="sendWhats()">Abrir WhatsApp</button></div></div>
+<div class="modal" id="whatsModal"><div class="modalbox">
+<button class="x" onclick="closeModal('whatsModal')">×</button>
+<h3>💬 WhatsApp</h3>
+<input type="hidden" id="wClienteId">
+<div id="wClienteNome" class="client-name"></div>
+<label>Telefone<select id="wTelefone"></select></label>
+<label>Mensagem rápida<select id="wModelo" onchange="aplicarModeloWhats()">
+<option value="follow">Follow-up</option><option value="parado">Cliente sem comprar</option>
+<option value="catalogo">Novidades / Catálogo</option><option value="pedido">Pedido / Retorno</option>
+<option value="personalizada">Personalizada</option></select></label>
+<label>Mensagem<textarea id="wMensagem" rows="6"></textarea></label>
+<button class="whatsapp-main" onclick="abrirWhatsApp()">💬 Abrir WhatsApp</button>
+</div></div>
 
-<div class="modal" id="orcModal"><div class="modalbox wide"><button class="x" onclick="closeModal('orcModal')">×</button><h3>📝 Orçamento</h3><div class="formgrid"><label>Código<input id="oCodigo" oninput="lookupOrc()"></label><label>Cliente<input id="oCliente" readonly></label><input id="oClienteId" type="hidden"><label>Representante<select id="oRep"></select></label><label>Validade<input id="oValidade" type="date"></label></div><table class="budget"><thead><tr><th>Descrição</th><th>Qtd</th><th>Preço</th><th>Subtotal</th><th></th></tr></thead><tbody id="oItens"></tbody></table><button onclick="addItem()">+ Item</button><label>Desconto<input id="oDesc" type="number" value="0" step="0.01" oninput="recalcOrc()"></label><label>Total<input id="oTotal" readonly></label><label>Observação<textarea id="oObs"></textarea></label><button class="primary" onclick="saveOrc()">Salvar orçamento</button></div></div>
+<div class="modal" id="orcamentoModal"><div class="modalbox wide-modal">
+<button class="x" onclick="closeModal('orcamentoModal')">×</button>
+<h3>📝 Novo orçamento</h3>
+<div class="form-grid">
+  <label>Código do cliente<input id="orcCodigo" oninput="buscarClienteOrcamento()" placeholder="Digite o código"></label>
+  <label>Cliente<input id="orcCliente" readonly></label>
+  <input type="hidden" id="orcClienteId">
+  <label>Representante<select id="orcRep"></select></label>
+  <label>Validade<input id="orcValidade" type="date"></label>
+</div>
 
-<div class="modal" id="pedidoModal"><div class="modalbox"><button class="x" onclick="closeModal('pedidoModal')">×</button><h3>🧾 Virar pedido</h3><input id="convOrcId" type="hidden"><label>Nº Pedido/Ordem<input id="convNumero"></label><label>Data<input id="convData" type="date"></label><button class="primary" onclick="convertOrc()">Criar pedido</button></div></div>
+<h4>Itens do orçamento</h4>
+<div class="table-scroll">
+<table class="data-table budget-table">
+<thead><tr><th>Descrição</th><th>Qtd.</th><th>Preço unit.</th><th>Subtotal</th><th></th></tr></thead>
+<tbody id="orcItens"></tbody>
+</table>
+</div>
+<button onclick="addOrcItem()">+ Adicionar item</button>
+
+<div class="form-grid totals-grid">
+  <label>Desconto (R$)<input id="orcDesconto" type="number" min="0" step="0.01" value="0" oninput="recalcOrc()"></label>
+  <label>Total do orçamento<input id="orcTotal" readonly></label>
+</div>
+<label>Observações<textarea id="orcObs" rows="3"></textarea></label>
+<button class="primary" onclick="saveOrcamento()">Salvar orçamento</button>
+</div></div>
+
+<div class="modal" id="converterModal"><div class="modalbox">
+<button class="x" onclick="closeModal('converterModal')">×</button>
+<h3>🧾 Transformar orçamento em pedido</h3>
+<input type="hidden" id="convOrcId">
+<label>Número do pedido / ordem<input id="convPedido" placeholder="Ex.: 22800"></label>
+<label>Data do pedido<input id="convData" type="date"></label>
+<label>Status<select id="convStatus"><option>Digitado</option><option>Liberado</option><option>Faturado</option><option>Pendente</option></select></label>
+<button class="primary" onclick="converterOrcamento()">Criar pedido</button>
+</div></div>
 
 <script src="app.js"></script>
 </body>

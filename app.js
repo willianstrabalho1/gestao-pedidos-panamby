@@ -1,5 +1,5 @@
 console.info("Gestor Comercial Panamby GITHUB FINAL 2026.08.18");
-const KEY="gestor_comercial_v8_limpo_20260818";
+const KEY="gestor_comercial_v9_supervisores_20260818";
 let db=JSON.parse(localStorage.getItem(KEY)||'{"clientes":[],"pedidos":[],"vendas":[],"followups":[],"alertas":[],"metas":{}}');
 if(!db.vendas)db.vendas=[];if(!db.pedidos)db.pedidos=[];if(!db.clientes)db.clientes=[];if(!db.followups)db.followups=[];if(!db.alertas)db.alertas=[];if(!db.orcamentos)db.orcamentos=[];if(!db.apuracaoMetas)db.apuracaoMetas=[];if(!db.apuracaoLinhas)db.apuracaoLinhas=[];
 const $=id=>document.getElementById(id),today=()=>new Date().toISOString().slice(0,10);
@@ -293,25 +293,86 @@ function whatsOrcamento(id){
 function renderApuracao(){
  let q=norm($("buscaApuracao")?.value),sup=$("filtroSupervisor")?.value||"",at=$("filtroAtingido")?.value||"";
  let fonte=(db.apuracaoLinhas&&db.apuracaoLinhas.length)?db.apuracaoLinhas:db.apuracaoMetas;
+
  let arr=fonte.map(x=>{
    let meta=Number(x.meta||0),vr=Number(x.vrAtingido||0);
    return {...x,pct:meta?vr/meta*100:0,falta:Math.max(meta-vr,0)}
  }).filter(x=>(!q||norm([x.representante,x.razaoSocial,x.supervisor].join(" ")).includes(q))&&(!sup||x.supervisor===sup)&&(!at||x.atingido===at));
 
+ // KPIs gerais continuam usando representantes únicos para evitar duplicidade.
  let resumo=db.apuracaoMetas||[];
- let meta=resumo.reduce((s,x)=>s+Number(x.meta||0),0),ating=resumo.reduce((s,x)=>s+Number(x.vrAtingido||0),0);
+ let meta=resumo.reduce((s,x)=>s+Number(x.meta||0),0),
+     ating=resumo.reduce((s,x)=>s+Number(x.vrAtingido||0),0);
  let qtd=resumo.filter(x=>Number(x.meta||0)>0&&Number(x.vrAtingido||0)>=Number(x.meta||0)).length;
  let pctEquipe=resumo.length?qtd/resumo.length*100:0;
- setText("aMetaTotal",money(meta));setText("aAtingidoTotal",money(ating));setText("aFaltaTotal",money(Math.max(meta-ating,0)));
- setText("aQtdMeta",qtd);setText("aPctMeta",pctEquipe.toFixed(1)+"% da equipe");
 
- if($("apuracaoBody")) $("apuracaoBody").innerHTML=arr.map(x=>`<tr>
-   <td class="${x.atingido==="Sim"?"status-ok":"status-no"}">${esc(x.atingido)}</td>
-   <td><b>${esc(x.representante||"—")}</b></td><td>${esc(x.razaoSocial||"—")}</td>
-   <td>${money(x.meta)}</td><td>${money(x.vrAtingido)}</td><td>${money(x.falta)}</td>
-   <td>${x.pct.toFixed(1)}%</td><td>${esc(x.supervisor||"—")}</td></tr>`).join("")||'<tr><td colspan="8">Importe a planilha de Apuração das Metas.</td></tr>';
+ setText("aMetaTotal",money(meta));
+ setText("aAtingidoTotal",money(ating));
+ setText("aFaltaTotal",money(Math.max(meta-ating,0)));
+ setText("aQtdMeta",qtd);
+ setText("aPctMeta",pctEquipe.toFixed(1)+"% da equipe");
 
- let rank=resumo.map(x=>{let m=Number(x.meta||0),v=Number(x.vrAtingido||0);return {...x,pct:m?v/m*100:0}}).sort((a,b)=>b.pct-a.pct);
+ // Resumo por supervisor, usando representantes únicos.
+ let supMap=new Map();
+ resumo.forEach(x=>{
+   let supervisor=(x.supervisor||"Sem supervisor").trim()||"Sem supervisor";
+   if(!supMap.has(supervisor)){
+     supMap.set(supervisor,{supervisor,representantes:0,meta:0,atingido:0});
+   }
+   let s=supMap.get(supervisor);
+   s.representantes++;
+   s.meta+=Number(x.meta||0);
+   s.atingido+=Number(x.vrAtingido||0);
+ });
+
+ let supervisores=[...supMap.values()].map(s=>({
+   ...s,
+   falta:Math.max(s.meta-s.atingido,0),
+   pct:s.meta?s.atingido/s.meta*100:0
+ })).filter(s=>!sup||s.supervisor===sup)
+   .sort((a,b)=>b.pct-a.pct);
+
+ setHTML("supervisorBody",supervisores.map(s=>`
+   <tr>
+     <td><b>${esc(s.supervisor)}</b></td>
+     <td>${s.representantes}</td>
+     <td>${money(s.meta)}</td>
+     <td>${money(s.atingido)}</td>
+     <td>${money(s.falta)}</td>
+     <td><b>${s.pct.toFixed(1)}%</b></td>
+     <td><span class="pill ${s.pct>=100?"ok":s.pct>=80?"near":"no"}">${s.pct>=100?"Meta atingida":s.pct>=80?"Próximo da meta":"Abaixo da meta"}</span></td>
+   </tr>
+ `).join("")||'<tr><td colspan="7">Nenhum supervisor encontrado.</td></tr>');
+
+ let supMeta=supervisores.reduce((s,x)=>s+x.meta,0),
+     supAting=supervisores.reduce((s,x)=>s+x.atingido,0),
+     supFalta=Math.max(supMeta-supAting,0),
+     supPct=supMeta?supAting/supMeta*100:0,
+     supReps=supervisores.reduce((s,x)=>s+x.representantes,0);
+
+ setHTML("supervisorFoot",`
+   <tr class="supervisor-total">
+     <td><b>TOTAL</b></td>
+     <td><b>${supReps}</b></td>
+     <td><b>${money(supMeta)}</b></td>
+     <td><b>${money(supAting)}</b></td>
+     <td><b>${money(supFalta)}</b></td>
+     <td><b>${supPct.toFixed(1)}%</b></td>
+     <td></td>
+   </tr>`);
+
+ // Tabela detalhada por representante
+ if($("apuracaoBody")) $("apuracaoBody").innerHTML=arr.map(x=>`
+   <tr>
+     <td class="${x.atingido==="Sim"?"status-ok":"status-no"}">${esc(x.atingido)}</td>
+     <td><b>${esc(x.representante||"—")}</b></td>
+     <td>${esc(x.razaoSocial||"—")}</td>
+     <td>${money(x.meta)}</td>
+     <td>${money(x.vrAtingido)}</td>
+     <td>${money(x.falta)}</td>
+     <td>${x.pct.toFixed(1)}%</td>
+     <td>${esc(x.supervisor||"—")}</td>
+   </tr>`).join("")||'<tr><td colspan="8">Importe a planilha de Apuração das Metas.</td></tr>';
 }
 function refreshSupervisorFilter(){
  let el=$("filtroSupervisor");if(!el)return;let cur=el.value,sups=[...new Set(db.apuracaoMetas.map(x=>x.supervisor).filter(Boolean))].sort();el.innerHTML='<option value="">Todos os supervisores</option>'+sups.map(x=>`<option>${esc(x)}</option>`).join("");el.value=cur

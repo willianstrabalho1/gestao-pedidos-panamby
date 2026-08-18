@@ -29,7 +29,7 @@
 
 <main>
 <header>
-  <div><h2 id="title">Dashboard</h2><small id="date"></small><br><small class="version-badge">LIMPO V8 2026.08.18</small><br><small class="version-badge">Versão LIMPO V8 2026.08.18</small></div>
+  <div><h2 id="title">Dashboard</h2><small id="date"></small><br><small class="version-badge">V9 SUPERVISORES 2026.08.18</small><br><small class="version-badge">Versão V9 SUPERVISORES 2026.08.18</small></div>
   <button id="notifyBtn" class="primary" onclick="enableNotifications()">🔔 Ativar notificações</button>
 </header>
 
@@ -184,7 +184,33 @@
     <div class="card kpi"><small>Falta para meta</small><strong id="aFaltaTotal">R$ 0,00</strong></div>
     <div class="card kpi"><small>Representantes na meta</small><strong id="aQtdMeta">0</strong><span id="aPctMeta">0%</span></div>
   </div>
-  <div class="card table-card">
+  
+  <div class="card table-card supervisor-card" style="margin-top:14px">
+    <div class="supervisor-header">
+      <div>
+        <h3>👔 Resumo por Supervisor</h3>
+        <p class="muted">Meta, valor atingido, falta e percentual calculados automaticamente por supervisor.</p>
+      </div>
+    </div>
+    <div class="table-scroll">
+      <table class="data-table supervisor-table">
+        <thead>
+          <tr>
+            <th>Supervisor</th>
+            <th>Representantes</th>
+            <th>Meta Total</th>
+            <th>Valor Atingido</th>
+            <th>Falta</th>
+            <th>% Atingido</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody id="supervisorBody"></tbody>
+        <tfoot id="supervisorFoot"></tfoot>
+      </table>
+    </div>
+  </div>
+<div class="card table-card">
     <div class="table-scroll">
       <table class="data-table">
         <thead><tr>

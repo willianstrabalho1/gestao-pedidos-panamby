@@ -30,3 +30,9 @@
 @media(max-width:650px){.apuracao-kpis{grid-template-columns:1fr!important}}
 
 .version-badge{font-weight:700;color:#2457d6}
+.supervisor-card{margin-top:16px}
+.supervisor-header{display:flex;justify-content:space-between;align-items:flex-start;padding:2px 2px 12px}
+.supervisor-header h3{margin:0 0 4px}
+.supervisor-table{min-width:900px}
+.supervisor-table tfoot td{background:#f3f6fb;border-top:2px solid #dbe3ef;padding:12px}
+.supervisor-total td{font-size:13px}

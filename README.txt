@@ -1,60 +1,46 @@
-GESTOR COMERCIAL PANAMBY — LIMPO V8 2026.08.18
+GESTOR COMERCIAL PANAMBY — V9 SUPERVISORES 2026.08.18
 
-ALTERAÇÃO DESTA VERSÃO
-- Removida completamente a área:
-  * Percentual por representante
-  * Ranking de desempenho
-- A Apuração de Metas ficou mais limpa.
-- Mantidos:
-  * Meta total
-  * Valor atingido
-  * Falta para meta
-  * Representantes na meta
-  * Tabela detalhada com percentual por linha
+NOVIDADE
+Na Apuração de Metas foi adicionada uma nova tabela:
+RESUMO POR SUPERVISOR
 
-RECURSOS DO SISTEMA
-- Dashboard com gráficos e filtros.
-- Vr Total (s/impostos) e Vr Total (Líquido).
-- Clientes.
-- WhatsApp.
-- Follow-up.
-- Alertas.
-- Vendas.
-- Pedidos.
-- Orçamentos.
-- Fluxo Orçamento -> Pedido -> Venda.
-- Apuração de Metas vinculada à planilha.
-- Backup, restauração e exportação Excel.
+Para cada supervisor mostra:
+- Nome do Supervisor
+- Quantidade de representantes
+- Meta Total
+- Valor Atingido
+- Quanto Falta
+- % Atingido
+- Status
+
+Também há uma linha TOTAL no fim da tabela.
+
+A tabela detalhada por representante continua logo abaixo.
+
+RECURSOS MANTIDOS
+- Dashboard
+- Clientes
+- Vendas
+- Pedidos
+- Orçamentos
+- Orçamento -> Pedido -> Venda
+- WhatsApp
+- Follow-up
+- Alertas
+- Apuração de Metas
+- Excel / Backup
 
 PLANILHAS
 1. TODOS OS CLIENTES.xls
 2. DIGITAÇÃO DE ORDEM.xls
 3. APURAÇÃO DE VENDAS.xls
 
-ORDEM RECOMENDADA
-1. TODOS OS CLIENTES.xls
-2. DIGITAÇÃO DE ORDEM.xls
-3. APURAÇÃO DE VENDAS.xls
-
-ATUALIZAÇÃO NO GITHUB
-Substitua juntos:
+ARQUIVOS PARA SUBSTITUIR NO GITHUB
 - index.html
 - app.js
 - style.css
 - README.txt
 
-Depois:
-1. Commit changes
-2. Aguarde GitHub Pages ficar verde
-3. Abra o aplicativo
-4. Pressione Ctrl + F5
-
 CONFIRMAÇÃO
 No topo deve aparecer:
-LIMPO V8 2026.08.18
-
-ARMAZENAMENTO
-Esta versão usa uma nova chave:
-gestor_comercial_v8_limpo_20260818
-
-Por isso ela inicia limpa e não mistura dados de versões anteriores.
+V9 SUPERVISORES 2026.08.18

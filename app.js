@@ -41,6 +41,8 @@ function metricValue(s,metric){
  return Number(s.valorSemImpostos ?? s.valor ?? 0);
 }
 const esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+function setHTML(id,html){const el=$(id);if(el)el.innerHTML=html}
+function setText(id,text){const el=$(id);if(el)el.textContent=text}
 function save(){localStorage.setItem(KEY,JSON.stringify(db));render()}
 function brdate(v){if(!v)return"—";let d=new Date(v+"T12:00:00");return isNaN(d)?esc(v):d.toLocaleDateString("pt-BR")}
 function monthNow(){return today().slice(0,7)}
@@ -271,8 +273,8 @@ function renderApuracao(){
  // KPIs usam representantes agrupados para não duplicar meta.
  let resumo=db.apuracaoMetas||[];
  let meta=resumo.reduce((s,x)=>s+Number(x.meta||0),0),ating=resumo.reduce((s,x)=>s+Number(x.vrAtingido||0),0);
- $("aMetaTotal").textContent=money(meta);$("aAtingidoTotal").textContent=money(ating);$("aFaltaTotal").textContent=money(Math.max(meta-ating,0));
- $("apuracaoBody").innerHTML=arr.map(x=>{
+ setText("aMetaTotal",money(meta));setText("aAtingidoTotal",money(ating));setText("aFaltaTotal",money(Math.max(meta-ating,0)));
+ if($("apuracaoBody")) $("apuracaoBody").innerHTML=arr.map(x=>{
    let falta=Math.max(Number(x.meta||0)-Number(x.vrAtingido||0),0),pct=Number(x.meta)?Number(x.vrAtingido)/Number(x.meta)*100:0;
    return `<tr><td class="${x.atingido==="Sim"?"status-ok":"status-no"}">${esc(x.atingido)}</td><td>${esc(x.representante)}</td><td>${esc(x.razaoSocial)}</td><td>${money(x.meta)}</td><td>${money(x.vrAtingido)}</td><td>${money(falta)}</td><td>${pct.toFixed(1)}%</td><td>${esc(x.supervisor)}</td></tr>`
  }).join("")||'<tr><td colspan="8">Nenhum dado importado.</td></tr>'
@@ -330,8 +332,8 @@ function importApuracao(){
    localStorage.setItem(KEY,JSON.stringify(db));
    render();
    let mt=db.apuracaoMetas.reduce((s,x)=>s+Number(x.meta||0),0),va=db.apuracaoMetas.reduce((s,x)=>s+Number(x.vrAtingido||0),0);
-   $("apuracaoMsg").innerHTML=`✅ <b>${linhas.length}</b> linhas da tabela importadas • <b>${db.apuracaoMetas.length}</b> representantes únicos • 🎯 Área Metas atualizada<br>🎯 Meta: <b>${money(mt)}</b> • 💰 Atingido: <b>${money(va)}</b><details><summary>Ver colunas reconhecidas</summary>${diagnostico.map(x=>`<div>${esc(x)}</div>`).join("")}</details>`;
-  }catch(err){console.error(err);alert("Erro ao importar apuração: "+err.message)}
+   setHTML("apuracaoMsg", `✅ <b>${linhas.length}</b> linhas da tabela importadas • <b>${db.apuracaoMetas.length}</b> representantes únicos • 🎯 Área Metas atualizada<br>🎯 Meta: <b>${money(mt)}</b> • 💰 Atingido: <b>${money(va)}</b><details><summary>Ver colunas reconhecidas</summary>${diagnostico.map(x=>`<div>${esc(x)}</div>`).join("")}</details>`);
+  }catch(err){console.error(err);console.error("Erro importando apuração:",err); alert("Erro ao importar apuração: "+err.message)}
  };
  r.readAsArrayBuffer(f);
 }
@@ -570,5 +572,5 @@ function importPedidos(){
 function exportExcel(){let wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(db.clientes),"Clientes");XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(db.vendas),"Vendas");XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(db.pedidos),"Pedidos");XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(db.orcamentos.map(o=>({...o,itens:JSON.stringify(o.itens)}))),"Orçamentos");XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(db.apuracaoMetas),"Apuração Metas");XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(db.followups),"Follow-ups");XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(db.alertas),"Alertas");XLSX.writeFile(wb,"Gestor_Comercial_Completo.xlsx")}
 function backupDados(){let blob=new Blob([JSON.stringify({aplicativo:"Gestor Comercial",versao:5,criadoEm:new Date().toISOString(),dados:db},null,2)],{type:"application/json"}),a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=`Backup_Gestor_Comercial_${today()}.json`;a.click()}
 function restaurarBackup(e){let f=e.target.files[0];if(!f)return;if(!confirm("Substituir os dados atuais pelo backup?"))return;let r=new FileReader();r.onload=x=>{try{let p=JSON.parse(x.target.result),d=p.dados||p;db={clientes:d.clientes||[],pedidos:d.pedidos||[],vendas:d.vendas||[],orcamentos:d.orcamentos||[],apuracaoMetas:d.apuracaoMetas||[],apuracaoLinhas:d.apuracaoLinhas||[],followups:d.followups||[],alertas:d.alertas||[],metas:d.metas||{}};save();alert("Backup restaurado.")}catch{alert("Backup inválido.")}};r.readAsText(f)}
-function render(){fillSelectors();refreshSupervisorFilter();renderClientes();renderVendas();renderPedidos();renderOrcamentos();renderFollow();renderAlerts();renderApuracao();renderDashboard();checkNotifications()}
+function render(){fillSelectors();refreshSupervisorFilter();renderClientes();renderVendas();renderPedidos();renderOrcamentos();renderFollow();renderAlerts();try{renderApuracao()}catch(e){console.warn("renderApuracao:",e)}renderDashboard();checkNotifications()}
 render();setInterval(checkNotifications,60000);

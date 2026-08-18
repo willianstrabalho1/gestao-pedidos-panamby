@@ -80,3 +80,9 @@ ATUALIZAÇÃO FLUXO COMERCIAL
 - Pedido passa para Venda confirmada.
 - Orçamento original passa para Venda concluída.
 - Venda guarda a origem: Orçamento → Pedido.
+
+CORREÇÃO V2
+- Corrigido erro Cannot set properties of null (setting 'innerHTML').
+- Importação de Apuração agora usa elementos protegidos.
+- Área removida de Metas não interfere mais na importação.
+- Apuração continua funcionando mesmo se algum campo visual opcional não existir.

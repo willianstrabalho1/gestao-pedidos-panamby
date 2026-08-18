@@ -43,6 +43,20 @@ function metricValue(s,metric){
 const esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 function setHTML(id,html){const el=$(id);if(el)el.innerHTML=html}
 function setText(id,text){const el=$(id);if(el)el.textContent=text}
+
+function appSelfCheck(){
+ const required=["dashboard","clientes","vendas","pedidos","orcamentos","followups","alertas","apuracao","excel",
+ "clientesList","vendasList","pedidosList","orcamentosList","followList","alertList","apuracaoBody",
+ "clientesFile","pedidosFile","apuracaoFile","pedidosMsg","apuracaoMsg"];
+ const missing=required.filter(id=>!$(id));
+ if(missing.length){
+   console.error("Gestor Comercial: elementos ausentes:",missing);
+   return false;
+ }
+ console.info("Gestor Comercial Panamby — verificação OK");
+ return true;
+}
+
 function save(){localStorage.setItem(KEY,JSON.stringify(db));render()}
 function brdate(v){if(!v)return"—";let d=new Date(v+"T12:00:00");return isNaN(d)?esc(v):d.toLocaleDateString("pt-BR")}
 function monthNow(){return today().slice(0,7)}
@@ -59,12 +73,12 @@ function combinedSales(){
  manual.forEach(x=>map.set("V-"+String(x.id),x));
  return [...map.values()]
 }
-document.querySelectorAll(".nav").forEach(b=>b.onclick=()=>{document.querySelectorAll(".nav,.tab").forEach(x=>x.classList.remove("active"));b.classList.add("active");$(b.dataset.tab).classList.add("active");$("title").textContent=b.textContent.replace(/^[^\s]+\s/,"")});
-$("date").textContent=new Date().toLocaleDateString("pt-BR",{weekday:"long",day:"2-digit",month:"long",year:"numeric"});
-$("dashMes").value=$("mesPedido").value=$("mesVenda").value=monthNow();
-["buscaCliente","filtroDias"].forEach(id=>$(id).oninput=renderClientes);
-["buscaPedido","mesPedido","repPedido"].forEach(id=>$(id).oninput=renderPedidos);
-["buscaVenda","mesVenda"].forEach(id=>$(id).oninput=renderVendas);
+document.querySelectorAll(".nav").forEach(b=>b.onclick=()=>{document.querySelectorAll(".nav,.tab").forEach(x=>x.classList.remove("active"));b.classList.add("active");const tab=$(b.dataset.tab);if(tab)tab.classList.add("active");setText("title",b.textContent.replace(/^[^\s]+\s/,""))});
+setText("date",new Date().toLocaleDateString("pt-BR",{weekday:"long",day:"2-digit",month:"long",year:"numeric"}));
+["dashMes","mesPedido","mesVenda"].forEach(id=>{const el=$(id);if(el)el.value=monthNow()});
+["buscaCliente","filtroDias"].forEach(id=>{const el=$(id);if(el)el.oninput=renderClientes});
+["buscaPedido","mesPedido","repPedido"].forEach(id=>{const el=$(id);if(el)el.oninput=renderPedidos});
+["buscaVenda","mesVenda"].forEach(id=>{const el=$(id);if(el)el.oninput=renderVendas});
 
 ["buscaOrcamento","statusOrcamento"].forEach(id=>{const el=$(id);if(el)el.oninput=renderOrcamentos});
 ["buscaApuracao","filtroSupervisor","filtroAtingido"].forEach(id=>{const el=$(id);if(el)el.oninput=renderApuracao});
@@ -73,8 +87,10 @@ $("dashMes").value=$("mesPedido").value=$("mesVenda").value=monthNow();
 
 let charts={};
 function setChart(id,type,labels,data,label){
- if(charts[id])charts[id].destroy();
- charts[id]=new Chart($(id),{type,data:{labels,datasets:[{label,data,borderWidth:2,tension:.25}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:type==="pie"},tooltip:{callbacks:{label:c=>`${c.dataset.label||""}: ${money(c.raw)}`}}},scales:type==="pie"?{}:{y:{beginAtZero:true,ticks:{callback:v=>Number(v).toLocaleString("pt-BR")}}}}})
+ const canvas=$(id);
+ if(!canvas || typeof Chart==="undefined") return;
+ if(charts[id]) charts[id].destroy();
+ charts[id]=new Chart(canvas,{type,data:{labels,datasets:[{label,data,borderWidth:2,tension:.25}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:type==="pie"},tooltip:{callbacks:{label:c=>`${c.dataset.label||""}: ${money(c.raw)}`}}},scales:type==="pie"?{}:{y:{beginAtZero:true,ticks:{callback:v=>Number(v).toLocaleString("pt-BR")}}}}})
 }
 function filteredDashboardSales(){
  let mes=$("dashMes").value,rep=$("dashRep").value,reg=$("dashRegiao").value;
@@ -136,8 +152,10 @@ function renderPedidos(){
 }
 function fillSelectors(){
  let r=reps(),opts='<option value="">Todos</option>'+r.map(x=>`<option>${esc(x)}</option>`).join("");
- let vals={dashRep:$("dashRep").value,repPedido:$("repPedido").value};$("dashRep").innerHTML=opts;$("dashRep").value=vals.dashRep;$("repPedido").innerHTML=opts;$("repPedido").value=vals.repPedido;
- $("metaRep").innerHTML=r.map(x=>`<option>${esc(x)}</option>`).join("");$("vRepresentante").innerHTML=r.map(x=>`<option>${esc(x)}</option>`).join("");if($("orcRep"))$("orcRep").innerHTML=r.map(x=>`<option>${esc(x)}</option>`).join("");$("fCliente").innerHTML=db.clientes.map(c=>`<option value="${c.id}">${esc(c.codigo)} — ${esc(c.razao)}</option>`).join("")
+ let vals={dashRep:$("dashRep")?.value||"",repPedido:$("repPedido")?.value||""};
+if($("dashRep")){$("dashRep").innerHTML=opts;$("dashRep").value=vals.dashRep}
+if($("repPedido")){$("repPedido").innerHTML=opts;$("repPedido").value=vals.repPedido}
+ if($("vRepresentante"))$("vRepresentante").innerHTML=r.map(x=>`<option>${esc(x)}</option>`).join("");if($("orcRep"))$("orcRep").innerHTML=r.map(x=>`<option>${esc(x)}</option>`).join("");if($("fCliente"))$("fCliente").innerHTML=db.clientes.map(c=>`<option value="${c.id}">${esc(c.codigo)} — ${esc(c.razao)}</option>`).join("")
 }
 
 function orcNumber(){return "ORC-"+new Date().getFullYear()+"-"+String(Date.now()).slice(-6)}
@@ -497,4 +515,5 @@ function exportExcel(){let wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet
 function backupDados(){let blob=new Blob([JSON.stringify({aplicativo:"Gestor Comercial",versao:5,criadoEm:new Date().toISOString(),dados:db},null,2)],{type:"application/json"}),a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=`Backup_Gestor_Comercial_${today()}.json`;a.click()}
 function restaurarBackup(e){let f=e.target.files[0];if(!f)return;if(!confirm("Substituir os dados atuais pelo backup?"))return;let r=new FileReader();r.onload=x=>{try{let p=JSON.parse(x.target.result),d=p.dados||p;db={clientes:d.clientes||[],pedidos:d.pedidos||[],vendas:d.vendas||[],orcamentos:d.orcamentos||[],apuracaoMetas:d.apuracaoMetas||[],apuracaoLinhas:d.apuracaoLinhas||[],followups:d.followups||[],alertas:d.alertas||[],metas:d.metas||{}};save();alert("Backup restaurado.")}catch{alert("Backup inválido.")}};r.readAsText(f)}
 function render(){fillSelectors();refreshSupervisorFilter();renderClientes();renderVendas();renderPedidos();renderOrcamentos();renderFollow();renderAlerts();try{renderApuracao()}catch(e){console.warn("renderApuracao:",e)}renderDashboard();checkNotifications()}
-render();setInterval(checkNotifications,60000);
+try{appSelfCheck();render()}catch(e){console.error("Erro de inicialização:",e);alert("O aplicativo encontrou um erro ao iniciar. Faça um backup/restauração ou atualize a página. Detalhe: "+e.message)}
+setInterval(()=>{try{checkNotifications()}catch(e){console.warn(e)}},60000);

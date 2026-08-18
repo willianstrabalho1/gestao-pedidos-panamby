@@ -30,3 +30,5 @@
 #chartMetas{max-height:350px}
 @media(max-width:1000px){.apuracao-kpis{grid-template-columns:1fr 1fr!important}}
 @media(max-width:650px){.apuracao-kpis{grid-template-columns:1fr!important}}
+
+.version-badge{font-weight:700;color:#2457d6}

@@ -1,28 +1,39 @@
-GESTOR COMERCIAL PANAMBY — VERSÃO FINAL CONSOLIDADA
+GESTOR COMERCIAL PANAMBY — PACOTE COMPLETO
 
-RECURSOS
-- Dashboard com filtros por mês, representante, região e métrica.
-- Dois valores separados: Vr Total (s/impostos) e Vr Total (Líquido).
-- Gráficos de evolução, região, representante e participação.
+ARQUIVOS
+- index.html  -> estrutura da aplicação
+- style.css   -> visual completo
+- app.js      -> toda a lógica do sistema
+- README.txt  -> instruções
+
+FUNÇÕES INCLUÍDAS
+- Dashboard detalhado e gráficos.
+- Filtros por mês, representante, região e métrica.
+- Vr Total (s/impostos) e Vr Total (Líquido).
 - Clientes com pesquisa por código.
 - WhatsApp direto.
 - Follow-ups e alertas.
-- Vendas manuais.
-- Pedidos importados do relatório de Digitação de Ordens.
-- Orçamentos com itens, desconto, validade, impressão e WhatsApp.
+- Vendas.
+- Pedidos.
+- Orçamentos.
 - Fluxo Orçamento -> Pedido -> Venda.
 - Apuração de Metas vinculada à planilha.
-- Tabela detalhada, percentual por representante, ranking, gráfico e KPIs.
-- Backup completo, restauração e exportação para Excel.
+- Percentual dos representantes.
+- Ranking e gráfico de metas.
+- Importação de clientes.
+- Importação de Digitação de Ordens.
+- Importação da Apuração das Metas.
+- Backup, restauração e exportação Excel.
+- Persistência no localStorage gestor_comercial_v4.
 
-APURAÇÃO
-A tabela preserva as linhas da planilha.
-Os KPIs agrupam representantes para evitar somar Meta e Vr Atingido repetidos.
+ATUALIZAÇÃO NO GITHUB
+1. Faça backup no aplicativo atual.
+2. Substitua os quatro arquivos do repositório pelos quatro arquivos deste pacote.
+3. Faça Commit changes.
+4. Aguarde o GitHub Pages terminar o deploy.
+5. Abra o aplicativo e pressione Ctrl+F5.
+6. Confirme no topo: Versão 2026.08.18 FINAL ÚNICA.
 
-DADOS
-Mantida a chave localStorage gestor_comercial_v4 para preservar os dados já existentes
-no mesmo navegador e no mesmo endereço do GitHub Pages.
-
-ANTES DE ATUALIZAR
-Faça um backup pelo aplicativo.
-Depois substitua index.html, app.js, style.css e README.txt no GitHub.
+IMPORTANTE
+Não misture arquivos deste pacote com versões anteriores.
+Envie index.html, app.js, style.css e README.txt juntos no mesmo commit.

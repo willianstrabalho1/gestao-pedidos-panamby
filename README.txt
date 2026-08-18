@@ -49,3 +49,10 @@ NOVOS MÓDULOS
 - O pedido criado entra automaticamente na área Pedidos e no Dashboard.
 
 A chave localStorage continua gestor_comercial_v4 para preservar os dados existentes.
+
+CORREÇÃO APURAÇÃO DE METAS
+- Linhas repetidas do mesmo representante não são mais somadas.
+- Agrupamento por representante.
+- Meta e Vr Atingido são considerados uma única vez por representante.
+- A importação informa: linhas lidas, representantes únicos, Meta total,
+  Valor atingido e quanto falta.

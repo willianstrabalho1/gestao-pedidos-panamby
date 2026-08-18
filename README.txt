@@ -49,3 +49,34 @@ NOVOS MÓDULOS
 - O pedido criado entra automaticamente na área Pedidos e no Dashboard.
 
 A chave localStorage continua gestor_comercial_v4 para preservar os dados existentes.
+
+CORREÇÃO APURAÇÃO DE METAS
+- Linhas repetidas do mesmo representante não são mais somadas.
+- Agrupamento por representante.
+- Meta e Vr Atingido são considerados uma única vez por representante.
+- A importação informa: linhas lidas, representantes únicos, Meta total,
+  Valor atingido e quanto falta.
+
+CORREÇÃO COLUNAS: leitura por posição da linha real de cabeçalho; tabela preserva todas as linhas originais e KPIs agrupam representantes.
+
+METAS VINCULADAS À PLANILHA
+- O botão 🎯 Metas não usa mais preenchimento manual.
+- A área é alimentada automaticamente ao importar Apuração das metas de vendas.
+- Mostra por representante: Razão Social, Supervisor, Meta, Vr Atingido, Falta, % e Status.
+- Barras de progresso por representante.
+- Ranking de desempenho.
+- Gráfico horizontal com percentual atingido.
+- Filtros por representante/supervisor/status.
+- KPIs de Meta total, Atingido, Falta e quantidade de representantes que bateram a meta.
+
+ATUALIZAÇÃO FLUXO COMERCIAL
+- Removido botão 🎯 Metas do menu.
+- A Apuração de Metas continua vinculada à planilha.
+- Fluxo: Orçamento → Pedido → Venda.
+- Orçamento convertido preserva o número/origem no pedido.
+- Pedido possui ação Confirmar venda.
+- Confirmar venda cria automaticamente o registro em Vendas.
+- Cliente, representante, cidade, UF, valores, itens e vínculos são preservados.
+- Pedido passa para Venda confirmada.
+- Orçamento original passa para Venda concluída.
+- Venda guarda a origem: Orçamento → Pedido.

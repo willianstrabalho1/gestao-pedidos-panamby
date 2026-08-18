@@ -1,6 +1,6 @@
 const KEY="gestor_comercial_v4";
 let db=JSON.parse(localStorage.getItem(KEY)||'{"clientes":[],"pedidos":[],"vendas":[],"followups":[],"alertas":[],"metas":{}}');
-if(!db.vendas)db.vendas=[]; if(!db.orcamentos)db.orcamentos=[]; if(!db.apuracaoMetas)db.apuracaoMetas=[];
+if(!db.vendas)db.vendas=[]; if(!db.orcamentos)db.orcamentos=[]; if(!db.apuracaoMetas)db.apuracaoMetas=[]; if(!db.apuracaoLinhas)db.apuracaoLinhas=[];
 const $=id=>document.getElementById(id),today=()=>new Date().toISOString().slice(0,10);
 const norm=v=>String(v??"").trim().toUpperCase();
 function normHeader(v){
@@ -181,6 +181,43 @@ function saveOrcamento(){
  db.orcamentos.push({id:uid(),numero:orcNumber(),data:today(),validade:$("orcValidade").value,clienteId:c.id,codigoCliente:c.codigo,cliente:c.razao,representante:$("orcRep").value||c.representante||"",cidade:c.cidade,uf:c.uf,itens,bruto,desconto,total:Math.max(bruto-desconto,0),observacao:$("orcObs").value.trim(),status:"Em aberto",pedidoGerado:""});
  closeModal("orcamentoModal");save()
 }
+
+function confirmarVendaPedido(id){
+ let p=db.pedidos.find(x=>x.id===id);if(!p)return;
+ if(p.vendaId)return alert("Este pedido já foi confirmado como venda.");
+ let o=p.orcamentoId?db.orcamentos.find(x=>x.id===p.orcamentoId):null;
+ let valorSem=Number(p.valorSemImpostos??p.valor??0),valorLiq=Number(p.valorLiquido??p.valor??0);
+ let venda={
+   id:uid(),
+   data:today(),
+   pedidoId:p.id,
+   ordem:p.ordem,
+   codigoCliente:p.codigoCliente||"",
+   clienteId:p.clienteId||"",
+   cliente:p.cliente||"",
+   representante:p.representante||"",
+   cidade:p.cidade||"",
+   uf:p.uf||"",
+   valorSemImpostos:valorSem,
+   valorLiquido:valorLiq,
+   valor:valorSem,
+   origem:o?`Orçamento ${o.numero} → Pedido ${p.ordem}`:`Pedido ${p.ordem}`,
+   orcamentoId:o?.id||"",
+   orcamentoNumero:o?.numero||"",
+   itens:p.itens||[]
+ };
+ db.vendas.push(venda);
+ p.vendaId=venda.id;
+ p.status="Venda confirmada";
+ if(o){
+   o.status="Venda concluída";
+   o.pedidoGerado=p.ordem;
+   o.vendaId=venda.id;
+ }
+ save();
+ alert(`Venda criada com sucesso a partir do pedido ${p.ordem}.`);
+}
+
 function renderOrcamentos(){
  let q=norm($("buscaOrcamento")?.value),st=$("statusOrcamento")?.value||"";
  let arr=db.orcamentos.filter(o=>(!st||o.status===st)&&(!q||norm([o.numero,o.codigoCliente,o.cliente,o.representante].join(" ")).includes(q))).sort((a,b)=>(b.data||"").localeCompare(a.data||""));
@@ -191,7 +228,7 @@ function renderOrcamentos(){
  <div class="tags"><span class="tag ${o.status==="Aprovado"?"approved":o.status==="Virou pedido"?"converted":""}">${esc(o.status)}</span>${o.pedidoGerado?`<span class="tag">Pedido ${esc(o.pedidoGerado)}</span>`:""}</div>
  <div class="quote-items">${o.itens.map(i=>`${esc(i.descricao)} • ${i.qtd} × ${money(i.preco)}`).join("<br>")}</div>
  <div class="quote-actions">
-   ${o.status!=="Virou pedido"?`<button onclick="setOrcStatus('${o.id}','Aprovado')">✅ Aprovar</button><button class="primary" onclick="openConverter('${o.id}')">🧾 Virar pedido</button>`:""}
+   ${!["Virou pedido","Venda concluída"].includes(o.status)?`<button onclick="setOrcStatus('${o.id}','Aprovado')">✅ Aprovar</button><button class="primary" onclick="openConverter('${o.id}')">🧾 Virar pedido</button>`:""}
    <button onclick="printOrcamento('${o.id}')">🖨️ Imprimir</button>
    <button class="whatsappbtn" onclick="whatsOrcamento('${o.id}')">💬 WhatsApp</button>
    ${o.status==="Em aberto"?`<button class="deletebtn" onclick="setOrcStatus('${o.id}','Recusado')">Recusado</button>`:""}
@@ -207,7 +244,7 @@ function converterOrcamento(){
  let numero=$("convPedido").value.trim()||("PED-"+String(Date.now()).slice(-6));
  let existente=db.pedidos.find(p=>String(p.ordem)===String(numero));
  if(existente)return alert("Já existe um pedido com esse número.");
- db.pedidos.push({id:uid(),ordem:numero,codigoCliente:o.codigoCliente,cliente:o.cliente,clienteId:o.clienteId,data:$("convData").value,representante:o.representante,valorSemImpostos:o.total,valorLiquido:o.total,valor:o.total,cidade:o.cidade,uf:o.uf,status:$("convStatus").value,origem:"Orçamento",orcamentoId:o.id,itens:o.itens});
+ db.pedidos.push({id:uid(),ordem:numero,codigoCliente:o.codigoCliente,cliente:o.cliente,clienteId:o.clienteId,data:$("convData").value,representante:o.representante,valorSemImpostos:o.total,valorLiquido:o.total,valor:o.total,cidade:o.cidade,uf:o.uf,status:$("convStatus").value,origem:"Orçamento",orcamentoId:o.id,orcamentoNumero:o.numero,itens:o.itens,vendaId:""});
  o.status="Virou pedido";o.pedidoGerado=numero;
  closeModal("converterModal");save();alert(`Orçamento ${o.numero} convertido no pedido ${numero}.`)
 }
@@ -228,27 +265,75 @@ function whatsOrcamento(id){
 
 function renderApuracao(){
  let q=norm($("buscaApuracao")?.value),sup=$("filtroSupervisor")?.value||"",at=$("filtroAtingido")?.value||"";
- let arr=db.apuracaoMetas.filter(x=>(!q||norm([x.representante,x.razaoSocial,x.supervisor].join(" ")).includes(q))&&(!sup||x.supervisor===sup)&&(!at||x.atingido===at));
- let meta=arr.reduce((s,x)=>s+Number(x.meta||0),0),ating=arr.reduce((s,x)=>s+Number(x.vrAtingido||0),0);
+ // A tabela usa as LINHAS ORIGINAIS da planilha para não perder nenhuma coluna.
+ let fonte=(db.apuracaoLinhas&&db.apuracaoLinhas.length)?db.apuracaoLinhas:db.apuracaoMetas;
+ let arr=fonte.filter(x=>(!q||norm([x.representante,x.razaoSocial,x.supervisor].join(" ")).includes(q))&&(!sup||x.supervisor===sup)&&(!at||x.atingido===at));
+ // KPIs usam representantes agrupados para não duplicar meta.
+ let resumo=db.apuracaoMetas||[];
+ let meta=resumo.reduce((s,x)=>s+Number(x.meta||0),0),ating=resumo.reduce((s,x)=>s+Number(x.vrAtingido||0),0);
  $("aMetaTotal").textContent=money(meta);$("aAtingidoTotal").textContent=money(ating);$("aFaltaTotal").textContent=money(Math.max(meta-ating,0));
- $("apuracaoBody").innerHTML=arr.map(x=>{let falta=Math.max(Number(x.meta)-Number(x.vrAtingido),0),pct=Number(x.meta)?Number(x.vrAtingido)/Number(x.meta)*100:0;return `<tr><td class="${x.atingido==="Sim"?"status-ok":"status-no"}">${esc(x.atingido)}</td><td>${esc(x.representante)}</td><td>${esc(x.razaoSocial)}</td><td>${money(x.meta)}</td><td>${money(x.vrAtingido)}</td><td>${money(falta)}</td><td>${pct.toFixed(1)}%</td><td>${esc(x.supervisor)}</td></tr>`}).join("")||'<tr><td colspan="8">Nenhum dado importado.</td></tr>'
+ $("apuracaoBody").innerHTML=arr.map(x=>{
+   let falta=Math.max(Number(x.meta||0)-Number(x.vrAtingido||0),0),pct=Number(x.meta)?Number(x.vrAtingido)/Number(x.meta)*100:0;
+   return `<tr><td class="${x.atingido==="Sim"?"status-ok":"status-no"}">${esc(x.atingido)}</td><td>${esc(x.representante)}</td><td>${esc(x.razaoSocial)}</td><td>${money(x.meta)}</td><td>${money(x.vrAtingido)}</td><td>${money(falta)}</td><td>${pct.toFixed(1)}%</td><td>${esc(x.supervisor)}</td></tr>`
+ }).join("")||'<tr><td colspan="8">Nenhum dado importado.</td></tr>'
 }
 function refreshSupervisorFilter(){
  let el=$("filtroSupervisor");if(!el)return;let cur=el.value,sups=[...new Set(db.apuracaoMetas.map(x=>x.supervisor).filter(Boolean))].sort();el.innerHTML='<option value="">Todos os supervisores</option>'+sups.map(x=>`<option>${esc(x)}</option>`).join("");el.value=cur
 }
 function importApuracao(){
- let f=$("apuracaoFile").files[0];if(!f)return alert("Selecione o arquivo de Apuração das metas.");
- let r=new FileReader();r.onload=e=>{try{
-   let wb=XLSX.read(e.target.result,{type:"array",raw:true}),rows=[];
-   wb.SheetNames.forEach(sn=>{let raw=XLSX.utils.sheet_to_json(wb.Sheets[sn],{defval:""});raw.forEach(row=>{
-     let at=pick(row,["Atingido"]),rep=pick(row,["Representante"]),razao=pick(row,["Razão Social","Razao Social"]),meta=pick(row,["Meta"]),vr=pick(row,["Vr Atingido","Valor Atingido"]),sup=pick(row,["Nome do Supervisor","Supervisor"]);
-     if(rep===""&&razao==="")return;
-     rows.push({atingido:String(at||"Não"),representante:String(rep),razaoSocial:String(razao),meta:numBR(meta),vrAtingido:numBR(vr),supervisor:String(sup)})
-   })});
-   db.apuracaoMetas=rows;
-   $("apuracaoMsg").innerHTML=`✅ <b>${rows.length}</b> representantes importados • Meta total: <b>${money(rows.reduce((s,x)=>s+x.meta,0))}</b> • Atingido: <b>${money(rows.reduce((s,x)=>s+x.vrAtingido,0))}</b>`;
-   save()
- }catch(err){alert("Erro ao importar apuração: "+err.message)}};r.readAsArrayBuffer(f)
+ let f=$("apuracaoFile").files[0];
+ if(!f)return alert("Selecione o arquivo de Apuração das metas.");
+ let r=new FileReader();
+ r.onload=e=>{
+  try{
+   let wb=XLSX.read(e.target.result,{type:"array",raw:true,cellDates:true});
+   let linhas=[]; let diagnostico=[];
+   wb.SheetNames.forEach(sn=>{
+     let raw=XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,defval:"",raw:true});
+     if(!raw.length)return;
+     // Localiza a linha que contém os cabeçalhos reais.
+     let h=-1;
+     for(let i=0;i<Math.min(raw.length,40);i++){
+       let rr=raw[i].map(normHeader);
+       if(rr.some(v=>v==="ATINGIDO") && rr.some(v=>v.includes("REPRESENTANTE")) && rr.some(v=>v==="META" || v.includes("VR ATINGIDO"))){h=i;break}
+     }
+     if(h<0){diagnostico.push(`${sn}: cabeçalho não encontrado`);return}
+     let headers=raw[h].map(v=>String(v??"").trim());
+     let cAt=findCol(headers,["Atingido"]),cRep=findCol(headers,["Representante"]),cRaz=findCol(headers,["Razão Social","Razao Social"]),cMeta=findCol(headers,["Meta"]),cVr=findCol(headers,["Vr Atingido","Valor Atingido"]),cSup=findCol(headers,["Nome do Supervisor","Supervisor"]);
+     diagnostico.push(`${sn}: linha ${h+1} | Atingido=${cAt>=0?headers[cAt]:"NÃO"} | Representante=${cRep>=0?headers[cRep]:"NÃO"} | Razão Social=${cRaz>=0?headers[cRaz]:"NÃO"} | Meta=${cMeta>=0?headers[cMeta]:"NÃO"} | Vr Atingido=${cVr>=0?headers[cVr]:"NÃO"} | Supervisor=${cSup>=0?headers[cSup]:"NÃO"}`);
+     for(let i=h+1;i<raw.length;i++){
+       let row=raw[i];
+       let rep=cRep>=0?row[cRep]:"",raz=cRaz>=0?row[cRaz]:"";
+       if(String(rep??"").trim()==="" && String(raz??"").trim()==="")continue;
+       let meta=cMeta>=0?numBR(row[cMeta]):0,vr=cVr>=0?numBR(row[cVr]):0;
+       let atRaw=cAt>=0?String(row[cAt]??"").trim():"";
+       let atingido=/^(SIM|S|YES|Y|1|TRUE|X)$/i.test(atRaw) || (meta>0&&vr>=meta) ? "Sim" : "Não";
+       linhas.push({atingido,representante:String(rep??"").trim(),razaoSocial:String(raz??"").trim(),meta,vrAtingido:vr,supervisor:cSup>=0?String(row[cSup]??"").trim():"",aba:sn});
+     }
+   });
+   db.apuracaoLinhas=linhas;
+   // Agrupa só para KPIs, sem alterar a tabela original.
+   let mapa=new Map();
+   linhas.forEach(x=>{
+     let chave=norm(x.representante||x.razaoSocial); if(!chave)return;
+     if(!mapa.has(chave))mapa.set(chave,{...x});
+     else{
+       let a=mapa.get(chave);
+       a.meta=Math.max(Number(a.meta||0),Number(x.meta||0));
+       a.vrAtingido=Math.max(Number(a.vrAtingido||0),Number(x.vrAtingido||0));
+       if(!a.razaoSocial)a.razaoSocial=x.razaoSocial;
+       if(!a.supervisor)a.supervisor=x.supervisor;
+       a.atingido=a.meta>0&&a.vrAtingido>=a.meta?"Sim":"Não";
+     }
+   });
+   db.apuracaoMetas=[...mapa.values()];
+   localStorage.setItem(KEY,JSON.stringify(db));
+   render();
+   let mt=db.apuracaoMetas.reduce((s,x)=>s+Number(x.meta||0),0),va=db.apuracaoMetas.reduce((s,x)=>s+Number(x.vrAtingido||0),0);
+   $("apuracaoMsg").innerHTML=`✅ <b>${linhas.length}</b> linhas da tabela importadas • <b>${db.apuracaoMetas.length}</b> representantes únicos • 🎯 Área Metas atualizada<br>🎯 Meta: <b>${money(mt)}</b> • 💰 Atingido: <b>${money(va)}</b><details><summary>Ver colunas reconhecidas</summary>${diagnostico.map(x=>`<div>${esc(x)}</div>`).join("")}</details>`;
+  }catch(err){console.error(err);alert("Erro ao importar apuração: "+err.message)}
+ };
+ r.readAsArrayBuffer(f);
 }
 
 function openVenda(id){
@@ -263,7 +348,97 @@ function saveVenda(){
 }
 function deleteVenda(id){if(confirm("Excluir esta venda?")){db.vendas=db.vendas.filter(v=>v.id!==id);save()}}
 function saveMeta(){let rep=$("metaRep").value;if(!rep)return alert("Selecione um representante.");db.metas[rep]=Number($("metaValor").value||0);save()}
-function renderMetas(){let month=$("dashMes").value||monthNow();$("metasList").innerHTML=reps().map(rep=>{let sold=combinedSales().filter(s=>(s.data||"").slice(0,7)===month&&norm(s.representante)===norm(rep)&&norm(s.status)!=="CANCELADO").reduce((a,b)=>a+Number(b.valor||0),0),goal=Number(db.metas[rep]||0),left=Math.max(goal-sold,0);return `<div class="card" style="margin-bottom:10px"><b>${esc(rep)}</b><div class="muted">Meta ${money(goal)} • Vendido ${money(sold)} • Falta ${goal?money(left):"Meta não definida"}</div></div>`}).join("")}
+function renderMetas(){
+ let dados=(db.apuracaoMetas||[]);
+ let q=norm($("buscaMetas")?.value),sup=$("metasSupervisor")?.value||"",st=$("metasStatus")?.value||"";
+
+ // Atualiza filtro de supervisor da área Metas
+ let supEl=$("metasSupervisor");
+ if(supEl){
+   let atual=supEl.value;
+   let sups=[...new Set(dados.map(x=>x.supervisor).filter(Boolean))].sort();
+   supEl.innerHTML='<option value="">Todos os supervisores</option>'+sups.map(s=>`<option>${esc(s)}</option>`).join("");
+   supEl.value=atual;
+ }
+
+ let filtrados=dados.map(x=>{
+   let meta=Number(x.meta||0),ating=Number(x.vrAtingido||0);
+   let pct=meta>0?(ating/meta*100):0;
+   let falta=Math.max(meta-ating,0);
+   return {...x,pct,falta};
+ }).filter(x=>{
+   let okBusca=!q||norm([x.representante,x.razaoSocial,x.supervisor].join(" ")).includes(q);
+   let okSup=!sup||x.supervisor===sup;
+   let okStatus=!st ||
+     (st==="atingida" && x.pct>=100) ||
+     (st==="nao" && x.pct<100) ||
+     (st==="proximo" && x.pct>=80);
+   return okBusca&&okSup&&okStatus;
+ }).sort((a,b)=>b.pct-a.pct);
+
+ let metaTotal=dados.reduce((s,x)=>s+Number(x.meta||0),0);
+ let atingTotal=dados.reduce((s,x)=>s+Number(x.vrAtingido||0),0);
+ let faltaTotal=Math.max(metaTotal-atingTotal,0);
+ let qtdAtingiram=dados.filter(x=>Number(x.meta||0)>0&&Number(x.vrAtingido||0)>=Number(x.meta||0)).length;
+ let pctEquipe=dados.length?qtdAtingiram/dados.length*100:0;
+
+ if($("mMetaTotal"))$("mMetaTotal").textContent=money(metaTotal);
+ if($("mAtingidoTotal"))$("mAtingidoTotal").textContent=money(atingTotal);
+ if($("mFaltaTotal"))$("mFaltaTotal").textContent=money(faltaTotal);
+ if($("mQtdAtingiram"))$("mQtdAtingiram").textContent=qtdAtingiram;
+ if($("mPctAtingiram"))$("mPctAtingiram").textContent=`${pctEquipe.toFixed(1)}% da equipe`;
+ if($("metasAtualizacao"))$("metasAtualizacao").textContent=dados.length?`${dados.length} representantes importados`:"Aguardando importação";
+
+ // Tabela detalhada
+ if($("metasBody")){
+   $("metasBody").innerHTML=filtrados.map((x,i)=>{
+     let status=x.pct>=100?"Atingida":x.pct>=80?"Próxima":"Abaixo";
+     let cls=x.pct>=100?"status-ok":x.pct>=80?"status-near":"status-no";
+     return `<tr>
+       <td>${i+1}</td>
+       <td><b>${esc(x.representante||"—")}</b></td>
+       <td>${esc(x.razaoSocial||"—")}</td>
+       <td>${esc(x.supervisor||"—")}</td>
+       <td>${money(x.meta)}</td>
+       <td>${money(x.vrAtingido)}</td>
+       <td>${money(x.falta)}</td>
+       <td>
+         <div class="pct-cell"><b>${x.pct.toFixed(1)}%</b>
+           <div class="mini-track"><div class="mini-fill ${cls}" style="width:${Math.min(x.pct,100)}%"></div></div>
+         </div>
+       </td>
+       <td><span class="status-pill ${cls}">${status}</span></td>
+     </tr>`
+   }).join("") || '<tr><td colspan="9">Importe a planilha de Apuração das Metas para preencher esta área.</td></tr>';
+ }
+
+ // Ranking
+ if($("rankingMetas")){
+   $("rankingMetas").innerHTML=filtrados.slice(0,10).map((x,i)=>`
+     <div class="rankline">
+       <div><b>${i+1}. ${esc(x.representante||"—")}</b><div class="muted">${esc(x.supervisor||"")}</div></div>
+       <div style="text-align:right"><b>${x.pct.toFixed(1)}%</b><div class="muted">${money(x.vrAtingido)}</div></div>
+     </div>`).join("") || '<p class="muted">Sem dados de metas.</p>';
+ }
+
+ // Gráfico percentual por representante
+ if(typeof Chart!=="undefined" && $("chartMetasRep")){
+   if(charts["chartMetasRep"])charts["chartMetasRep"].destroy();
+   let top=filtrados.slice(0,15);
+   charts["chartMetasRep"]=new Chart($("chartMetasRep"),{
+     type:"bar",
+     data:{
+       labels:top.map(x=>x.representante||"—"),
+       datasets:[{label:"% da meta",data:top.map(x=>Number(x.pct.toFixed(2))),borderWidth:1}]
+     },
+     options:{
+       responsive:true,maintainAspectRatio:false,indexAxis:"y",
+       plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`${c.raw.toFixed(1)}%`}}},
+       scales:{x:{beginAtZero:true,suggestedMax:100,ticks:{callback:v=>v+"%"}}}
+     }
+   });
+ }
+}
 function openFollow(id){fillSelectors();if(id)$("fCliente").value=id;$("fData").value=today();$("fTexto").value="";$("followModal").classList.add("open")}
 function saveFollow(){if(!$("fCliente").value||!$("fData").value||!$("fTexto").value.trim())return alert("Preencha todos os campos.");db.followups.push({id:uid(),clienteId:$("fCliente").value,data:$("fData").value,texto:$("fTexto").value.trim(),done:false});closeModal("followModal");save()}
 function followHtml(f){let c=getClient(f.clienteId);return `<div class="rowitem ${f.done?"done":""}"><b>${esc(c?.codigo||"")} ${esc(c?.razao||"Cliente")}</b><div class="muted">${brdate(f.data)} • ${esc(f.texto)}</div><button onclick="toggleFollow('${f.id}')">${f.done?"Reabrir":"Concluir"}</button></div>`}
@@ -394,6 +569,6 @@ function importPedidos(){
 }
 function exportExcel(){let wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(db.clientes),"Clientes");XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(db.vendas),"Vendas");XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(db.pedidos),"Pedidos");XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(db.orcamentos.map(o=>({...o,itens:JSON.stringify(o.itens)}))),"Orçamentos");XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(db.apuracaoMetas),"Apuração Metas");XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(db.followups),"Follow-ups");XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(db.alertas),"Alertas");XLSX.writeFile(wb,"Gestor_Comercial_Completo.xlsx")}
 function backupDados(){let blob=new Blob([JSON.stringify({aplicativo:"Gestor Comercial",versao:5,criadoEm:new Date().toISOString(),dados:db},null,2)],{type:"application/json"}),a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=`Backup_Gestor_Comercial_${today()}.json`;a.click()}
-function restaurarBackup(e){let f=e.target.files[0];if(!f)return;if(!confirm("Substituir os dados atuais pelo backup?"))return;let r=new FileReader();r.onload=x=>{try{let p=JSON.parse(x.target.result),d=p.dados||p;db={clientes:d.clientes||[],pedidos:d.pedidos||[],vendas:d.vendas||[],orcamentos:d.orcamentos||[],apuracaoMetas:d.apuracaoMetas||[],followups:d.followups||[],alertas:d.alertas||[],metas:d.metas||{}};save();alert("Backup restaurado.")}catch{alert("Backup inválido.")}};r.readAsText(f)}
-function render(){fillSelectors();refreshSupervisorFilter();renderClientes();renderVendas();renderPedidos();renderOrcamentos();renderFollow();renderAlerts();renderMetas();renderApuracao();renderDashboard();checkNotifications()}
+function restaurarBackup(e){let f=e.target.files[0];if(!f)return;if(!confirm("Substituir os dados atuais pelo backup?"))return;let r=new FileReader();r.onload=x=>{try{let p=JSON.parse(x.target.result),d=p.dados||p;db={clientes:d.clientes||[],pedidos:d.pedidos||[],vendas:d.vendas||[],orcamentos:d.orcamentos||[],apuracaoMetas:d.apuracaoMetas||[],apuracaoLinhas:d.apuracaoLinhas||[],followups:d.followups||[],alertas:d.alertas||[],metas:d.metas||{}};save();alert("Backup restaurado.")}catch{alert("Backup inválido.")}};r.readAsText(f)}
+function render(){fillSelectors();refreshSupervisorFilter();renderClientes();renderVendas();renderPedidos();renderOrcamentos();renderFollow();renderAlerts();renderApuracao();renderDashboard();checkNotifications()}
 render();setInterval(checkNotifications,60000);

@@ -1,500 +1,87 @@
 const KEY="gestor_comercial_v4";
-let db=JSON.parse(localStorage.getItem(KEY)||'{"clientes":[],"pedidos":[],"vendas":[],"followups":[],"alertas":[],"metas":{}}');
-if(!db.vendas)db.vendas=[];if(!db.pedidos)db.pedidos=[];if(!db.clientes)db.clientes=[];if(!db.followups)db.followups=[];if(!db.alertas)db.alertas=[];if(!db.orcamentos)db.orcamentos=[];if(!db.apuracaoMetas)db.apuracaoMetas=[];if(!db.apuracaoLinhas)db.apuracaoLinhas=[];
-const $=id=>document.getElementById(id),today=()=>new Date().toISOString().slice(0,10);
-const norm=v=>String(v??"").trim().toUpperCase();
-function normHeader(v){
- return String(v??"")
-   .normalize("NFD").replace(/[\u0300-\u036f]/g,"")
-   .toUpperCase()
-   .replace(/[^A-Z0-9]+/g," ")
-   .replace(/\s+/g," ")
-   .trim();
-}
-function findCol(headers, aliases){
- const hs=headers.map(normHeader);
- for(const alias of aliases){
-   const a=normHeader(alias);
-   let i=hs.findIndex(h=>h===a);
-   if(i>=0)return i;
- }
- for(const alias of aliases){
-   const a=normHeader(alias);
-   let i=hs.findIndex(h=>h.includes(a) || a.includes(h));
-   if(i>=0)return i;
- }
- return -1;
-}
-const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2);
-const money=v=>Number(v||0).toLocaleString("pt-BR",{style:"currency",currency:"BRL"});
-function numBR(v){
- if(typeof v==="number") return v;
- let s=String(v??"").trim();
- if(!s)return 0;
- s=s.replace(/R\$/gi,"").replace(/\s/g,"");
- if(s.includes(",") && s.includes(".")) s=s.replace(/\./g,"").replace(",",".");
- else if(s.includes(",")) s=s.replace(",",".");
- return Number(s.replace(/[^0-9.-]/g,""))||0;
-}
-function metricValue(s,metric){
- if(metric==="liquido") return Number(s.valorLiquido ?? s.valor ?? 0);
- return Number(s.valorSemImpostos ?? s.valor ?? 0);
-}
-const esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-function setHTML(id,html){const el=$(id);if(el)el.innerHTML=html}
-function setText(id,text){const el=$(id);if(el)el.textContent=text}
-function save(){localStorage.setItem(KEY,JSON.stringify(db));render()}
-function brdate(v){if(!v)return"—";let d=new Date(v+"T12:00:00");return isNaN(d)?esc(v):d.toLocaleDateString("pt-BR")}
-function monthNow(){return today().slice(0,7)}
-function getClient(id){return db.clientes.find(x=>x.id===id)}
-function findClientByCode(code){return db.clientes.find(c=>String(c.codigo)===String(code))}
+const el=id=>document.getElementById(id), val=id=>el(id)?.value??"", setText=(id,v)=>{let x=el(id);if(x)x.textContent=v}, setHTML=(id,v)=>{let x=el(id);if(x)x.innerHTML=v};
+const today=()=>new Date().toISOString().slice(0,10), monthNow=()=>today().slice(0,7);
+const norm=v=>String(v??"").trim().toUpperCase(), esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2), money=v=>Number(v||0).toLocaleString("pt-BR",{style:"currency",currency:"BRL"});
+let db=(()=>{try{return JSON.parse(localStorage.getItem(KEY))||{}}catch{return {}}})();
+for(const [k,d] of Object.entries({clientes:[],pedidos:[],vendas:[],orcamentos:[],followups:[],alertas:[],apuracaoLinhas:[],apuracaoMetas:[]}))if(!Array.isArray(db[k]))db[k]=d;
+
+function save(renderNow=true){localStorage.setItem(KEY,JSON.stringify(db));if(renderNow)render()}
+function num(v){if(typeof v==="number")return v;let s=String(v??"").trim().replace(/R\$/gi,"").replace(/\s/g,"");if(!s)return 0;if(s.includes(",")&&s.includes("."))s=s.replace(/\./g,"").replace(",",".");else if(s.includes(","))s=s.replace(",",".");return Number(s.replace(/[^0-9.-]/g,""))||0}
+function dateVal(v){if(v instanceof Date)return v.toISOString().slice(0,10);if(typeof v==="number"&&window.XLSX){let d=XLSX.SSF.parse_date_code(v);if(d)return `${d.y}-${String(d.m).padStart(2,"0")}-${String(d.d).padStart(2,"0")}`}let s=String(v??"").trim(),m=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);if(m)return `${m[3]}-${m[2].padStart(2,"0")}-${m[1].padStart(2,"0")}`;return /^\d{4}-\d{2}-\d{2}/.test(s)?s.slice(0,10):""}
+function brdate(v){if(!v)return"—";let d=new Date(v+"T12:00:00");return isNaN(d)?String(v):d.toLocaleDateString("pt-BR")}
+function header(v){return String(v??"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase().replace(/[^A-Z0-9]+/g," ").replace(/\s+/g," ").trim()}
+function col(headers,aliases){let h=headers.map(header);for(let a of aliases){let n=header(a),i=h.findIndex(x=>x===n);if(i>=0)return i}for(let a of aliases){let n=header(a),i=h.findIndex(x=>x.includes(n)||n.includes(x));if(i>=0)return i}return-1}
+function findHeader(raw,required){for(let r=0;r<Math.min(raw.length,60);r++){let h=raw[r].map(header);if(required.every(group=>group.some(a=>h.some(x=>x.includes(header(a))))))return r}return-1}
+function clienteById(id){return db.clientes.find(x=>x.id===id)}function clienteByCode(code){return db.clientes.find(x=>String(x.codigo)===String(code))}
 function reps(){return [...new Set([...db.clientes.map(x=>x.representante),...db.pedidos.map(x=>x.representante),...db.vendas.map(x=>x.representante)].filter(Boolean))].sort()}
-function regionFromUF(uf){const m={SP:"Sudeste",RJ:"Sudeste",MG:"Sudeste",ES:"Sudeste",PR:"Sul",SC:"Sul",RS:"Sul",BA:"Nordeste",SE:"Nordeste",AL:"Nordeste",PE:"Nordeste",PB:"Nordeste",RN:"Nordeste",CE:"Nordeste",PI:"Nordeste",MA:"Nordeste",GO:"Centro-Oeste",MT:"Centro-Oeste",MS:"Centro-Oeste",DF:"Centro-Oeste",AM:"Norte",PA:"Norte",AC:"Norte",RO:"Norte",RR:"Norte",AP:"Norte",TO:"Norte"};return m[norm(uf)]||"Não informado"}
-function saleRegion(s){return regionFromUF(s.uf||getClient(s.clienteId)?.uf)}
-function combinedSales(){
- const fromOrders=db.pedidos.map(p=>({...p,origem:"Pedido importado",clienteId:p.clienteId||findClientByCode(p.codigoCliente)?.id||"",pedido:p.ordem}));
- const manual=db.vendas.map(v=>({...v,origem:"Venda manual"}));
- const map=new Map();
- fromOrders.forEach(x=>map.set("P-"+String(x.ordem||x.id),x));
- manual.forEach(x=>map.set("V-"+String(x.id),x));
- return [...map.values()]
-}
-document.querySelectorAll(".nav").forEach(b=>b.onclick=()=>{document.querySelectorAll(".nav,.tab").forEach(x=>x.classList.remove("active"));b.classList.add("active");$(b.dataset.tab).classList.add("active");$("title").textContent=b.textContent.replace(/^[^\s]+\s/,"")});
-$("date").textContent=new Date().toLocaleDateString("pt-BR",{weekday:"long",day:"2-digit",month:"long",year:"numeric"});
-$("dashMes").value=$("mesPedido").value=$("mesVenda").value=monthNow();
-["buscaCliente","filtroDias"].forEach(id=>$(id).oninput=renderClientes);
-["buscaPedido","mesPedido","repPedido"].forEach(id=>$(id).oninput=renderPedidos);
-["buscaVenda","mesVenda"].forEach(id=>$(id).oninput=renderVendas);
+function reg(uf){return ({SP:"Sudeste",RJ:"Sudeste",MG:"Sudeste",ES:"Sudeste",PR:"Sul",SC:"Sul",RS:"Sul",BA:"Nordeste",SE:"Nordeste",AL:"Nordeste",PE:"Nordeste",PB:"Nordeste",RN:"Nordeste",CE:"Nordeste",PI:"Nordeste",MA:"Nordeste",GO:"Centro-Oeste",MT:"Centro-Oeste",MS:"Centro-Oeste",DF:"Centro-Oeste",AM:"Norte",PA:"Norte",AC:"Norte",RO:"Norte",RR:"Norte",AP:"Norte",TO:"Norte"})[norm(uf)]||"Não informado"}
+function closeModal(id){el(id)?.classList.remove("open")}
 
-["buscaOrcamento","statusOrcamento"].forEach(id=>{const el=$(id);if(el)el.oninput=renderOrcamentos});
-["buscaApuracao","filtroSupervisor","filtroAtingido"].forEach(id=>{const el=$(id);if(el)el.oninput=renderApuracao});
+document.querySelectorAll(".nav").forEach(b=>b.onclick=()=>{document.querySelectorAll(".nav,.tab").forEach(x=>x.classList.remove("active"));b.classList.add("active");el(b.dataset.tab)?.classList.add("active");setText("pageTitle",b.textContent.replace(/^[^\s]+\s/,""))});
+setText("todayText",new Date().toLocaleDateString("pt-BR",{weekday:"long",day:"2-digit",month:"long",year:"numeric"}));
+for(const id of ["dashMes","mesVenda","mesPedido"])if(el(id))el(id).value=monthNow();
+for(const id of ["dashMes","dashRep","dashRegiao","dashMetric","qCliente","diasCliente","qVenda","mesVenda","qPedido","mesPedido","repPedido","qOrc","statusOrc","qMeta","supMeta","statusMeta"]){let x=el(id);if(x)x.oninput=render}
 
-["dashMes","dashRep","dashRegiao","dashValor"].forEach(id=>{const el=$(id); if(el) el.onchange=renderDashboard});
+let charts={};function chart(id,type,labels,data,label,horizontal=false){if(!el(id)||typeof Chart==="undefined")return;if(charts[id])charts[id].destroy();charts[id]=new Chart(el(id),{type,data:{labels,datasets:[{label,data,borderWidth:2,tension:.25}]},options:{responsive:true,maintainAspectRatio:false,indexAxis:horizontal?"y":"x",plugins:{legend:{display:false}},scales:{x:{beginAtZero:true},y:{beginAtZero:true}}}})}
 
-let charts={};
-function setChart(id,type,labels,data,label){
- if(charts[id])charts[id].destroy();
- charts[id]=new Chart($(id),{type,data:{labels,datasets:[{label,data,borderWidth:2,tension:.25}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:type==="pie"},tooltip:{callbacks:{label:c=>`${c.dataset.label||""}: ${money(c.raw)}`}}},scales:type==="pie"?{}:{y:{beginAtZero:true,ticks:{callback:v=>Number(v).toLocaleString("pt-BR")}}}}})
-}
-function filteredDashboardSales(){
- let mes=$("dashMes").value,rep=$("dashRep").value,reg=$("dashRegiao").value;
- return combinedSales().filter(s=>(!mes||(s.data||"").slice(0,7)===mes)&&(!rep||norm(s.representante)===norm(rep))&&(!reg||saleRegion(s)===reg)&&norm(s.status)!=="CANCELADO")
-}
-function renderDashboard(){
- let arr=filteredDashboardSales(), metric=($("dashValor")?.value)||"semImpostos";
- let totalSem=arr.reduce((a,b)=>a+metricValue(b,"semImpostos"),0);
- let totalLiq=arr.reduce((a,b)=>a+metricValue(b,"liquido"),0);
- let totalGraf=arr.reduce((a,b)=>a+metricValue(b,metric),0),q=arr.length;
- if($("kVendas")) $("kVendas").textContent=money(totalSem); if($("kLiquido")) $("kLiquido").textContent=money(totalLiq);
- $("kPedidos").textContent=q;$("kTicket").textContent=money(q?totalGraf/q:0);
- let regAgg={},repAgg={},cliAgg={},diaAgg={};
- arr.forEach(s=>{
-   let val=metricValue(s,metric),r=saleRegion(s);
-   regAgg[r]=(regAgg[r]||0)+val;
-   let rp=s.representante||"Sem representante";repAgg[rp]=(repAgg[rp]||0)+val;
-   let cli=s.cliente||getClient(s.clienteId)?.razao||"Cliente não identificado";cliAgg[cli]=(cliAgg[cli]||0)+val;
-   let d=(s.data||"").slice(8,10);if(d)diaAgg[d]=(diaAgg[d]||0)+val
- });
- let regs=Object.entries(regAgg).sort((a,b)=>b[1]-a[1]),rps=Object.entries(repAgg).sort((a,b)=>b[1]-a[1]),cls=Object.entries(cliAgg).sort((a,b)=>b[1]-a[1]);
- $("kRegiao").textContent=regs[0]?.[0]||"—";$("kRegiaoValor").textContent=money(regs[0]?.[1]||0);
- $("kRepLider").textContent=rps[0]?.[0]||"—";$("kRepValor").textContent=money(rps[0]?.[1]||0);
- $("kClientesCompradores").textContent=Object.keys(cliAgg).length;
- $("kAlertas").textContent=db.alertas.filter(a=>!a.done&&a.data<=today()).length;
- $("kFollowups").textContent=db.followups.filter(f=>!f.done).length;
- let label=metric==="liquido"?"Valor líquido":"Sem impostos";
- setChart("chartEvolucao","line",Object.keys(diaAgg).sort((a,b)=>Number(a)-Number(b)),Object.keys(diaAgg).sort((a,b)=>Number(a)-Number(b)).map(k=>diaAgg[k]),label);
- setChart("chartRegiao","bar",regs.map(x=>x[0]),regs.map(x=>x[1]),label);
- setChart("chartRep","bar",rps.slice(0,12).map(x=>x[0]),rps.slice(0,12).map(x=>x[1]),label);
- setChart("chartPizza","pie",regs.map(x=>x[0]),regs.map(x=>x[1]),label);
- $("topClientes").innerHTML=cls.slice(0,10).map((x,i)=>`<div class="rankline"><span>${i+1}. ${esc(x[0])}</span><b>${money(x[1])}</b></div>`).join("")||'<p class="muted">Sem vendas no período.</p>';
- let metasDash=(db.apuracaoMetas||[]).map(x=>{
-   let meta=Number(x.meta||0), ating=Number(x.vrAtingido||0), pct=meta?ating/meta*100:0;
-   return {...x,pct,falta:Math.max(meta-ating,0)}
- }).sort((a,b)=>b.pct-a.pct);
- $("repRanking").innerHTML=metasDash.slice(0,10).map(x=>`<div class="barrow"><div class="barlabel"><b>${esc(x.representante||"—")}</b><span>${x.pct.toFixed(1)}%</span></div><div class="muted">Meta ${money(x.meta)} • Atingido ${money(x.vrAtingido)} • Falta ${money(x.falta)}</div><div class="bartrack"><div class="barfill" style="width:${Math.min(x.pct,100)}%"></div></div></div>`).join("")||'<p class="muted">Importe a Apuração das Metas.</p>';
- let aa=db.alertas.filter(a=>!a.done&&a.data<=today()).sort((a,b)=>a.data.localeCompare(b.data)).slice(0,6);
- $("painelAlertas").innerHTML=aa.length?aa.map(alertHtml).join(""):'<p class="muted">Nenhum alerta.</p>';
- let ff=db.followups.filter(f=>!f.done).sort((a,b)=>a.data.localeCompare(b.data)).slice(0,6);
- $("painelFollow").innerHTML=ff.length?ff.map(followHtml).join(""):'<p class="muted">Nenhum follow-up.</p>';
-}
-function renderClientes(){
- let q=norm($("buscaCliente").value),dias=Number($("filtroDias").value||0);
- let arr=db.clientes.filter(c=>(!q||norm([c.codigo,c.razao,c.cnpj,c.cidade,c.uf,c.responsavel,c.representante,c.tel1,c.tel2].join(" ")).includes(q))&&(!dias||Number(c.dias)>=dias));
- $("clientesList").innerHTML=arr.map(c=>`<div class="client"><div class="clienttop"><div><h3>${esc(c.codigo)} — ${esc(c.razao)}</h3><span class="muted">${esc(c.cidade)}/${esc(c.uf)} • CNPJ ${esc(c.cnpj||"—")}</span></div><b>${Number(c.dias||0)} dias</b></div><div class="tags"><span class="tag">${esc(c.responsavel||"Sem responsável")}</span><span class="tag">${esc(c.representante||"Sem representante")}</span>${Number(c.dias)>=90?'<span class="tag red">+90 dias</span>':''}</div><div class="muted">Última compra: ${brdate(c.ultima)} • ${money(c.valor)}<br>☎ ${esc(c.tel1||"")} ${c.tel2?" | "+esc(c.tel2):""}</div><div class="actions"><button class="followbtn" onclick="openFollow('${c.id}')">📞 Follow-up</button><button class="alertbtn" onclick="openAlert('${c.id}')">🔔 Alerta</button><button class="whatsappbtn" onclick="openWhats('${c.id}')">💬 WhatsApp</button><button onclick="openVenda('${c.id}')">💰 Venda</button></div></div>`).join("")||'<div class="card muted">Nenhum cliente encontrado.</div>'
-}
-function renderVendas(){
- let q=norm($("buscaVenda").value),mes=$("mesVenda").value;
- let arr=db.vendas.filter(v=>(!mes||(v.data||"").slice(0,7)===mes)&&(!q||norm([v.pedido,v.codigoCliente,v.cliente,v.representante].join(" ")).includes(q))).sort((a,b)=>(b.data||"").localeCompare(a.data||""));
- let total=arr.reduce((a,b)=>a+Number(b.valor||0),0);$("vTotal").textContent=money(total);$("vQtd").textContent=arr.length;$("vTicket").textContent=money(arr.length?total/arr.length:0);
- $("vendasList").innerHTML=arr.map(v=>`<div class="sale"><div class="saletop"><div><h3>${esc(v.codigoCliente||"")} — ${esc(v.cliente||"Cliente")}</h3><span class="muted">${brdate(v.data)} • Pedido ${esc(v.pedido||"—")} • ${esc(v.representante||"Sem representante")}</span></div><b>${money(v.valor)}</b></div><div class="tags"><span class="tag">${esc(v.status||"Venda")}</span></div>${v.obs?`<div class="muted">${esc(v.obs)}</div>`:""}<div class="actions"><button class="deletebtn" onclick="deleteVenda('${v.id}')">Excluir</button></div></div>`).join("")||'<div class="card muted">Nenhuma venda manual registrada.</div>'
-}
-function renderPedidos(){
- let q=norm($("buscaPedido").value),mes=$("mesPedido").value,rep=$("repPedido").value;
- let arr=db.pedidos.filter(p=>(!mes||(p.data||"").slice(0,7)===mes)&&(!rep||norm(p.representante)===norm(rep))&&(!q||norm([p.ordem,p.codigoCliente,p.cliente,p.representante,p.cidade,p.uf].join(" ")).includes(q)));
- let total=arr.reduce((a,b)=>a+Number(b.valor||0),0);$("pTotal").textContent=money(total);$("pQtd").textContent=arr.length;$("pTicket").textContent=money(arr.length?total/arr.length:0);
- $("pedidosList").innerHTML=arr.sort((a,b)=>(b.data||"").localeCompare(a.data||"")).map(p=>`<div class="order"><div class="ordertop"><div><h3>Pedido ${esc(p.ordem||"—")} • ${esc(p.codigoCliente||"")} ${esc(p.cliente||"")}</h3><span class="muted">${brdate(p.data)} • ${esc(p.representante||"Sem representante")} • ${esc(p.cidade||"")}/${esc(p.uf||"")}</span></div><div style="text-align:right"><b>Sem impostos: ${money(p.valorSemImpostos??p.valor)}</b><br><span class="muted">Líquido: ${money(p.valorLiquido??p.valor)}</span></div></div>${p.status?`<div class="tags"><span class="tag">${esc(p.status)}</span></div>`:""}</div>`).join("")||'<div class="card muted">Nenhum pedido.</div>'
-}
-function fillSelectors(){
- let r=reps(),opts='<option value="">Todos</option>'+r.map(x=>`<option>${esc(x)}</option>`).join("");
- let vals={dashRep:$("dashRep").value,repPedido:$("repPedido").value};$("dashRep").innerHTML=opts;$("dashRep").value=vals.dashRep;$("repPedido").innerHTML=opts;$("repPedido").value=vals.repPedido;
- $("metaRep").innerHTML=r.map(x=>`<option>${esc(x)}</option>`).join("");$("vRepresentante").innerHTML=r.map(x=>`<option>${esc(x)}</option>`).join("");if($("orcRep"))$("orcRep").innerHTML=r.map(x=>`<option>${esc(x)}</option>`).join("");$("fCliente").innerHTML=db.clientes.map(c=>`<option value="${c.id}">${esc(c.codigo)} — ${esc(c.razao)}</option>`).join("")
-}
+function allSales(){let arr=db.pedidos.map(p=>({id:"P"+p.id,data:p.data,clienteId:p.clienteId,cliente:p.cliente,codigoCliente:p.codigoCliente,representante:p.representante,uf:p.uf,cidade:p.cidade,sem:Number(p.valorSemImpostos??p.valor??0),liq:Number(p.valorLiquido??p.valor??0),origem:"Pedido",ordem:p.ordem,status:p.status}));for(let v of db.vendas)arr.push({id:"V"+v.id,data:v.data,clienteId:v.clienteId,cliente:v.cliente,codigoCliente:v.codigoCliente,representante:v.representante,uf:v.uf,cidade:v.cidade,sem:Number(v.valorSemImpostos??v.valor??0),liq:Number(v.valorLiquido??v.valor??0),origem:v.origem||"Venda",ordem:v.ordem||v.pedido});return arr}
+function fillSelectors(){let rr=reps(),opts='<option value="">Todos</option>'+rr.map(r=>`<option>${esc(r)}</option>`).join("");for(const id of ["dashRep","repPedido"]){let x=el(id);if(x){let old=x.value;x.innerHTML=opts;x.value=old}}for(const id of ["vRep","oRep"]){let x=el(id);if(x)x.innerHTML=rr.map(r=>`<option>${esc(r)}</option>`).join("")}let f=el("fCliente");if(f)f.innerHTML=db.clientes.map(c=>`<option value="${c.id}">${esc(c.codigo)} — ${esc(c.razao)}</option>`).join("")}
 
-function orcNumber(){return "ORC-"+new Date().getFullYear()+"-"+String(Date.now()).slice(-6)}
-function openOrcamento(){
- fillSelectors();
- $("orcCodigo").value="";$("orcCliente").value="";$("orcClienteId").value="";
- $("orcValidade").value=new Date(Date.now()+7*86400000).toISOString().slice(0,10);
- $("orcDesconto").value=0;$("orcObs").value="";$("orcItens").innerHTML="";
- addOrcItem();recalcOrc();$("orcamentoModal").classList.add("open")
-}
-function buscarClienteOrcamento(){
- let c=findClientByCode($("orcCodigo").value);
- $("orcClienteId").value=c?.id||"";$("orcCliente").value=c?.razao||"";
- if(c?.representante)$("orcRep").value=c.representante
-}
-function addOrcItem(desc="",qtd=1,preco=0){
- let tr=document.createElement("tr");
- tr.innerHTML=`<td><input class="desc" value="${esc(desc)}" placeholder="Produto / descrição"></td>
- <td><input class="qtd" type="number" min="0" step="1" value="${qtd}" oninput="recalcOrc()"></td>
- <td><input class="preco" type="number" min="0" step="0.01" value="${preco}" oninput="recalcOrc()"></td>
- <td class="subtotal">${money(qtd*preco)}</td>
- <td><button class="deletebtn" onclick="this.closest('tr').remove();recalcOrc()">×</button></td>`;
- $("orcItens").appendChild(tr);recalcOrc()
-}
-function collectOrcItens(){
- return [...$("orcItens").querySelectorAll("tr")].map(tr=>({
-   descricao:tr.querySelector(".desc").value.trim(),
-   qtd:Number(tr.querySelector(".qtd").value||0),
-   preco:Number(tr.querySelector(".preco").value||0)
- })).filter(x=>x.descricao&&x.qtd>0)
-}
-function recalcOrc(){
- let itens=collectOrcItens(),bruto=itens.reduce((s,x)=>s+x.qtd*x.preco,0),desc=Number($("orcDesconto")?.value||0),total=Math.max(bruto-desc,0);
- [...$("orcItens").querySelectorAll("tr")].forEach(tr=>{let q=Number(tr.querySelector(".qtd").value||0),p=Number(tr.querySelector(".preco").value||0);tr.querySelector(".subtotal").textContent=money(q*p)});
- if($("orcTotal"))$("orcTotal").value=money(total)
-}
-function saveOrcamento(){
- let c=findClientByCode($("orcCodigo").value),itens=collectOrcItens();
- if(!c)return alert("Código do cliente não encontrado.");
- if(!itens.length)return alert("Adicione pelo menos um item.");
- let bruto=itens.reduce((s,x)=>s+x.qtd*x.preco,0),desconto=Number($("orcDesconto").value||0);
- db.orcamentos.push({id:uid(),numero:orcNumber(),data:today(),validade:$("orcValidade").value,clienteId:c.id,codigoCliente:c.codigo,cliente:c.razao,representante:$("orcRep").value||c.representante||"",cidade:c.cidade,uf:c.uf,itens,bruto,desconto,total:Math.max(bruto-desconto,0),observacao:$("orcObs").value.trim(),status:"Em aberto",pedidoGerado:""});
- closeModal("orcamentoModal");save()
-}
+function renderDashboard(){let mes=val("dashMes"),rp=val("dashRep"),rg=val("dashRegiao"),metric=val("dashMetric")||"sem";let arr=allSales().filter(s=>(!mes||String(s.data).slice(0,7)===mes)&&(!rp||norm(s.representante)===norm(rp))&&(!rg||reg(s.uf)===rg)&&norm(s.status)!=="CANCELADO");let sem=arr.reduce((s,x)=>s+x.sem,0),liq=arr.reduce((s,x)=>s+x.liq,0),chosen=metric==="liq"?"liq":"sem";setText("kSem",money(sem));setText("kLiq",money(liq));setText("kQtd",arr.length);setText("kTicket",money(arr.length?arr.reduce((s,x)=>s+x[chosen],0)/arr.length:0));let ra={},rr={},dd={},cc={};arr.forEach(x=>{let v=x[chosen],r=reg(x.uf),p=x.representante||"Sem representante",d=String(x.data||"").slice(8,10),c=x.cliente||"Cliente";ra[r]=(ra[r]||0)+v;rr[p]=(rr[p]||0)+v;if(d)dd[d]=(dd[d]||0)+v;cc[c]=(cc[c]||0)+v});let rs=Object.entries(ra).sort((a,b)=>b[1]-a[1]),rps=Object.entries(rr).sort((a,b)=>b[1]-a[1]);setText("kRegiao",rs[0]?.[0]||"—");setText("kRep",rps[0]?.[0]||"—");setText("kAlertas",db.alertas.filter(a=>!a.done&&a.data<=today()).length);setText("kFollow",db.followups.filter(f=>!f.done).length);let days=Object.keys(dd).sort((a,b)=>+a-+b);chart("chDia","line",days,days.map(d=>dd[d]),"Vendas");chart("chRep","bar",rps.slice(0,12).map(x=>x[0]),rps.slice(0,12).map(x=>x[1]),"Vendas");chart("chReg","bar",rs.map(x=>x[0]),rs.map(x=>x[1]),"Vendas");setHTML("topClientes",Object.entries(cc).sort((a,b)=>b[1]-a[1]).slice(0,10).map((x,i)=>`<div class="rank"><span>${i+1}. ${esc(x[0])}</span><b>${money(x[1])}</b></div>`).join("")||'<p class="muted">Sem dados no período.</p>')}
 
-function confirmarVendaPedido(id){
- let p=db.pedidos.find(x=>x.id===id);if(!p)return;
- if(p.vendaId)return alert("Este pedido já foi confirmado como venda.");
- let o=p.orcamentoId?db.orcamentos.find(x=>x.id===p.orcamentoId):null;
- let valorSem=Number(p.valorSemImpostos??p.valor??0),valorLiq=Number(p.valorLiquido??p.valor??0);
- let venda={
-   id:uid(),
-   data:today(),
-   pedidoId:p.id,
-   ordem:p.ordem,
-   codigoCliente:p.codigoCliente||"",
-   clienteId:p.clienteId||"",
-   cliente:p.cliente||"",
-   representante:p.representante||"",
-   cidade:p.cidade||"",
-   uf:p.uf||"",
-   valorSemImpostos:valorSem,
-   valorLiquido:valorLiq,
-   valor:valorSem,
-   origem:o?`Orçamento ${o.numero} → Pedido ${p.ordem}`:`Pedido ${p.ordem}`,
-   orcamentoId:o?.id||"",
-   orcamentoNumero:o?.numero||"",
-   itens:p.itens||[]
- };
- db.vendas.push(venda);
- p.vendaId=venda.id;
- p.status="Venda confirmada";
- if(o){
-   o.status="Venda concluída";
-   o.pedidoGerado=p.ordem;
-   o.vendaId=venda.id;
- }
- save();
- alert(`Venda criada com sucesso a partir do pedido ${p.ordem}.`);
-}
+function renderClientes(){let q=norm(val("qCliente")),dias=Number(val("diasCliente")||0);let arr=db.clientes.filter(c=>(!q||norm([c.codigo,c.razao,c.cnpj,c.cidade,c.uf,c.tel1,c.tel2,c.representante].join(" ")).includes(q))&&(!dias||Number(c.dias||0)>=dias));setHTML("clientesList",arr.map(c=>`<div class="itemcard"><div class="top"><div><b>${esc(c.codigo)} — ${esc(c.razao)}</b><div class="muted">${esc(c.cidade||"")}/${esc(c.uf||"")} • CNPJ ${esc(c.cnpj||"—")}</div></div><b>${Number(c.dias||0)} dias</b></div><div class="muted">Última compra ${brdate(c.ultima)} • ${money(c.valor)}<br>☎ ${esc(c.tel1||"")} ${c.tel2?" | "+esc(c.tel2):""}</div><div class="actions"><button onclick="openFollow('${c.id}')">📞 Follow-up</button><button onclick="openAlert('${c.id}')">🔔 Alerta</button><button class="whatsapp" onclick="openWhats('${c.id}')">💬 WhatsApp</button><button onclick="openVenda('${c.id}')">💰 Venda</button></div></div>`).join("")||'<div class="card">Nenhum cliente.</div>')}
 
-function renderOrcamentos(){
- let q=norm($("buscaOrcamento")?.value),st=$("statusOrcamento")?.value||"";
- let arr=db.orcamentos.filter(o=>(!st||o.status===st)&&(!q||norm([o.numero,o.codigoCliente,o.cliente,o.representante].join(" ")).includes(q))).sort((a,b)=>(b.data||"").localeCompare(a.data||""));
- $("oQtd").textContent=arr.length;
- $("oAberto").textContent=money(db.orcamentos.filter(o=>o.status==="Em aberto").reduce((s,o)=>s+Number(o.total||0),0));
- $("oConvertidos").textContent=db.orcamentos.filter(o=>o.status==="Virou pedido").length;
- $("orcamentosList").innerHTML=arr.map(o=>`<div class="quote-card"><div class="quote-top"><div><h3>${esc(o.numero)} • ${esc(o.codigoCliente)} — ${esc(o.cliente)}</h3><div class="muted">${brdate(o.data)} • Validade ${brdate(o.validade)} • ${esc(o.representante||"Sem representante")}</div></div><div class="quote-total">${money(o.total)}</div></div>
- <div class="tags"><span class="tag ${o.status==="Aprovado"?"approved":o.status==="Virou pedido"?"converted":""}">${esc(o.status)}</span>${o.pedidoGerado?`<span class="tag">Pedido ${esc(o.pedidoGerado)}</span>`:""}</div>
- <div class="quote-items">${o.itens.map(i=>`${esc(i.descricao)} • ${i.qtd} × ${money(i.preco)}`).join("<br>")}</div>
- <div class="quote-actions">
-   ${!["Virou pedido","Venda concluída"].includes(o.status)?`<button onclick="setOrcStatus('${o.id}','Aprovado')">✅ Aprovar</button><button class="primary" onclick="openConverter('${o.id}')">🧾 Virar pedido</button>`:""}
-   <button onclick="printOrcamento('${o.id}')">🖨️ Imprimir</button>
-   <button class="whatsappbtn" onclick="whatsOrcamento('${o.id}')">💬 WhatsApp</button>
-   ${o.status==="Em aberto"?`<button class="deletebtn" onclick="setOrcStatus('${o.id}','Recusado')">Recusado</button>`:""}
- </div></div>`).join("")||'<div class="card muted">Nenhum orçamento cadastrado.</div>'
-}
-function setOrcStatus(id,status){let o=db.orcamentos.find(x=>x.id===id);if(o){o.status=status;save()}}
-function openConverter(id){
- let o=db.orcamentos.find(x=>x.id===id);if(!o)return;
- $("convOrcId").value=id;$("convPedido").value="";$("convData").value=today();$("converterModal").classList.add("open")
-}
-function converterOrcamento(){
- let o=db.orcamentos.find(x=>x.id===$("convOrcId").value);if(!o)return;
- let numero=$("convPedido").value.trim()||("PED-"+String(Date.now()).slice(-6));
- let existente=db.pedidos.find(p=>String(p.ordem)===String(numero));
- if(existente)return alert("Já existe um pedido com esse número.");
- db.pedidos.push({id:uid(),ordem:numero,codigoCliente:o.codigoCliente,cliente:o.cliente,clienteId:o.clienteId,data:$("convData").value,representante:o.representante,valorSemImpostos:o.total,valorLiquido:o.total,valor:o.total,cidade:o.cidade,uf:o.uf,status:$("convStatus").value,origem:"Orçamento",orcamentoId:o.id,orcamentoNumero:o.numero,itens:o.itens,vendaId:""});
- o.status="Virou pedido";o.pedidoGerado=numero;
- closeModal("converterModal");save();alert(`Orçamento ${o.numero} convertido no pedido ${numero}.`)
-}
-function printOrcamento(id){
- let o=db.orcamentos.find(x=>x.id===id);if(!o)return;
- let w=window.open("","_blank");
- let linhas=o.itens.map(i=>`<tr><td>${esc(i.descricao)}</td><td>${i.qtd}</td><td>${money(i.preco)}</td><td>${money(i.qtd*i.preco)}</td></tr>`).join("");
- w.document.write(`<html><head><title>${o.numero}</title><style>body{font-family:Arial;padding:30px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #ccc;padding:8px;text-align:left}h1{margin-bottom:3px}.tot{text-align:right;font-size:20px;font-weight:bold}</style></head><body><h1>Orçamento ${esc(o.numero)}</h1><p>${esc(o.codigoCliente)} — ${esc(o.cliente)}<br>Representante: ${esc(o.representante)}<br>Validade: ${brdate(o.validade)}</p><table><tr><th>Item</th><th>Qtd.</th><th>Unitário</th><th>Subtotal</th></tr>${linhas}</table><p>Desconto: ${money(o.desconto)}</p><p class="tot">Total: ${money(o.total)}</p><p>${esc(o.observacao||"")}</p></body></html>`);
- w.document.close();w.print()
-}
-function whatsOrcamento(id){
- let o=db.orcamentos.find(x=>x.id===id),c=getClient(o?.clienteId);if(!o||!c)return;
- let phone=cleanPhone(c.tel1||c.tel2);if(!phone)return alert("Cliente sem telefone.");
- let itens=o.itens.map(i=>`• ${i.descricao}: ${i.qtd} x ${money(i.preco)}`).join("\n");
- let msg=`Olá! Segue o orçamento ${o.numero}:\n\n${itens}\n\nTotal: ${money(o.total)}\nValidade: ${brdate(o.validade)}`;
- window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`,"_blank")
-}
+function renderPedidos(){let q=norm(val("qPedido")),mes=val("mesPedido"),rp=val("repPedido");let arr=db.pedidos.filter(p=>(!q||norm([p.ordem,p.codigoCliente,p.cliente,p.representante].join(" ")).includes(q))&&(!mes||String(p.data).slice(0,7)===mes)&&(!rp||norm(p.representante)===norm(rp)));setText("pSem",money(arr.reduce((s,p)=>s+Number(p.valorSemImpostos??p.valor??0),0)));setText("pLiq",money(arr.reduce((s,p)=>s+Number(p.valorLiquido??p.valor??0),0)));setText("pQtd",arr.length);setHTML("pedidosList",arr.sort((a,b)=>String(b.data).localeCompare(String(a.data))).map(p=>`<div class="itemcard"><div class="top"><div><b>Pedido ${esc(p.ordem)} • ${esc(p.codigoCliente||"")} ${esc(p.cliente||"")}</b><div class="muted">${brdate(p.data)} • ${esc(p.representante||"")} • ${esc(p.cidade||"")}/${esc(p.uf||"")}</div></div><div style="text-align:right"><b>${money(p.valorSemImpostos??p.valor)}</b><div class="muted">Líquido ${money(p.valorLiquido??p.valor)}</div></div></div><div class="tags">${p.orcamentoNumero?`<span class="tag">📝 ${esc(p.orcamentoNumero)}</span>`:""}${p.vendaId?'<span class="tag ok">💰 Venda confirmada</span>':`<button class="primary" onclick="confirmVenda('${p.id}')">💰 Confirmar venda</button>`}</div></div>`).join("")||'<div class="card">Nenhum pedido.</div>')}
 
-function renderApuracao(){
- let q=norm($("buscaApuracao")?.value),sup=$("filtroSupervisor")?.value||"",at=$("filtroAtingido")?.value||"";
- let fonte=(db.apuracaoLinhas&&db.apuracaoLinhas.length)?db.apuracaoLinhas:db.apuracaoMetas;
- let arr=fonte.map(x=>{
-   let meta=Number(x.meta||0),vr=Number(x.vrAtingido||0);
-   return {...x,pct:meta?vr/meta*100:0,falta:Math.max(meta-vr,0)}
- }).filter(x=>(!q||norm([x.representante,x.razaoSocial,x.supervisor].join(" ")).includes(q))&&(!sup||x.supervisor===sup)&&(!at||x.atingido===at));
+function renderVendas(){let q=norm(val("qVenda")),mes=val("mesVenda");let arr=db.vendas.filter(v=>(!q||norm([v.ordem,v.codigoCliente,v.cliente,v.representante,v.origem].join(" ")).includes(q))&&(!mes||String(v.data).slice(0,7)===mes));setText("vSem",money(arr.reduce((s,v)=>s+Number(v.valorSemImpostos??v.valor??0),0)));setText("vLiq",money(arr.reduce((s,v)=>s+Number(v.valorLiquido??v.valor??0),0)));setText("vQtd",arr.length);setHTML("vendasList",arr.sort((a,b)=>String(b.data).localeCompare(String(a.data))).map(v=>`<div class="itemcard"><div class="top"><div><b>${esc(v.codigoCliente||"")} — ${esc(v.cliente||"")}</b><div class="muted">${brdate(v.data)} • Pedido ${esc(v.ordem||"—")} • ${esc(v.representante||"")}<br>${v.origem?`🔗 ${esc(v.origem)}`:""}</div></div><div style="text-align:right"><b>${money(v.valorSemImpostos??v.valor)}</b><div class="muted">Líquido ${money(v.valorLiquido??v.valor)}</div></div></div></div>`).join("")||'<div class="card">Nenhuma venda.</div>')}
 
- let resumo=db.apuracaoMetas||[];
- let meta=resumo.reduce((s,x)=>s+Number(x.meta||0),0),ating=resumo.reduce((s,x)=>s+Number(x.vrAtingido||0),0);
- let qtd=resumo.filter(x=>Number(x.meta||0)>0&&Number(x.vrAtingido||0)>=Number(x.meta||0)).length;
- let pctEquipe=resumo.length?qtd/resumo.length*100:0;
- setText("aMetaTotal",money(meta));setText("aAtingidoTotal",money(ating));setText("aFaltaTotal",money(Math.max(meta-ating,0)));
- setText("aQtdMeta",qtd);setText("aPctMeta",pctEquipe.toFixed(1)+"% da equipe");
+function renderOrcamentos(){let q=norm(val("qOrc")),st=val("statusOrc");let arr=db.orcamentos.filter(o=>(!q||norm([o.numero,o.codigoCliente,o.cliente,o.representante].join(" ")).includes(q))&&(!st||o.status===st));setHTML("orcamentosList",arr.sort((a,b)=>String(b.data).localeCompare(String(a.data))).map(o=>`<div class="itemcard"><div class="top"><div><b>${esc(o.numero)} • ${esc(o.codigoCliente)} — ${esc(o.cliente)}</b><div class="muted">${brdate(o.data)} • Validade ${brdate(o.validade)} • ${esc(o.representante||"")}</div></div><b>${money(o.total)}</b></div><div class="tags"><span class="tag">${esc(o.status)}</span>${o.pedidoGerado?`<span class="tag">Pedido ${esc(o.pedidoGerado)}</span>`:""}</div><div class="muted">${(o.itens||[]).map(i=>`${esc(i.descricao)} • ${i.qtd} x ${money(i.preco)}`).join("<br>")}</div><div class="actions">${!["Virou pedido","Venda concluída"].includes(o.status)?`<button onclick="approveOrc('${o.id}')">✅ Aprovar</button><button class="primary" onclick="openConvert('${o.id}')">🧾 Virar pedido</button>`:""}<button class="whatsapp" onclick="whatsOrc('${o.id}')">💬 WhatsApp</button></div></div>`).join("")||'<div class="card">Nenhum orçamento.</div>')}
 
- if($("apuracaoBody")) $("apuracaoBody").innerHTML=arr.map(x=>`<tr>
-   <td class="${x.atingido==="Sim"?"status-ok":"status-no"}">${esc(x.atingido)}</td>
-   <td><b>${esc(x.representante||"—")}</b></td><td>${esc(x.razaoSocial||"—")}</td>
-   <td>${money(x.meta)}</td><td>${money(x.vrAtingido)}</td><td>${money(x.falta)}</td>
-   <td>${x.pct.toFixed(1)}%</td><td>${esc(x.supervisor||"—")}</td></tr>`).join("")||'<tr><td colspan="8">Importe a planilha de Apuração das Metas.</td></tr>';
+function renderFollow(){setHTML("followList",db.followups.sort((a,b)=>String(a.data).localeCompare(String(b.data))).map(f=>{let c=clienteById(f.clienteId);return`<div class="itemcard ${f.done?"muted":""}"><b>${esc(c?.codigo||"")} ${esc(c?.razao||"Cliente")}</b><div class="muted">${brdate(f.data)} • ${esc(f.texto)}</div><button onclick="toggleFollow('${f.id}')">${f.done?"Reabrir":"Concluir"}</button></div>`}).join("")||'<div class="card">Nenhum follow-up.</div>')}
+function renderAlerts(){setHTML("alertList",db.alertas.sort((a,b)=>String(a.data).localeCompare(String(b.data))).map(a=>{let c=clienteById(a.clienteId);return`<div class="itemcard ${a.done?"muted":""}"><b>🔔 ${esc(c?.codigo||"")} ${esc(c?.razao||"Cliente")}</b><div class="muted">${brdate(a.data)} • ${esc(a.prioridade)} • ${esc(a.texto)}</div><button onclick="toggleAlert('${a.id}')">${a.done?"Reabrir":"Concluir"}</button></div>`}).join("")||'<div class="card">Nenhum alerta.</div>')}
 
- let rank=resumo.map(x=>{let m=Number(x.meta||0),v=Number(x.vrAtingido||0);return {...x,pct:m?v/m*100:0}}).sort((a,b)=>b.pct-a.pct);
- setHTML("rankingMetas",rank.slice(0,10).map((x,i)=>`<div class="rankline"><div><b>${i+1}. ${esc(x.representante||"—")}</b><div class="muted">${esc(x.supervisor||"")}</div></div><div style="text-align:right"><b>${x.pct.toFixed(1)}%</b><div class="muted">${money(x.vrAtingido)}</div></div></div>`).join("")||'<p class="muted">Sem dados.</p>');
+function renderMetas(){let q=norm(val("qMeta")),sup=val("supMeta"),st=val("statusMeta"),base=db.apuracaoMetas||[];let sups=[...new Set(base.map(x=>x.supervisor).filter(Boolean))].sort(),se=el("supMeta");if(se){let old=se.value;se.innerHTML='<option value="">Todos os supervisores</option>'+sups.map(s=>`<option>${esc(s)}</option>`).join("");se.value=old}let arr=base.map(x=>({...x,pct:Number(x.meta)>0?Number(x.vrAtingido)/Number(x.meta)*100:0,falta:Math.max(Number(x.meta||0)-Number(x.vrAtingido||0),0)})).filter(x=>(!q||norm([x.representante,x.razaoSocial,x.supervisor].join(" ")).includes(q))&&(!sup||x.supervisor===sup)&&(!st||(st==="sim"&&x.pct>=100)||(st==="nao"&&x.pct<100)||(st==="80"&&x.pct>=80))).sort((a,b)=>b.pct-a.pct);let mt=base.reduce((s,x)=>s+Number(x.meta||0),0),at=base.reduce((s,x)=>s+Number(x.vrAtingido||0),0);setText("mMeta",money(mt));setText("mAtingido",money(at));setText("mFalta",money(Math.max(mt-at,0)));setHTML("metaBody",arr.map((x,i)=>`<tr><td>${i+1}</td><td class="${x.pct>=100?"statusok":"statusno"}">${x.pct>=100?"Sim":"Não"}</td><td><b>${esc(x.representante)}</b></td><td>${esc(x.razaoSocial||"")}</td><td>${money(x.meta)}</td><td>${money(x.vrAtingido)}</td><td>${money(x.falta)}</td><td><b>${x.pct.toFixed(1)}%</b><div class="progress"><div class="fill" style="width:${Math.min(x.pct,100)}%"></div></div></td><td>${esc(x.supervisor||"")}</td></tr>`).join("")||'<tr><td colspan="9">Importe a planilha de Apuração das Metas.</td></tr>');chart("chMeta","bar",arr.slice(0,20).map(x=>x.representante),arr.slice(0,20).map(x=>Number(x.pct.toFixed(2))),"% da meta",true)}
 
- if(typeof Chart!=="undefined"&&$("chartMetas")){
-   if(charts["chartMetas"])charts["chartMetas"].destroy();
-   let top=rank.slice(0,15);
-   charts["chartMetas"]=new Chart($("chartMetas"),{type:"bar",data:{labels:top.map(x=>x.representante||"—"),datasets:[{label:"% da meta",data:top.map(x=>Number(x.pct.toFixed(2))),borderWidth:1}]},options:{responsive:true,maintainAspectRatio:false,indexAxis:"y",plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>Number(c.raw).toFixed(1)+"%"}}},scales:{x:{beginAtZero:true,suggestedMax:100,ticks:{callback:v=>v+"%"}}}}})
- }
-}
-function refreshSupervisorFilter(){
- let el=$("filtroSupervisor");if(!el)return;let cur=el.value,sups=[...new Set(db.apuracaoMetas.map(x=>x.supervisor).filter(Boolean))].sort();el.innerHTML='<option value="">Todos os supervisores</option>'+sups.map(x=>`<option>${esc(x)}</option>`).join("");el.value=cur
-}
-function importApuracao(){
- let f=$("apuracaoFile").files[0];
- if(!f)return alert("Selecione o arquivo de Apuração das metas.");
- let r=new FileReader();
- r.onload=e=>{
-  try{
-   let wb=XLSX.read(e.target.result,{type:"array",raw:true,cellDates:true});
-   let linhas=[]; let diagnostico=[];
-   wb.SheetNames.forEach(sn=>{
-     let raw=XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,defval:"",raw:true});
-     if(!raw.length)return;
-     // Localiza a linha que contém os cabeçalhos reais.
-     let h=-1;
-     for(let i=0;i<Math.min(raw.length,40);i++){
-       let rr=raw[i].map(normHeader);
-       if(rr.some(v=>v==="ATINGIDO") && rr.some(v=>v.includes("REPRESENTANTE")) && rr.some(v=>v==="META" || v.includes("VR ATINGIDO"))){h=i;break}
-     }
-     if(h<0){diagnostico.push(`${sn}: cabeçalho não encontrado`);return}
-     let headers=raw[h].map(v=>String(v??"").trim());
-     let cAt=findCol(headers,["Atingido"]),cRep=findCol(headers,["Representante"]),cRaz=findCol(headers,["Razão Social","Razao Social"]),cMeta=findCol(headers,["Meta"]),cVr=findCol(headers,["Vr Atingido","Valor Atingido"]),cSup=findCol(headers,["Nome do Supervisor","Supervisor"]);
-     diagnostico.push(`${sn}: linha ${h+1} | Atingido=${cAt>=0?headers[cAt]:"NÃO"} | Representante=${cRep>=0?headers[cRep]:"NÃO"} | Razão Social=${cRaz>=0?headers[cRaz]:"NÃO"} | Meta=${cMeta>=0?headers[cMeta]:"NÃO"} | Vr Atingido=${cVr>=0?headers[cVr]:"NÃO"} | Supervisor=${cSup>=0?headers[cSup]:"NÃO"}`);
-     for(let i=h+1;i<raw.length;i++){
-       let row=raw[i];
-       let rep=cRep>=0?row[cRep]:"",raz=cRaz>=0?row[cRaz]:"";
-       if(String(rep??"").trim()==="" && String(raz??"").trim()==="")continue;
-       let meta=cMeta>=0?numBR(row[cMeta]):0,vr=cVr>=0?numBR(row[cVr]):0;
-       let atRaw=cAt>=0?String(row[cAt]??"").trim():"";
-       let atingido=/^(SIM|S|YES|Y|1|TRUE|X)$/i.test(atRaw) || (meta>0&&vr>=meta) ? "Sim" : "Não";
-       linhas.push({atingido,representante:String(rep??"").trim(),razaoSocial:String(raz??"").trim(),meta,vrAtingido:vr,supervisor:cSup>=0?String(row[cSup]??"").trim():"",aba:sn});
-     }
-   });
-   db.apuracaoLinhas=linhas;
-   // Agrupa só para KPIs, sem alterar a tabela original.
-   let mapa=new Map();
-   linhas.forEach(x=>{
-     let chave=norm(x.representante||x.razaoSocial); if(!chave)return;
-     if(!mapa.has(chave))mapa.set(chave,{...x});
-     else{
-       let a=mapa.get(chave);
-       a.meta=Math.max(Number(a.meta||0),Number(x.meta||0));
-       a.vrAtingido=Math.max(Number(a.vrAtingido||0),Number(x.vrAtingido||0));
-       if(!a.razaoSocial)a.razaoSocial=x.razaoSocial;
-       if(!a.supervisor)a.supervisor=x.supervisor;
-       a.atingido=a.meta>0&&a.vrAtingido>=a.meta?"Sim":"Não";
-     }
-   });
-   db.apuracaoMetas=[...mapa.values()];
-   localStorage.setItem(KEY,JSON.stringify(db));
-   render();
-   let mt=db.apuracaoMetas.reduce((s,x)=>s+Number(x.meta||0),0),va=db.apuracaoMetas.reduce((s,x)=>s+Number(x.vrAtingido||0),0);
-   setHTML("apuracaoMsg", `✅ <b>${linhas.length}</b> linhas da tabela importadas • <b>${db.apuracaoMetas.length}</b> representantes únicos • 📋 Apuração atualizada<br>🎯 Meta: <b>${money(mt)}</b> • 💰 Atingido: <b>${money(va)}</b><details><summary>Ver colunas reconhecidas</summary>${diagnostico.map(x=>`<div>${esc(x)}</div>`).join("")}</details>`);
-  }catch(err){console.error(err);console.error("Erro importando apuração:",err); alert("Erro ao importar apuração: "+err.message)}
- };
- r.readAsArrayBuffer(f);
-}
+function openVenda(id){fillSelectors();for(const x of ["vCodigo","vCliente","vClienteId","vOrdem","vValorSem","vValorLiq","vObs"])if(el(x))el(x).value="";if(el("vData"))el("vData").value=today();if(id){let c=clienteById(id);el("vCodigo").value=c?.codigo||"";lookupVenda()}el("vendaModal")?.classList.add("open")}
+function lookupVenda(){let c=clienteByCode(val("vCodigo"));if(el("vCliente"))el("vCliente").value=c?.razao||"";if(el("vClienteId"))el("vClienteId").value=c?.id||"";if(c?.representante&&el("vRep"))el("vRep").value=c.representante}
+function saveVenda(){let c=clienteByCode(val("vCodigo"));if(!c)return alert("Cliente não encontrado.");db.vendas.push({id:uid(),data:val("vData"),ordem:val("vOrdem"),clienteId:c.id,codigoCliente:c.codigo,cliente:c.razao,representante:val("vRep")||c.representante,uf:c.uf,cidade:c.cidade,valorSemImpostos:num(val("vValorSem")),valorLiquido:num(val("vValorLiq")),valor:num(val("vValorSem")),origem:"Venda manual",obs:val("vObs")});closeModal("vendaModal");save()}
 
-function openVenda(id){
- fillSelectors();$("vData").value=today();$("vPedido").value="";$("vValor").value="";$("vObs").value="";$("vCodigo").value="";$("vClienteNome").value="";$("vClienteId").value="";
- if(id){let c=getClient(id);$("vCodigo").value=c?.codigo||"";buscarClienteVenda()}
- $("vendaModal").classList.add("open")
-}
-function buscarClienteVenda(){let c=findClientByCode($("vCodigo").value);$("vClienteId").value=c?.id||"";$("vClienteNome").value=c?.razao||"";if(c&&c.representante)$("vRepresentante").value=c.representante}
-function saveVenda(){
- let c=findClientByCode($("vCodigo").value);if(!c)return alert("Código do cliente não encontrado.");if(!$("vData").value||!$("vValor").value)return alert("Informe data e valor.");
- db.vendas.push({id:uid(),clienteId:c.id,codigoCliente:c.codigo,cliente:c.razao,representante:$("vRepresentante").value||c.representante||"",data:$("vData").value,pedido:$("vPedido").value.trim(),valor:Number($("vValor").value),status:$("vStatus").value,obs:$("vObs").value.trim(),cidade:c.cidade,uf:c.uf});closeModal("vendaModal");save()
-}
-function deleteVenda(id){if(confirm("Excluir esta venda?")){db.vendas=db.vendas.filter(v=>v.id!==id);save()}}
+function openFollow(id){fillSelectors();if(id&&el("fCliente"))el("fCliente").value=id;if(el("fData"))el("fData").value=today();if(el("fTexto"))el("fTexto").value="";el("followModal")?.classList.add("open")}
+function saveFollow(){if(!val("fCliente")||!val("fData")||!val("fTexto"))return alert("Preencha os campos.");db.followups.push({id:uid(),clienteId:val("fCliente"),data:val("fData"),texto:val("fTexto"),done:false});closeModal("followModal");save()}
+function toggleFollow(id){let x=db.followups.find(f=>f.id===id);if(x)x.done=!x.done;save()}
+function openAlert(id){let c=clienteById(id);if(el("aClienteId"))el("aClienteId").value=id;setText("aClienteNome",`${c?.codigo||""} — ${c?.razao||""}`);if(el("aData"))el("aData").value=today();if(el("aTexto"))el("aTexto").value="";el("alertModal")?.classList.add("open")}
+function saveAlert(){db.alertas.push({id:uid(),clienteId:val("aClienteId"),data:val("aData"),texto:val("aTexto"),prioridade:val("aPrio"),done:false,notified:false});closeModal("alertModal");save()}
+function toggleAlert(id){let x=db.alertas.find(a=>a.id===id);if(x)x.done=!x.done;save()}
 
-function openFollow(id){fillSelectors();if(id)$("fCliente").value=id;$("fData").value=today();$("fTexto").value="";$("followModal").classList.add("open")}
-function saveFollow(){if(!$("fCliente").value||!$("fData").value||!$("fTexto").value.trim())return alert("Preencha todos os campos.");db.followups.push({id:uid(),clienteId:$("fCliente").value,data:$("fData").value,texto:$("fTexto").value.trim(),done:false});closeModal("followModal");save()}
-function followHtml(f){let c=getClient(f.clienteId);return `<div class="rowitem ${f.done?"done":""}"><b>${esc(c?.codigo||"")} ${esc(c?.razao||"Cliente")}</b><div class="muted">${brdate(f.data)} • ${esc(f.texto)}</div><button onclick="toggleFollow('${f.id}')">${f.done?"Reabrir":"Concluir"}</button></div>`}
-function renderFollow(){$("followList").innerHTML=db.followups.sort((a,b)=>a.data.localeCompare(b.data)).map(f=>`<div class="card" style="margin-bottom:10px">${followHtml(f)}</div>`).join("")||'<div class="card muted">Nenhum follow-up.</div>'}
-function toggleFollow(id){let x=db.followups.find(x=>x.id===id);if(x)x.done=!x.done;save()}
-function openAlert(id){let c=getClient(id);$("aClienteId").value=id;$("aClienteNome").textContent=`${c?.codigo||""} — ${c?.razao||""}`;$("aData").value=today();$("aTexto").value="";$("alertModal").classList.add("open")}
-function saveAlert(){if(!$("aData").value||!$("aTexto").value.trim())return alert("Informe data e motivo.");db.alertas.push({id:uid(),clienteId:$("aClienteId").value,data:$("aData").value,texto:$("aTexto").value.trim(),prioridade:$("aPrioridade").value,done:false,notified:false});closeModal("alertModal");save()}
-function alertHtml(a){let c=getClient(a.clienteId);return `<div class="rowitem priority-${a.prioridade} ${a.done?"done":""}"><b>🔔 ${esc(c?.codigo||"")} ${esc(c?.razao||"Cliente")}</b><div class="muted">${brdate(a.data)} • ${esc(a.prioridade)} • ${esc(a.texto)}</div><button onclick="toggleAlert('${a.id}')">${a.done?"Reabrir":"Concluir"}</button></div>`}
-function renderAlerts(){$("alertList").innerHTML=db.alertas.sort((a,b)=>a.data.localeCompare(b.data)).map(a=>`<div class="card" style="margin-bottom:10px">${alertHtml(a)}</div>`).join("")||'<div class="card muted">Nenhum alerta.</div>'}
-function toggleAlert(id){let x=db.alertas.find(x=>x.id===id);if(x)x.done=!x.done;save()}
-function closeModal(id){$(id).classList.remove("open")}
-function cleanPhone(v){let n=String(v||"").replace(/\D/g,"");if(!n)return"";if(n.startsWith("55")&&n.length>=12)return n;if(n.length===10||n.length===11)return"55"+n;return n}
-function openWhats(id){let c=getClient(id),ps=[c?.tel1,c?.tel2].filter(Boolean);if(!ps.length)return alert("Cliente sem telefone.");$("wClienteId").value=id;$("wClienteNome").textContent=`${c.codigo} — ${c.razao}`;$("wTelefone").innerHTML=ps.map((p,i)=>`<option value="${cleanPhone(p)}">Telefone ${i+1}: ${esc(p)}</option>`).join("");$("wModelo").value="follow";aplicarModeloWhats();$("whatsModal").classList.add("open")}
-function aplicarModeloWhats(){let m={follow:"Olá! Tudo bem? Estou entrando em contato para dar continuidade ao nosso atendimento comercial. Posso te ajudar em algo hoje?",parado:"Olá! Tudo bem? Percebi que faz um tempo desde a última compra e queria saber se posso ajudar com alguma reposição, novidade ou condição comercial.",catalogo:"Olá! Tudo bem? Temos novidades no catálogo e queria compartilhar algumas opções que podem fazer sentido para sua empresa. Posso te enviar?",pedido:"Olá! Tudo bem? Estou entrando em contato para acompanhar seu pedido/retorno comercial. Se precisar de qualquer informação, estou à disposição.",personalizada:""};$("wMensagem").value=m[$("wModelo").value]||""}
-function abrirWhatsApp(){window.open(`https://wa.me/${$("wTelefone").value}?text=${encodeURIComponent($("wMensagem").value)}`,"_blank")}
-async function enableNotifications(){if(!("Notification"in window))return alert("Navegador sem suporte.");let p=await Notification.requestPermission();$("notifyBtn").textContent=p==="granted"?"🔔 Notificações ativadas":"🔕 Bloqueadas";checkNotifications()}
-function checkNotifications(){if(!("Notification"in window)||Notification.permission!=="granted")return;let changed=false;db.alertas.filter(a=>!a.done&&!a.notified&&a.data<=today()).forEach(a=>{let c=getClient(a.clienteId);new Notification("Follow-up comercial",{body:`${c?.codigo||""} ${c?.razao||"Cliente"} — ${a.texto}`});a.notified=true;changed=true});if(changed)localStorage.setItem(KEY,JSON.stringify(db))}
-function excelDate(v){if(v instanceof Date)return v.toISOString().slice(0,10);if(typeof v==="number"){let d=XLSX.SSF.parse_date_code(v);return d?`${d.y}-${String(d.m).padStart(2,"0")}-${String(d.d).padStart(2,"0")}`:""}if(!v)return"";let s=String(v).trim(),m=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);if(m)return`${m[3]}-${m[2].padStart(2,"0")}-${m[1].padStart(2,"0")}`;let d=new Date(s);return isNaN(d)?"":d.toISOString().slice(0,10)}
-function pick(row,names){for(let n of names)for(let k of Object.keys(row))if(norm(k)===norm(n))return row[k];return""}
-function importClientes(){let f=$("clientesFile").files[0];if(!f)return alert("Selecione a planilha.");let r=new FileReader();r.onload=e=>{try{let wb=XLSX.read(e.target.result,{type:"array",cellDates:true}),rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{defval:""}),map=new Map(db.clientes.map(c=>[String(c.codigo),c]));rows.forEach(row=>{let codigo=pick(row,["CODIGO CLIENTE","CÓDIGO CLIENTE","CODIGO","CÓDIGO"]);if(codigo==="")return;let old=map.get(String(codigo));map.set(String(codigo),{id:old?.id||uid(),codigo,razao:pick(row,["RAZAO CLIENTE","RAZÃO CLIENTE","CLIENTE","NOME CLIENTE"]),cnpj:pick(row,["CNPJ"]),representante:pick(row,["REPRESENTANTE","VENDEDOR"]),cidade:pick(row,["CIDADE"]),uf:pick(row,["UF","ESTADO"]),ultima:excelDate(pick(row,["ULTIMA COMPRA","ÚLTIMA COMPRA"])),dias:Number(pick(row,["DIAS SEM COMPRAR"])||0),valor:Number(pick(row,["VALOR ULTIMA COMPRA","VALOR ÚLTIMA COMPRA"])||0),responsavel:pick(row,["RESPONSAVEL","RESPONSÁVEL"]),tel1:pick(row,["TELEFONE 1","TELEFONE"]),tel2:pick(row,["TELEFONE 2"])})});db.clientes=[...map.values()];$("clientesMsg").textContent=`${db.clientes.length} clientes disponíveis.`;save()}catch(err){alert(err.message)}};r.readAsArrayBuffer(f)}
-function importPedidos(){
- let f=$("pedidosFile").files[0];
- if(!f)return alert("Selecione o relatório de Digitação de Ordens.");
- let r=new FileReader();
- r.onload=e=>{
-  try{
-   let wb=XLSX.read(e.target.result,{type:"array",cellDates:true,raw:true});
-   let existing=new Map(db.pedidos.map(p=>[String(p.ordem),p]));
-   let count=0, sheetsRead=0;
-   let diagnosticos=[];
+function phone(v){let n=String(v||"").replace(/\D/g,"");if((n.length===10||n.length===11)&&!n.startsWith("55"))n="55"+n;return n}
+function openWhats(id){let c=clienteById(id),ps=[c?.tel1,c?.tel2].filter(Boolean);if(!ps.length)return alert("Cliente sem telefone.");if(el("waClienteId"))el("waClienteId").value=id;setHTML("waPhone",ps.map((p,i)=>`<option value="${phone(p)}">Telefone ${i+1}: ${esc(p)}</option>`).join(""));if(el("waMsg"))el("waMsg").value="Olá! Tudo bem? Estou entrando em contato para dar continuidade ao nosso atendimento comercial.";el("waModal")?.classList.add("open")}
+function sendWhats(){window.open(`https://wa.me/${val("waPhone")}?text=${encodeURIComponent(val("waMsg"))}`,"_blank")}
 
-   wb.SheetNames.forEach(sn=>{
-    let raw=XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,defval:"",raw:true});
-    if(!raw.length)return;
+function openOrcamento(){fillSelectors();for(const x of ["oCodigo","oCliente","oClienteId","oObs"])if(el(x))el(x).value="";if(el("oDesc"))el("oDesc").value=0;if(el("oValidade"))el("oValidade").value=new Date(Date.now()+7*86400000).toISOString().slice(0,10);setHTML("oItens","");addItem();recalcOrc();el("orcModal")?.classList.add("open")}
+function lookupOrc(){let c=clienteByCode(val("oCodigo"));if(el("oCliente"))el("oCliente").value=c?.razao||"";if(el("oClienteId"))el("oClienteId").value=c?.id||"";if(c?.representante&&el("oRep"))el("oRep").value=c.representante}
+function addItem(){let tb=el("oItens");if(!tb)return;let tr=document.createElement("tr");tr.innerHTML='<td><input class="desc"></td><td><input class="qtd" type="number" value="1" min="1" oninput="recalcOrc()"></td><td><input class="preco" type="number" value="0" step="0.01" oninput="recalcOrc()"></td><td class="sub">R$ 0,00</td><td><button class="danger" onclick="this.closest(\'tr\').remove();recalcOrc()">×</button></td>';tb.appendChild(tr)}
+function itensOrc(){return [...(el("oItens")?.querySelectorAll("tr")||[])].map(tr=>({descricao:tr.querySelector(".desc").value.trim(),qtd:num(tr.querySelector(".qtd").value),preco:num(tr.querySelector(".preco").value)})).filter(i=>i.descricao&&i.qtd>0)}
+function recalcOrc(){let bruto=0;for(let tr of el("oItens")?.querySelectorAll("tr")||[]){let q=num(tr.querySelector(".qtd").value),p=num(tr.querySelector(".preco").value);bruto+=q*p;tr.querySelector(".sub").textContent=money(q*p)}if(el("oTotal"))el("oTotal").value=money(Math.max(bruto-num(val("oDesc")),0))}
+function saveOrc(){let c=clienteByCode(val("oCodigo")),itens=itensOrc();if(!c)return alert("Cliente não encontrado.");if(!itens.length)return alert("Adicione itens.");let bruto=itens.reduce((s,i)=>s+i.qtd*i.preco,0),desconto=num(val("oDesc"));db.orcamentos.push({id:uid(),numero:`ORC-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`,data:today(),validade:val("oValidade"),clienteId:c.id,codigoCliente:c.codigo,cliente:c.razao,representante:val("oRep")||c.representante,cidade:c.cidade,uf:c.uf,itens,desconto,total:Math.max(bruto-desconto,0),observacao:val("oObs"),status:"Em aberto",pedidoGerado:"",vendaId:""});closeModal("orcModal");save()}
+function approveOrc(id){let o=db.orcamentos.find(x=>x.id===id);if(o)o.status="Aprovado";save()}
+function openConvert(id){if(el("convOrcId"))el("convOrcId").value=id;if(el("convNumero"))el("convNumero").value="";if(el("convData"))el("convData").value=today();el("pedidoModal")?.classList.add("open")}
+function convertOrc(){let o=db.orcamentos.find(x=>x.id===val("convOrcId"));if(!o)return;let numero=val("convNumero")||`PED-${String(Date.now()).slice(-6)}`;if(db.pedidos.some(p=>String(p.ordem)===String(numero)))return alert("Pedido já existe.");db.pedidos.push({id:uid(),ordem:numero,data:val("convData"),clienteId:o.clienteId,codigoCliente:o.codigoCliente,cliente:o.cliente,representante:o.representante,cidade:o.cidade,uf:o.uf,valorSemImpostos:o.total,valorLiquido:o.total,valor:o.total,status:"Digitado",origem:"Orçamento",orcamentoId:o.id,orcamentoNumero:o.numero,itens:o.itens,vendaId:""});o.status="Virou pedido";o.pedidoGerado=numero;closeModal("pedidoModal");save()}
+function confirmVenda(id){let p=db.pedidos.find(x=>x.id===id);if(!p||p.vendaId)return;let o=p.orcamentoId?db.orcamentos.find(x=>x.id===p.orcamentoId):null,v={id:uid(),data:today(),ordem:p.ordem,pedidoId:p.id,clienteId:p.clienteId,codigoCliente:p.codigoCliente,cliente:p.cliente,representante:p.representante,cidade:p.cidade,uf:p.uf,valorSemImpostos:Number(p.valorSemImpostos??p.valor??0),valorLiquido:Number(p.valorLiquido??p.valor??0),valor:Number(p.valorSemImpostos??p.valor??0),origem:o?`Orçamento ${o.numero} → Pedido ${p.ordem}`:`Pedido ${p.ordem}`,orcamentoId:o?.id||"",orcamentoNumero:o?.numero||"",itens:p.itens||[]};db.vendas.push(v);p.vendaId=v.id;p.status="Venda confirmada";if(o){o.status="Venda concluída";o.vendaId=v.id}save()}
+function whatsOrc(id){let o=db.orcamentos.find(x=>x.id===id),c=clienteById(o?.clienteId),p=phone(c?.tel1||c?.tel2);if(!p)return alert("Cliente sem telefone.");let msg=`Olá! Segue o orçamento ${o.numero}:\n\n${(o.itens||[]).map(i=>`• ${i.descricao}: ${i.qtd} x ${money(i.preco)}`).join("\n")}\n\nTotal: ${money(o.total)}\nValidade: ${brdate(o.validade)}`;window.open(`https://wa.me/${p}?text=${encodeURIComponent(msg)}`,"_blank")}
 
-    let headerRow=-1;
-    for(let i=0;i<Math.min(raw.length,50);i++){
-      let row=raw[i].map(normHeader);
-      let hasOrdem=row.some(x=>x==="ORDEM" || x.includes("ORDEM"));
-      let hasCliente=row.some(x=>x.includes("RAZAO SOCIAL") || x.includes("CLIENTE"));
-      let hasValor=row.some(x=>x.includes("VR TOTAL") || x.includes("VALOR"));
-      if(hasOrdem && (hasCliente || hasValor)){headerRow=i;break}
-    }
-    if(headerRow<0){
-      diagnosticos.push(`${sn}: cabeçalho não encontrado`);
-      return;
-    }
+function readFile(id,cb){let f=el(id)?.files?.[0];if(!f)return alert("Escolha um arquivo.");let r=new FileReader();r.onload=e=>{try{cb(XLSX.read(e.target.result,{type:"array",raw:true,cellDates:true}))}catch(err){console.error(err);alert("Erro ao ler arquivo: "+err.message)}};r.readAsArrayBuffer(f)}
+function importClientes(){readFile("fileClientes",wb=>{let rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{defval:""}),map=new Map(db.clientes.map(c=>[String(c.codigo),c]));for(let row of rows){let get=names=>{for(let n of names)for(let k of Object.keys(row))if(header(k)===header(n))return row[k];return""},codigo=get(["CODIGO CLIENTE","CÓDIGO CLIENTE","CODIGO"]);if(codigo==="")continue;let old=map.get(String(codigo));map.set(String(codigo),{id:old?.id||uid(),codigo,razao:get(["RAZAO CLIENTE","RAZÃO CLIENTE","CLIENTE"]),cnpj:get(["CNPJ"]),representante:get(["REPRESENTANTE"]),cidade:get(["CIDADE"]),uf:get(["UF"]),ultima:dateVal(get(["ULTIMA COMPRA","ÚLTIMA COMPRA"])),dias:num(get(["DIAS SEM COMPRAR"])),valor:num(get(["VALOR ULTIMA COMPRA","VALOR ÚLTIMA COMPRA"])),responsavel:get(["RESPONSAVEL","RESPONSÁVEL"]),tel1:get(["TELEFONE 1","TELEFONE"]),tel2:get(["TELEFONE 2"])})}db.clientes=[...map.values()];save();setHTML("msgClientes",`✅ <b>${db.clientes.length}</b> clientes disponíveis.`)})}
 
-    let headers=raw[headerRow].map(x=>String(x??"").trim());
-    let cOrdem=findCol(headers,["Ordem","Nº Ordem","Numero Ordem"]);
-    let cRazao=findCol(headers,["Razão Social","Razao Social","Nome do Cliente","Cliente"]);
-    let cDigitacao=findCol(headers,["Digitação","Digitacao","Data Digitação","Data Digitacao"]);
-    let cFaturamento=findCol(headers,["Faturamento","Data Faturamento"]);
-    let cLiberacao=findCol(headers,["Data Liberação/Crédito","Data Liberacao/Credito","Data Liberação","Data Liberacao"]);
-    let cSemImp=findCol(headers,["Vr Total (s/impostos)","Vr Total s/impostos","Vr Total sem impostos","Valor sem impostos","Total s impostos"]);
-    let cLiq=findCol(headers,["Vr Total (Líquido)","Vr Total (Liquido)","Vr Total Liquido","Valor Líquido","Valor Liquido"]);
-    let cRep=findCol(headers,["Representante","Vendedor","Representante Comercial"]);
-    let cCodigo=findCol(headers,["Código Cliente","Codigo Cliente","Cod Cliente"]);
-    let cCidade=findCol(headers,["Cidade"]);
-    let cUF=findCol(headers,["UF","Estado"]);
-    let cStatus=findCol(headers,["Status","Etapa","Situação","Situacao"]);
+function importPedidos(){readFile("filePedidos",wb=>{let map=new Map(db.pedidos.map(p=>[String(p.ordem),p])),diag=[],lidos=0;for(let sn of wb.SheetNames){let raw=XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,defval:"",raw:true}),hr=findHeader(raw,[["ORDEM"],["VR TOTAL","VALOR","RAZAO SOCIAL"]]);if(hr<0){diag.push(`${sn}: cabeçalho não encontrado`);continue}let h=raw[hr],cO=col(h,["Ordem"]),cR=col(h,["Razão Social","Razao Social","Cliente"]),cD=col(h,["Digitação","Digitacao"]),cF=col(h,["Faturamento"]),cLib=col(h,["Data Liberação/Crédito","Data Liberacao/Credito"]),cS=col(h,["Vr Total (s/impostos)","Vr Total s/impostos"]),cL=col(h,["Vr Total (Líquido)","Vr Total (Liquido)"]),cRep=col(h,["Representante"]),cCod=col(h,["Código Cliente","Codigo Cliente"]),cCid=col(h,["Cidade"]),cUf=col(h,["UF"]);diag.push(`${sn}: Ordem=${cO>=0?"OK":"NÃO"} | Sem impostos=${cS>=0?h[cS]:"NÃO"} | Líquido=${cL>=0?h[cL]:"NÃO"}`);if(cO<0)continue;for(let i=hr+1;i<raw.length;i++){let row=raw[i],ord=row[cO];if(ord===""||ord==null||!/\d/.test(String(ord)))continue;let key=String(ord).trim(),old=map.get(key),cod=cCod>=0?row[cCod]:"",c=cod?clienteByCode(cod):null;map.set(key,{id:old?.id||uid(),ordem:key,data:dateVal(cD>=0?row[cD]:"")||old?.data||"",faturamento:dateVal(cF>=0?row[cF]:""),liberacao:dateVal(cLib>=0?row[cLib]:""),codigoCliente:cod||old?.codigoCliente||c?.codigo||"",cliente:(cR>=0?String(row[cR]||"").trim():"")||old?.cliente||c?.razao||"",representante:(cRep>=0?String(row[cRep]||"").trim():"")||old?.representante||c?.representante||"",cidade:(cCid>=0?String(row[cCid]||"").trim():"")||old?.cidade||c?.cidade||"",uf:(cUf>=0?String(row[cUf]||"").trim():"")||old?.uf||c?.uf||"",valorSemImpostos:cS>=0?num(row[cS]):0,valorLiquido:cL>=0?num(row[cL]):0,valor:cS>=0?num(row[cS]):0,status:old?.status||"",vendaId:old?.vendaId||"",orcamentoId:old?.orcamentoId||"",orcamentoNumero:old?.orcamentoNumero||""});lidos++}}db.pedidos=[...map.values()];save();let ts=db.pedidos.reduce((s,p)=>s+Number(p.valorSemImpostos||0),0),tl=db.pedidos.reduce((s,p)=>s+Number(p.valorLiquido||0),0);setHTML("msgPedidos",`✅ <b>${lidos}</b> linhas lidas • <b>${db.pedidos.length}</b> pedidos únicos<br>💰 Sem impostos: <b>${money(ts)}</b><br>🧾 Líquido: <b>${money(tl)}</b><details><summary>Colunas reconhecidas</summary>${diag.map(x=>`<div>${esc(x)}</div>`).join("")}</details>`)})}
 
-    diagnosticos.push(
-      `${sn}: linha ${headerRow+1} | Ordem=${cOrdem>=0?"OK":"NÃO"} | `+
-      `Sem impostos=${cSemImp>=0?headers[cSemImp]:"NÃO"} | Líquido=${cLiq>=0?headers[cLiq]:"NÃO"}`
-    );
+function importMetas(){readFile("fileMetas",wb=>{let linhas=[],diag=[];for(let sn of wb.SheetNames){let raw=XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,defval:"",raw:true}),hr=findHeader(raw,[["ATINGIDO"],["REPRESENTANTE"],["META","VR ATINGIDO"]]);if(hr<0){diag.push(`${sn}: cabeçalho não encontrado`);continue}let h=raw[hr],ca=col(h,["Atingido"]),cr=col(h,["Representante"]),cz=col(h,["Razão Social","Razao Social"]),cm=col(h,["Meta"]),cv=col(h,["Vr Atingido","Valor Atingido"]),cs=col(h,["Nome do Supervisor","Supervisor"]);diag.push(`${sn}: Atingido=${ca>=0?h[ca]:"NÃO"} | Representante=${cr>=0?h[cr]:"NÃO"} | Razão=${cz>=0?h[cz]:"NÃO"} | Meta=${cm>=0?h[cm]:"NÃO"} | Vr Atingido=${cv>=0?h[cv]:"NÃO"} | Supervisor=${cs>=0?h[cs]:"NÃO"}`);for(let i=hr+1;i<raw.length;i++){let row=raw[i],rep=cr>=0?String(row[cr]||"").trim():"",rz=cz>=0?String(row[cz]||"").trim():"";if(!rep&&!rz)continue;linhas.push({atingido:ca>=0?String(row[ca]||"").trim():"",representante:rep,razaoSocial:rz,meta:cm>=0?num(row[cm]):0,vrAtingido:cv>=0?num(row[cv]):0,supervisor:cs>=0?String(row[cs]||"").trim():""})}}db.apuracaoLinhas=linhas;let map=new Map();for(let x of linhas){let k=norm(x.representante||x.razaoSocial);if(!k)continue;if(!map.has(k))map.set(k,{...x});else{let a=map.get(k);a.meta=Math.max(a.meta,x.meta);a.vrAtingido=Math.max(a.vrAtingido,x.vrAtingido);if(!a.razaoSocial)a.razaoSocial=x.razaoSocial;if(!a.supervisor)a.supervisor=x.supervisor}}db.apuracaoMetas=[...map.values()].map(x=>({...x,atingido:x.meta>0&&x.vrAtingido>=x.meta?"Sim":"Não"}));save();let mt=db.apuracaoMetas.reduce((s,x)=>s+x.meta,0),va=db.apuracaoMetas.reduce((s,x)=>s+x.vrAtingido,0);setHTML("msgMetas",`✅ <b>${linhas.length}</b> linhas • <b>${db.apuracaoMetas.length}</b> representantes únicos<br>🎯 Meta: <b>${money(mt)}</b> • 💰 Vr Atingido: <b>${money(va)}</b><details><summary>Colunas reconhecidas</summary>${diag.map(x=>`<div>${esc(x)}</div>`).join("")}</details>`)})}
 
-    if(cOrdem<0)return;
-    sheetsRead++;
+function backup(){let b=new Blob([JSON.stringify({app:"Gestor Comercial",date:new Date().toISOString(),dados:db},null,2)],{type:"application/json"}),a=document.createElement("a");a.href=URL.createObjectURL(b);a.download=`Backup_Gestor_${today()}.json`;a.click()}
+function restoreBackup(e){let f=e.target.files[0];if(!f)return;let r=new FileReader();r.onload=x=>{try{let p=JSON.parse(x.target.result),d=p.dados||p;db=d;for(const k of ["clientes","pedidos","vendas","orcamentos","followups","alertas","apuracaoLinhas","apuracaoMetas"])if(!Array.isArray(db[k]))db[k]=[];save();alert("Backup restaurado.")}catch(err){alert("Backup inválido.")}};r.readAsText(f)}
+function exportExcel(){let wb=XLSX.utils.book_new();for(const [n,d] of [["Clientes",db.clientes],["Pedidos",db.pedidos],["Vendas",db.vendas],["Orçamentos",db.orcamentos.map(o=>({...o,itens:JSON.stringify(o.itens)}))],["Apuração Metas",db.apuracaoMetas],["Follow-ups",db.followups],["Alertas",db.alertas]])XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(d),n);XLSX.writeFile(wb,"Gestor_Comercial.xlsx")}
+async function enableNotifications(){if(!("Notification"in window))return alert("Navegador sem suporte.");let p=await Notification.requestPermission();setText("notifyBtn",p==="granted"?"🔔 Notificações ativadas":"🔕 Bloqueadas")}
+function checkNotifications(){if(!("Notification"in window)||Notification.permission!=="granted")return;let changed=false;for(let a of db.alertas.filter(a=>!a.done&&!a.notified&&a.data<=today())){let c=clienteById(a.clienteId);new Notification("Follow-up comercial",{body:`${c?.razao||"Cliente"} — ${a.texto}`});a.notified=true;changed=true}if(changed)save(false)}
 
-    for(let ri=headerRow+1;ri<raw.length;ri++){
-      let vals=raw[ri];
-      let ordem=vals[cOrdem];
-      if(ordem==="" || ordem===null || ordem===undefined)continue;
-      let ordemStr=String(ordem).trim();
-      if(!/\d/.test(ordemStr))continue;
-
-      let codigo=cCodigo>=0?vals[cCodigo]:"";
-      let cli=codigo!==""?findClientByCode(codigo):null;
-      let razao=cRazao>=0?vals[cRazao]:"";
-      let semImp=cSemImp>=0?numBR(vals[cSemImp]):0;
-      let liq=cLiq>=0?numBR(vals[cLiq]):0;
-      let antigo=existing.get(ordemStr);
-
-      existing.set(ordemStr,{
-        id:antigo?.id||uid(),
-        ordem:ordemStr,
-        codigoCliente:codigo||antigo?.codigoCliente||cli?.codigo||"",
-        cliente:razao||antigo?.cliente||cli?.razao||"",
-        data:excelDate(cDigitacao>=0?vals[cDigitacao]:"")||antigo?.data||"",
-        faturamento:excelDate(cFaturamento>=0?vals[cFaturamento]:""),
-        liberacao:excelDate(cLiberacao>=0?vals[cLiberacao]:""),
-        representante:(cRep>=0?vals[cRep]:"")||antigo?.representante||cli?.representante||"",
-        valorSemImpostos:semImp,
-        valorLiquido:liq,
-        valor:semImp,
-        cidade:(cCidade>=0?vals[cCidade]:"")||antigo?.cidade||cli?.cidade||"",
-        uf:(cUF>=0?vals[cUF]:"")||antigo?.uf||cli?.uf||"",
-        status:(cStatus>=0?vals[cStatus]:"")||antigo?.status||"",
-        aba:sn
-      });
-      count++;
-    }
-   });
-
-   db.pedidos=[...existing.values()];
-   let tsi=db.pedidos.reduce((a,p)=>a+Number(p.valorSemImpostos||0),0);
-   let tliq=db.pedidos.reduce((a,p)=>a+Number(p.valorLiquido||0),0);
-
-   localStorage.setItem(KEY,JSON.stringify(db));
-   render();
-
-   $("pedidosMsg").innerHTML=
-     `<div style="line-height:1.7"><b>✅ Importação concluída</b><br>`+
-     `Abas reconhecidas: <b>${sheetsRead}</b><br>`+
-     `Registros lidos: <b>${count}</b> • Pedidos únicos: <b>${db.pedidos.length}</b><br>`+
-     `💰 Sem impostos: <b>${money(tsi)}</b><br>`+
-     `🧾 Valor líquido: <b>${money(tliq)}</b><br>`+
-     `<details style="margin-top:8px"><summary>Diagnóstico das colunas</summary>`+
-     diagnosticos.map(x=>`<div>${esc(x)}</div>`).join("")+
-     `</details></div>`;
-  }catch(err){
-   console.error(err);
-   alert("Erro ao importar o relatório: "+err.message+"\n\nSe continuar, envie um print desta mensagem.");
-  }
- };
- r.readAsArrayBuffer(f);
-}
-function exportExcel(){let wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(db.clientes),"Clientes");XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(db.vendas),"Vendas");XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(db.pedidos),"Pedidos");XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(db.orcamentos.map(o=>({...o,itens:JSON.stringify(o.itens)}))),"Orçamentos");XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(db.apuracaoLinhas||[]),"Apuração Metas");XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(db.followups),"Follow-ups");XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(db.alertas),"Alertas");XLSX.writeFile(wb,"Gestor_Comercial_Completo.xlsx")}
-function backupDados(){let blob=new Blob([JSON.stringify({aplicativo:"Gestor Comercial",versao:5,criadoEm:new Date().toISOString(),dados:db},null,2)],{type:"application/json"}),a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=`Backup_Gestor_Comercial_${today()}.json`;a.click()}
-function restaurarBackup(e){let f=e.target.files[0];if(!f)return;if(!confirm("Substituir os dados atuais pelo backup?"))return;let r=new FileReader();r.onload=x=>{try{let p=JSON.parse(x.target.result),d=p.dados||p;db={clientes:d.clientes||[],pedidos:d.pedidos||[],vendas:d.vendas||[],orcamentos:d.orcamentos||[],apuracaoMetas:d.apuracaoMetas||[],apuracaoLinhas:d.apuracaoLinhas||[],followups:d.followups||[],alertas:d.alertas||[],metas:d.metas||{}};save();alert("Backup restaurado.")}catch{alert("Backup inválido.")}};r.readAsText(f)}
-function render(){fillSelectors();refreshSupervisorFilter();renderClientes();renderVendas();renderPedidos();renderOrcamentos();renderFollow();renderAlerts();try{renderApuracao()}catch(e){console.warn("renderApuracao:",e)}renderDashboard();checkNotifications()}
+function render(){fillSelectors();renderDashboard();renderClientes();renderPedidos();renderVendas();renderOrcamentos();renderFollow();renderAlerts();renderMetas();checkNotifications()}
 render();setInterval(checkNotifications,60000);

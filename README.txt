@@ -1,28 +1,24 @@
-GESTOR COMERCIAL PANAMBY — VERSÃO FINAL CONSOLIDADA
+GESTOR COMERCIAL LIMPO V1
 
-RECURSOS
-- Dashboard com filtros por mês, representante, região e métrica.
-- Dois valores separados: Vr Total (s/impostos) e Vr Total (Líquido).
-- Gráficos de evolução, região, representante e participação.
-- Clientes com pesquisa por código.
-- WhatsApp direto.
-- Follow-ups e alertas.
-- Vendas manuais.
-- Pedidos importados do relatório de Digitação de Ordens.
-- Orçamentos com itens, desconto, validade, impressão e WhatsApp.
-- Fluxo Orçamento -> Pedido -> Venda.
-- Apuração de Metas vinculada à planilha.
-- Tabela detalhada, percentual por representante, ranking, gráfico e KPIs.
-- Backup completo, restauração e exportação para Excel.
+Esta versão foi reconstruída do zero para eliminar referências quebradas de versões anteriores.
 
-APURAÇÃO
-A tabela preserva as linhas da planilha.
-Os KPIs agrupam representantes para evitar somar Meta e Vr Atingido repetidos.
+Módulos:
+- Dashboard com dois valores (sem impostos e líquido), filtros e gráficos
+- Clientes + WhatsApp + Follow-up + Alertas
+- Vendas
+- Pedidos
+- Orçamentos
+- Fluxo Orçamento → Pedido → Venda
+- Apuração de Metas com percentual por representante
+- Importação de Clientes
+- Importação Digitação de Ordens
+- Importação Apuração das Metas
+- Backup / Restauração
+- Exportação Excel
 
-DADOS
-Mantida a chave localStorage gestor_comercial_v4 para preservar os dados já existentes
-no mesmo navegador e no mesmo endereço do GitHub Pages.
+IMPORTANTE:
+A chave localStorage permanece "gestor_comercial_v4" para tentar preservar seus dados atuais
+no mesmo domínio/navegador. Faça backup antes de atualizar no GitHub.
 
-ANTES DE ATUALIZAR
-Faça um backup pelo aplicativo.
-Depois substitua index.html, app.js, style.css e README.txt no GitHub.
+A importação mostra "Colunas reconhecidas" para diagnóstico, sem quebrar a tela se algum
+elemento opcional não existir.

@@ -237,96 +237,18 @@ function refreshSupervisorFilter(){
  let el=$("filtroSupervisor");if(!el)return;let cur=el.value,sups=[...new Set(db.apuracaoMetas.map(x=>x.supervisor).filter(Boolean))].sort();el.innerHTML='<option value="">Todos os supervisores</option>'+sups.map(x=>`<option>${esc(x)}</option>`).join("");el.value=cur
 }
 function importApuracao(){
- let f=$("apuracaoFile").files[0];
- if(!f)return alert("Selecione o arquivo de Apuração das metas.");
- let r=new FileReader();
- r.onload=e=>{
-  try{
-   let wb=XLSX.read(e.target.result,{type:"array",raw:true});
-   let registros=[];
-   wb.SheetNames.forEach(sn=>{
-    let raw=XLSX.utils.sheet_to_json(wb.Sheets[sn],{defval:""});
-    raw.forEach(row=>{
-      let at=pick(row,["Atingido"]),
-          rep=pick(row,["Representante"]),
-          razao=pick(row,["Razão Social","Razao Social"]),
-          meta=pick(row,["Meta"]),
-          vr=pick(row,["Vr Atingido","Valor Atingido"]),
-          sup=pick(row,["Nome do Supervisor","Supervisor"]);
-      if(String(rep).trim()==="" && String(razao).trim()==="")return;
-
-      registros.push({
-        atingido:String(at||"Não").trim(),
-        representante:String(rep||"").trim(),
-        razaoSocial:String(razao||"").trim(),
-        meta:numBR(meta),
-        vrAtingido:numBR(vr),
-        supervisor:String(sup||"").trim()
-      });
-    });
-   });
-
-   // AGRUPA REPRESENTANTES DUPLICADOS.
-   // O relatório pode repetir Meta e Vr Atingido em várias linhas.
-   const mapa=new Map();
-
-   registros.forEach(x=>{
-     const chave=norm(x.representante || x.razaoSocial);
-     if(!chave)return;
-
-     if(!mapa.has(chave)){
-       mapa.set(chave,{...x});
-       return;
-     }
-
-     const atual=mapa.get(chave);
-
-     // Evita somar valores repetidos do mesmo representante.
-     // Mantém o maior valor encontrado quando a mesma informação se repete.
-     atual.meta=Math.max(Number(atual.meta||0),Number(x.meta||0));
-     atual.vrAtingido=Math.max(Number(atual.vrAtingido||0),Number(x.vrAtingido||0));
-
-     if(!atual.razaoSocial && x.razaoSocial)atual.razaoSocial=x.razaoSocial;
-     if(!atual.supervisor && x.supervisor)atual.supervisor=x.supervisor;
-
-     // Recalcula o status pela relação entre valor atingido e meta.
-     atual.atingido=
-       Number(atual.meta||0)>0 && Number(atual.vrAtingido||0)>=Number(atual.meta||0)
-       ? "Sim"
-       : "Não";
-   });
-
-   let representantes=[...mapa.values()];
-
-   // Recalcula status também para registros que não tinham duplicata.
-   representantes.forEach(x=>{
-     x.atingido=
-       Number(x.meta||0)>0 && Number(x.vrAtingido||0)>=Number(x.meta||0)
-       ? "Sim"
-       : "Não";
-   });
-
-   db.apuracaoMetas=representantes;
-
-   let metaTotal=representantes.reduce((s,x)=>s+Number(x.meta||0),0);
-   let atingidoTotal=representantes.reduce((s,x)=>s+Number(x.vrAtingido||0),0);
-   let falta=Math.max(metaTotal-atingidoTotal,0);
-
-   localStorage.setItem(KEY,JSON.stringify(db));
-   render();
-
-   $("apuracaoMsg").innerHTML=
-     `✅ <b>${registros.length}</b> linhas lidas • `+
-     `<b>${representantes.length}</b> representantes únicos<br>`+
-     `🎯 Meta total: <b>${money(metaTotal)}</b> • `+
-     `💰 Atingido: <b>${money(atingidoTotal)}</b> • `+
-     `📉 Falta: <b>${money(falta)}</b>`;
-  }catch(err){
-   console.error(err);
-   alert("Erro ao importar apuração: "+err.message);
-  }
- };
- r.readAsArrayBuffer(f);
+ let f=$("apuracaoFile").files[0];if(!f)return alert("Selecione o arquivo de Apuração das metas.");
+ let r=new FileReader();r.onload=e=>{try{
+   let wb=XLSX.read(e.target.result,{type:"array",raw:true}),rows=[];
+   wb.SheetNames.forEach(sn=>{let raw=XLSX.utils.sheet_to_json(wb.Sheets[sn],{defval:""});raw.forEach(row=>{
+     let at=pick(row,["Atingido"]),rep=pick(row,["Representante"]),razao=pick(row,["Razão Social","Razao Social"]),meta=pick(row,["Meta"]),vr=pick(row,["Vr Atingido","Valor Atingido"]),sup=pick(row,["Nome do Supervisor","Supervisor"]);
+     if(rep===""&&razao==="")return;
+     rows.push({atingido:String(at||"Não"),representante:String(rep),razaoSocial:String(razao),meta:numBR(meta),vrAtingido:numBR(vr),supervisor:String(sup)})
+   })});
+   db.apuracaoMetas=rows;
+   $("apuracaoMsg").innerHTML=`✅ <b>${rows.length}</b> representantes importados • Meta total: <b>${money(rows.reduce((s,x)=>s+x.meta,0))}</b> • Atingido: <b>${money(rows.reduce((s,x)=>s+x.vrAtingido,0))}</b>`;
+   save()
+ }catch(err){alert("Erro ao importar apuração: "+err.message)}};r.readAsArrayBuffer(f)
 }
 
 function openVenda(id){

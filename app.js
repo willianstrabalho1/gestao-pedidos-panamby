@@ -1,3 +1,4 @@
+console.info("Gestor Comercial Panamby GITHUB FINAL 2026.08.18");
 const KEY="gestor_comercial_v6_zerado";
 let db=JSON.parse(localStorage.getItem(KEY)||'{"clientes":[],"pedidos":[],"vendas":[],"followups":[],"alertas":[],"metas":{}}');
 if(!db.vendas)db.vendas=[];if(!db.pedidos)db.pedidos=[];if(!db.clientes)db.clientes=[];if(!db.followups)db.followups=[];if(!db.alertas)db.alertas=[];if(!db.orcamentos)db.orcamentos=[];if(!db.apuracaoMetas)db.apuracaoMetas=[];if(!db.apuracaoLinhas)db.apuracaoLinhas=[];
@@ -316,59 +317,38 @@ function refreshSupervisorFilter(){
  let el=$("filtroSupervisor");if(!el)return;let cur=el.value,sups=[...new Set(db.apuracaoMetas.map(x=>x.supervisor).filter(Boolean))].sort();el.innerHTML='<option value="">Todos os supervisores</option>'+sups.map(x=>`<option>${esc(x)}</option>`).join("");el.value=cur
 }
 function importApuracao(){
- let f=$("apuracaoFile").files[0];
- if(!f)return alert("Selecione o arquivo de Apuração das metas.");
+ let f=$("apuracaoFile")?.files?.[0];
+ if(!f)return alert("Selecione APURAÇÃO DE VENDAS.xls.");
  let r=new FileReader();
  r.onload=e=>{
   try{
-   let wb=XLSX.read(e.target.result,{type:"array",raw:true,cellDates:true});
-   let linhas=[]; let diagnostico=[];
+   let wb=XLSX.read(e.target.result,{type:"array",cellDates:true,raw:true}),linhas=[],diag=[];
    wb.SheetNames.forEach(sn=>{
-     let raw=XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,defval:"",raw:true});
-     if(!raw.length)return;
-     // Localiza a linha que contém os cabeçalhos reais.
-     let h=-1;
-     for(let i=0;i<Math.min(raw.length,40);i++){
-       let rr=raw[i].map(normHeader);
-       if(rr.some(v=>v==="ATINGIDO") && rr.some(v=>v.includes("REPRESENTANTE")) && rr.some(v=>v==="META" || v.includes("VR ATINGIDO"))){h=i;break}
-     }
-     if(h<0){diagnostico.push(`${sn}: cabeçalho não encontrado`);return}
-     let headers=raw[h].map(v=>String(v??"").trim());
-     let cAt=findCol(headers,["Atingido"]),cRep=findCol(headers,["Representante"]),cRaz=findCol(headers,["Razão Social","Razao Social"]),cMeta=findCol(headers,["Meta"]),cVr=findCol(headers,["Vr Atingido","Valor Atingido"]),cSup=findCol(headers,["Nome do Supervisor","Supervisor"]);
-     diagnostico.push(`${sn}: linha ${h+1} | Atingido=${cAt>=0?headers[cAt]:"NÃO"} | Representante=${cRep>=0?headers[cRep]:"NÃO"} | Razão Social=${cRaz>=0?headers[cRaz]:"NÃO"} | Meta=${cMeta>=0?headers[cMeta]:"NÃO"} | Vr Atingido=${cVr>=0?headers[cVr]:"NÃO"} | Supervisor=${cSup>=0?headers[cSup]:"NÃO"}`);
-     for(let i=h+1;i<raw.length;i++){
-       let row=raw[i];
-       let rep=cRep>=0?row[cRep]:"",raz=cRaz>=0?row[cRaz]:"";
-       if(String(rep??"").trim()==="" && String(raz??"").trim()==="")continue;
-       let meta=cMeta>=0?numBR(row[cMeta]):0,vr=cVr>=0?numBR(row[cVr]):0;
-       let atRaw=cAt>=0?String(row[cAt]??"").trim():"";
-       let atingido=/^(SIM|S|YES|Y|1|TRUE|X)$/i.test(atRaw) || (meta>0&&vr>=meta) ? "Sim" : "Não";
-       linhas.push({atingido,representante:String(rep??"").trim(),razaoSocial:String(raz??"").trim(),meta,vrAtingido:vr,supervisor:cSup>=0?String(row[cSup]??"").trim():"",aba:sn});
-     }
+    let raw=XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,defval:"",raw:true});
+    if(!raw.length)return;
+    let h=localizarCabecalho(raw,[["ATINGIDO"],["REPRESENTANTE"],["RAZAO SOCIAL"],["META"],["VR ATINGIDO"],["NOME DO SUPERVISOR"]]);
+    if(h<0){diag.push(`${sn}: cabeçalho não encontrado`);return}
+    let headers=raw[h].map(v=>String(v??"").trim());
+    let cAt=findCol(headers,["Atingido"]),cRep=findCol(headers,["Representante"]),cRaz=findCol(headers,["Razão Social","Razao Social"]),
+        cMeta=findCol(headers,["Meta"]),cVr=findCol(headers,["Vr Atingido"]),cSup=findCol(headers,["Nome do Supervisor"]);
+    diag.push(`${sn}: linha ${h+1} | Atingido=${headers[cAt]||"NÃO"} | Representante=${headers[cRep]||"NÃO"} | Razão Social=${headers[cRaz]||"NÃO"} | Meta=${headers[cMeta]||"NÃO"} | Vr Atingido=${headers[cVr]||"NÃO"} | Supervisor=${headers[cSup]||"NÃO"}`);
+    for(let i=h+1;i<raw.length;i++){
+      let row=raw[i],rep=cRep>=0?String(row[cRep]??"").trim():"",raz=cRaz>=0?String(row[cRaz]??"").trim():"";
+      if(!rep&&!raz)continue;
+      let meta=cMeta>=0?numBR(row[cMeta]):0,vr=cVr>=0?numBR(row[cVr]):0,original=cAt>=0?String(row[cAt]??"").trim():"";
+      linhas.push({atingido:/^SIM$/i.test(original)||(meta>0&&vr>=meta)?"Sim":"Não",representante:rep,razaoSocial:raz,meta,vrAtingido:vr,supervisor:cSup>=0?String(row[cSup]??"").trim():"",aba:sn})
+    }
    });
    db.apuracaoLinhas=linhas;
-   // Agrupa só para KPIs, sem alterar a tabela original.
    let mapa=new Map();
-   linhas.forEach(x=>{
-     let chave=norm(x.representante||x.razaoSocial); if(!chave)return;
-     if(!mapa.has(chave))mapa.set(chave,{...x});
-     else{
-       let a=mapa.get(chave);
-       a.meta=Math.max(Number(a.meta||0),Number(x.meta||0));
-       a.vrAtingido=Math.max(Number(a.vrAtingido||0),Number(x.vrAtingido||0));
-       if(!a.razaoSocial)a.razaoSocial=x.razaoSocial;
-       if(!a.supervisor)a.supervisor=x.supervisor;
-       a.atingido=a.meta>0&&a.vrAtingido>=a.meta?"Sim":"Não";
-     }
-   });
+   linhas.forEach(x=>{let k=norm(x.representante||x.razaoSocial);if(!k)return;if(!mapa.has(k))mapa.set(k,{...x});else{let a=mapa.get(k);a.meta=Math.max(Number(a.meta||0),Number(x.meta||0));a.vrAtingido=Math.max(Number(a.vrAtingido||0),Number(x.vrAtingido||0));if(!a.razaoSocial)a.razaoSocial=x.razaoSocial;if(!a.supervisor)a.supervisor=x.supervisor;a.atingido=a.meta>0&&a.vrAtingido>=a.meta?"Sim":"Não"}});
    db.apuracaoMetas=[...mapa.values()];
-   localStorage.setItem(KEY,JSON.stringify(db));
-   render();
+   localStorage.setItem(KEY,JSON.stringify(db));render();
    let mt=db.apuracaoMetas.reduce((s,x)=>s+Number(x.meta||0),0),va=db.apuracaoMetas.reduce((s,x)=>s+Number(x.vrAtingido||0),0);
-   setHTML("apuracaoMsg", `✅ <b>${linhas.length}</b> linhas da tabela importadas • <b>${db.apuracaoMetas.length}</b> representantes únicos • 📋 Apuração atualizada<br>🎯 Meta: <b>${money(mt)}</b> • 💰 Atingido: <b>${money(va)}</b><details><summary>Ver colunas reconhecidas</summary>${diagnostico.map(x=>`<div>${esc(x)}</div>`).join("")}</details>`);
-  }catch(err){console.error(err);console.error("Erro importando apuração:",err); alert("Erro ao importar apuração: "+err.message)}
+   setHTML("apuracaoMsg",`✅ <b>${linhas.length}</b> linhas importadas • <b>${db.apuracaoMetas.length}</b> representantes.<br>🎯 Meta: <b>${money(mt)}</b> • 💰 Vr Atingido: <b>${money(va)}</b><details><summary>Ver colunas reconhecidas</summary>${diag.map(x=>`<div>${esc(x)}</div>`).join("")}</details>`);
+  }catch(err){console.error(err);alert("Erro ao importar APURAÇÃO DE VENDAS: "+err.message)}
  };
- r.readAsArrayBuffer(f);
+ r.readAsArrayBuffer(f)
 }
 
 function openVenda(id){
@@ -402,114 +382,118 @@ async function enableNotifications(){if(!("Notification"in window))return alert(
 function checkNotifications(){if(!("Notification"in window)||Notification.permission!=="granted")return;let changed=false;db.alertas.filter(a=>!a.done&&!a.notified&&a.data<=today()).forEach(a=>{let c=getClient(a.clienteId);new Notification("Follow-up comercial",{body:`${c?.codigo||""} ${c?.razao||"Cliente"} — ${a.texto}`});a.notified=true;changed=true});if(changed)localStorage.setItem(KEY,JSON.stringify(db))}
 function excelDate(v){if(v instanceof Date)return v.toISOString().slice(0,10);if(typeof v==="number"){let d=XLSX.SSF.parse_date_code(v);return d?`${d.y}-${String(d.m).padStart(2,"0")}-${String(d.d).padStart(2,"0")}`:""}if(!v)return"";let s=String(v).trim(),m=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);if(m)return`${m[3]}-${m[2].padStart(2,"0")}-${m[1].padStart(2,"0")}`;let d=new Date(s);return isNaN(d)?"":d.toISOString().slice(0,10)}
 function pick(row,names){for(let n of names)for(let k of Object.keys(row))if(norm(k)===norm(n))return row[k];return""}
-function importClientes(){let f=$("clientesFile").files[0];if(!f)return alert("Selecione a planilha.");let r=new FileReader();r.onload=e=>{try{let wb=XLSX.read(e.target.result,{type:"array",cellDates:true}),rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{defval:""}),map=new Map(db.clientes.map(c=>[String(c.codigo),c]));rows.forEach(row=>{let codigo=pick(row,["CODIGO CLIENTE","CÓDIGO CLIENTE","CODIGO","CÓDIGO"]);if(codigo==="")return;let old=map.get(String(codigo));map.set(String(codigo),{id:old?.id||uid(),codigo,razao:pick(row,["RAZAO CLIENTE","RAZÃO CLIENTE","CLIENTE","NOME CLIENTE"]),cnpj:pick(row,["CNPJ"]),representante:pick(row,["REPRESENTANTE","VENDEDOR"]),cidade:pick(row,["CIDADE"]),uf:pick(row,["UF","ESTADO"]),ultima:excelDate(pick(row,["ULTIMA COMPRA","ÚLTIMA COMPRA"])),dias:Number(pick(row,["DIAS SEM COMPRAR"])||0),valor:Number(pick(row,["VALOR ULTIMA COMPRA","VALOR ÚLTIMA COMPRA"])||0),responsavel:pick(row,["RESPONSAVEL","RESPONSÁVEL"]),tel1:pick(row,["TELEFONE 1","TELEFONE"]),tel2:pick(row,["TELEFONE 2"])})});db.clientes=[...map.values()];$("clientesMsg").textContent=`${db.clientes.length} clientes disponíveis.`;save()}catch(err){alert(err.message)}};r.readAsArrayBuffer(f)}
-function importPedidos(){
- let f=$("pedidosFile").files[0];
- if(!f)return alert("Selecione o relatório de Digitação de Ordens.");
+
+function findClientByRazao(razao){
+ let n=norm(razao);if(!n)return null;
+ return db.clientes.find(c=>norm(c.razao)===n)||
+        db.clientes.find(c=>norm(c.razao).includes(n)||n.includes(norm(c.razao)))||null
+}
+function localizarCabecalho(raw, obrigatorios, limite=50){
+ for(let i=0;i<Math.min(raw.length,limite);i++){
+   let rr=raw[i].map(normHeader);
+   if(obrigatorios.every(grupo=>grupo.some(a=>rr.some(v=>v===normHeader(a)||v.includes(normHeader(a))))))return i;
+ }
+ return -1
+}
+
+function importClientes(){
+ let f=$("clientesFile")?.files?.[0];
+ if(!f)return alert("Selecione TODOS OS CLIENTES.xls.");
  let r=new FileReader();
  r.onload=e=>{
   try{
    let wb=XLSX.read(e.target.result,{type:"array",cellDates:true,raw:true});
-   let existing=new Map(db.pedidos.map(p=>[String(p.ordem),p]));
-   let count=0, sheetsRead=0;
-   let diagnosticos=[];
-
+   let mapa=new Map(db.clientes.map(c=>[String(c.codigo),c])),lidos=0,diag=[];
    wb.SheetNames.forEach(sn=>{
     let raw=XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,defval:"",raw:true});
     if(!raw.length)return;
-
-    let headerRow=-1;
-    for(let i=0;i<Math.min(raw.length,50);i++){
-      let row=raw[i].map(normHeader);
-      let hasOrdem=row.some(x=>x==="ORDEM" || x.includes("ORDEM"));
-      let hasCliente=row.some(x=>x.includes("RAZAO SOCIAL") || x.includes("CLIENTE"));
-      let hasValor=row.some(x=>x.includes("VR TOTAL") || x.includes("VALOR"));
-      if(hasOrdem && (hasCliente || hasValor)){headerRow=i;break}
-    }
-    if(headerRow<0){
-      diagnosticos.push(`${sn}: cabeçalho não encontrado`);
-      return;
-    }
-
-    let headers=raw[headerRow].map(x=>String(x??"").trim());
-    let cOrdem=findCol(headers,["Ordem","Nº Ordem","Numero Ordem"]);
-    let cRazao=findCol(headers,["Razão Social","Razao Social","Nome do Cliente","Cliente"]);
-    let cDigitacao=findCol(headers,["Digitação","Digitacao","Data Digitação","Data Digitacao"]);
-    let cFaturamento=findCol(headers,["Faturamento","Data Faturamento"]);
-    let cLiberacao=findCol(headers,["Data Liberação/Crédito","Data Liberacao/Credito","Data Liberação","Data Liberacao"]);
-    let cSemImp=findCol(headers,["Vr Total (s/impostos)","Vr Total s/impostos","Vr Total sem impostos","Valor sem impostos","Total s impostos"]);
-    let cLiq=findCol(headers,["Vr Total (Líquido)","Vr Total (Liquido)","Vr Total Liquido","Valor Líquido","Valor Liquido"]);
-    let cRep=findCol(headers,["Representante","Vendedor","Representante Comercial"]);
-    let cCodigo=findCol(headers,["Código Cliente","Codigo Cliente","Cod Cliente"]);
-    let cCidade=findCol(headers,["Cidade"]);
-    let cUF=findCol(headers,["UF","Estado"]);
-    let cStatus=findCol(headers,["Status","Etapa","Situação","Situacao"]);
-
-    diagnosticos.push(
-      `${sn}: linha ${headerRow+1} | Ordem=${cOrdem>=0?"OK":"NÃO"} | `+
-      `Sem impostos=${cSemImp>=0?headers[cSemImp]:"NÃO"} | Líquido=${cLiq>=0?headers[cLiq]:"NÃO"}`
-    );
-
-    if(cOrdem<0)return;
-    sheetsRead++;
-
-    for(let ri=headerRow+1;ri<raw.length;ri++){
-      let vals=raw[ri];
-      let ordem=vals[cOrdem];
-      if(ordem==="" || ordem===null || ordem===undefined)continue;
-      let ordemStr=String(ordem).trim();
-      if(!/\d/.test(ordemStr))continue;
-
-      let codigo=cCodigo>=0?vals[cCodigo]:"";
-      let cli=codigo!==""?findClientByCode(codigo):null;
-      let razao=cRazao>=0?vals[cRazao]:"";
-      let semImp=cSemImp>=0?numBR(vals[cSemImp]):0;
-      let liq=cLiq>=0?numBR(vals[cLiq]):0;
-      let antigo=existing.get(ordemStr);
-
-      existing.set(ordemStr,{
-        id:antigo?.id||uid(),
-        ordem:ordemStr,
-        codigoCliente:codigo||antigo?.codigoCliente||cli?.codigo||"",
-        cliente:razao||antigo?.cliente||cli?.razao||"",
-        data:excelDate(cDigitacao>=0?vals[cDigitacao]:"")||antigo?.data||"",
-        faturamento:excelDate(cFaturamento>=0?vals[cFaturamento]:""),
-        liberacao:excelDate(cLiberacao>=0?vals[cLiberacao]:""),
-        representante:(cRep>=0?vals[cRep]:"")||antigo?.representante||cli?.representante||"",
-        valorSemImpostos:semImp,
-        valorLiquido:liq,
-        valor:semImp,
-        cidade:(cCidade>=0?vals[cCidade]:"")||antigo?.cidade||cli?.cidade||"",
-        uf:(cUF>=0?vals[cUF]:"")||antigo?.uf||cli?.uf||"",
-        status:(cStatus>=0?vals[cStatus]:"")||antigo?.status||"",
-        aba:sn
-      });
-      count++;
+    let h=localizarCabecalho(raw,[["CODIGO CLIENTE"],["RAZAO CLIENTE"]]);
+    if(h<0){diag.push(`${sn}: cabeçalho não encontrado`);return}
+    let headers=raw[h].map(v=>String(v??"").trim());
+    let cCod=findCol(headers,["CODIGO CLIENTE","CÓDIGO CLIENTE"]);
+    let cRaz=findCol(headers,["RAZAO CLIENTE","RAZÃO CLIENTE"]);
+    let cCnpj=findCol(headers,["CNPJ"]);
+    let cRep=findCol(headers,["REPRESENTANTE"]);
+    let cCid=findCol(headers,["CIDADE"]);
+    let cUf=findCol(headers,["UF","ESTADO"]);
+    let cUlt=findCol(headers,["ULTIMA COMPRA","ÚLTIMA COMPRA"]);
+    let cDias=findCol(headers,["DIAS SEM COMPRAR"]);
+    let cVal=findCol(headers,["VALOR ULTIMA COMPRA","VALOR ÚLTIMA COMPRA"]);
+    let cResp=findCol(headers,["RESPONSAVEL","RESPONSÁVEL"]);
+    let cTel1=findCol(headers,["TELEFONE 1"]);
+    let cTel2=findCol(headers,["TELEFONE 2"]);
+    diag.push(`${sn}: linha ${h+1} | Código=${headers[cCod]||"NÃO"} | Razão=${headers[cRaz]||"NÃO"} | CNPJ=${headers[cCnpj]||"NÃO"} | Representante=${headers[cRep]||"NÃO"} | Cidade=${headers[cCid]||"NÃO"} | UF=${headers[cUf]||"NÃO"} | Última compra=${headers[cUlt]||"NÃO"} | Dias=${headers[cDias]||"NÃO"} | Valor=${headers[cVal]||"NÃO"} | Responsável=${headers[cResp]||"NÃO"} | Tel1=${headers[cTel1]||"NÃO"} | Tel2=${headers[cTel2]||"NÃO"}`);
+    for(let i=h+1;i<raw.length;i++){
+      let row=raw[i],codigo=cCod>=0?row[cCod]:"",razao=cRaz>=0?row[cRaz]:"";
+      if(String(codigo??"").trim()===""||String(razao??"").trim()==="")continue;
+      let key=String(codigo).trim(),old=mapa.get(key);
+      mapa.set(key,{
+        id:old?.id||uid(),codigo:key,razao:String(razao??"").trim(),
+        cnpj:cCnpj>=0?String(row[cCnpj]??"").trim():"",
+        representante:cRep>=0?String(row[cRep]??"").trim():"",
+        cidade:cCid>=0?String(row[cCid]??"").trim():"",
+        uf:cUf>=0?String(row[cUf]??"").trim():"",
+        ultima:cUlt>=0?excelDate(row[cUlt]):"",
+        dias:cDias>=0?numBR(row[cDias]):0,
+        valor:cVal>=0?numBR(row[cVal]):0,
+        responsavel:cResp>=0?String(row[cResp]??"").trim():"",
+        tel1:cTel1>=0?String(row[cTel1]??"").trim():"",
+        tel2:cTel2>=0?String(row[cTel2]??"").trim():""
+      });lidos++;
     }
    });
-
-   db.pedidos=[...existing.values()];
-   let tsi=db.pedidos.reduce((a,p)=>a+Number(p.valorSemImpostos||0),0);
-   let tliq=db.pedidos.reduce((a,p)=>a+Number(p.valorLiquido||0),0);
-
-   localStorage.setItem(KEY,JSON.stringify(db));
-   render();
-
-   $("pedidosMsg").innerHTML=
-     `<div style="line-height:1.7"><b>✅ Importação concluída</b><br>`+
-     `Abas reconhecidas: <b>${sheetsRead}</b><br>`+
-     `Registros lidos: <b>${count}</b> • Pedidos únicos: <b>${db.pedidos.length}</b><br>`+
-     `💰 Sem impostos: <b>${money(tsi)}</b><br>`+
-     `🧾 Valor líquido: <b>${money(tliq)}</b><br>`+
-     `<details style="margin-top:8px"><summary>Diagnóstico das colunas</summary>`+
-     diagnosticos.map(x=>`<div>${esc(x)}</div>`).join("")+
-     `</details></div>`;
-  }catch(err){
-   console.error(err);
-   alert("Erro ao importar o relatório: "+err.message+"\n\nSe continuar, envie um print desta mensagem.");
-  }
+   db.clientes=[...mapa.values()];
+   localStorage.setItem(KEY,JSON.stringify(db));render();
+   setHTML("clientesMsg",`✅ <b>${lidos}</b> linhas lidas • <b>${db.clientes.length}</b> clientes disponíveis.<details><summary>Ver colunas reconhecidas</summary>${diag.map(x=>`<div>${esc(x)}</div>`).join("")}</details>`);
+  }catch(err){console.error(err);alert("Erro ao importar TODOS OS CLIENTES: "+err.message)}
  };
- r.readAsArrayBuffer(f);
+ r.readAsArrayBuffer(f)
+}
+function importPedidos(){
+ let f=$("pedidosFile")?.files?.[0];
+ if(!f)return alert("Selecione DIGITAÇÃO DE ORDEM.xls.");
+ let r=new FileReader();
+ r.onload=e=>{
+  try{
+   let wb=XLSX.read(e.target.result,{type:"array",cellDates:true,raw:true});
+   let existing=new Map(db.pedidos.map(p=>[String(p.ordem),p])),count=0,diag=[];
+   wb.SheetNames.forEach(sn=>{
+    let raw=XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,defval:"",raw:true});
+    if(!raw.length)return;
+    let h=localizarCabecalho(raw,[["ORDEM"],["RAZAO SOCIAL"],["VR TOTAL (S/IMPOSTOS)"]]);
+    if(h<0){diag.push(`${sn}: cabeçalho não encontrado`);return}
+    let headers=raw[h].map(v=>String(v??"").trim());
+    let cStatus=findCol(headers,["Status"]),cEtapa=findCol(headers,["Etapa"]),cOrdem=findCol(headers,["Ordem"]),
+        cRaz=findCol(headers,["Razão Social","Razao Social"]),cDig=findCol(headers,["Digitação","Digitacao"]),
+        cFat=findCol(headers,["Faturamento"]),cLib=findCol(headers,["Data Liberação/Crédito","Data Liberacao/Credito"]),
+        cSem=findCol(headers,["Vr Total (s/impostos)"]),cLiq=findCol(headers,["Vr Total (Liquido)","Vr Total (Líquido)"]),
+        cRep=findCol(headers,["Representante"]),cUf=findCol(headers,["UF"]);
+    diag.push(`${sn}: linha ${h+1} | Status=${headers[cStatus]||"NÃO"} | Etapa=${headers[cEtapa]||"NÃO"} | Ordem=${headers[cOrdem]||"NÃO"} | Razão Social=${headers[cRaz]||"NÃO"} | Digitação=${headers[cDig]||"NÃO"} | Faturamento=${headers[cFat]||"NÃO"} | Liberação=${headers[cLib]||"NÃO"} | Sem impostos=${headers[cSem]||"NÃO"} | Líquido=${headers[cLiq]||"NÃO"} | Representante=${headers[cRep]||"NÃO"} | UF=${headers[cUf]||"NÃO"}`);
+    for(let i=h+1;i<raw.length;i++){
+      let row=raw[i],ord=cOrdem>=0?row[cOrdem]:"",razao=cRaz>=0?String(row[cRaz]??"").trim():"";
+      if(String(ord??"").trim()===""||razao==="")continue;
+      let ordem=String(ord).trim(),cli=findClientByRazao(razao),ant=existing.get(ordem);
+      existing.set(ordem,{
+       id:ant?.id||uid(),ordem,
+       clienteId:cli?.id||ant?.clienteId||"",codigoCliente:cli?.codigo||ant?.codigoCliente||"",
+       cliente:razao,data:cDig>=0?excelDate(row[cDig]):ant?.data||"",
+       faturamento:cFat>=0?excelDate(row[cFat]):"",liberacao:cLib>=0?excelDate(row[cLib]):"",
+       representante:(cRep>=0?String(row[cRep]??"").trim():"")||cli?.representante||"",
+       valorSemImpostos:cSem>=0?numBR(row[cSem]):0,valorLiquido:cLiq>=0?numBR(row[cLiq]):0,
+       cidade:cli?.cidade||ant?.cidade||"",uf:(cUf>=0?String(row[cUf]??"").trim():"")||cli?.uf||"",
+       status:(cEtapa>=0?String(row[cEtapa]??"").trim():"")||(cStatus>=0?String(row[cStatus]??"").trim():""),
+       statusOrdem:cStatus>=0?String(row[cStatus]??"").trim():"",
+       origem:"DIGITAÇÃO DE ORDEM.xls",vendaId:ant?.vendaId||""
+      });count++;
+    }
+   });
+   db.pedidos=[...existing.values()];
+   localStorage.setItem(KEY,JSON.stringify(db));render();
+   let sem=db.pedidos.reduce((s,p)=>s+Number(p.valorSemImpostos||0),0),liq=db.pedidos.reduce((s,p)=>s+Number(p.valorLiquido||0),0);
+   setHTML("pedidosMsg",`✅ <b>${count}</b> linhas lidas • <b>${db.pedidos.length}</b> pedidos únicos.<br>💰 Sem impostos: <b>${money(sem)}</b> • 🧾 Líquido: <b>${money(liq)}</b><details><summary>Ver colunas reconhecidas</summary>${diag.map(x=>`<div>${esc(x)}</div>`).join("")}</details>`);
+  }catch(err){console.error(err);alert("Erro ao importar DIGITAÇÃO DE ORDEM: "+err.message)}
+ };
+ r.readAsArrayBuffer(f)
 }
 function exportExcel(){let wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(db.clientes),"Clientes");XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(db.vendas),"Vendas");XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(db.pedidos),"Pedidos");XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(db.orcamentos.map(o=>({...o,itens:JSON.stringify(o.itens)}))),"Orçamentos");XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(db.apuracaoLinhas||[]),"Apuração Metas");XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(db.followups),"Follow-ups");XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(db.alertas),"Alertas");XLSX.writeFile(wb,"Gestor_Comercial_Completo.xlsx")}
 

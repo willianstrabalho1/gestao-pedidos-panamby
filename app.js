@@ -1,7 +1,80 @@
 console.info("Gestor Comercial Panamby GITHUB FINAL 2026.08.18");
-const KEY="gestor_comercial_v9_supervisores_20260818";
-let db=JSON.parse(localStorage.getItem(KEY)||'{"clientes":[],"pedidos":[],"vendas":[],"followups":[],"alertas":[],"metas":{}}');
-if(!db.vendas)db.vendas=[];if(!db.pedidos)db.pedidos=[];if(!db.clientes)db.clientes=[];if(!db.followups)db.followups=[];if(!db.alertas)db.alertas=[];if(!db.orcamentos)db.orcamentos=[];if(!db.apuracaoMetas)db.apuracaoMetas=[];if(!db.apuracaoLinhas)db.apuracaoLinhas=[];
+const DB_NAME="gestor_comercial_panamby_v10";
+const DB_STORE="app";
+const DB_KEY="principal";
+
+let db={
+ clientes:[],
+ pedidos:[],
+ vendas:[],
+ orcamentos:[],
+ followups:[],
+ alertas:[],
+ apuracaoLinhas:[],
+ apuracaoMetas:[]
+};
+
+function normalizeDB(){
+ db.clientes=Array.isArray(db.clientes)?db.clientes:[];
+ db.pedidos=Array.isArray(db.pedidos)?db.pedidos:[];
+ db.vendas=Array.isArray(db.vendas)?db.vendas:[];
+ db.orcamentos=Array.isArray(db.orcamentos)?db.orcamentos:[];
+ db.followups=Array.isArray(db.followups)?db.followups:[];
+ db.alertas=Array.isArray(db.alertas)?db.alertas:[];
+ db.apuracaoLinhas=Array.isArray(db.apuracaoLinhas)?db.apuracaoLinhas:[];
+ db.apuracaoMetas=Array.isArray(db.apuracaoMetas)?db.apuracaoMetas:[];
+}
+
+function openDB(){
+ return new Promise((resolve,reject)=>{
+  const req=indexedDB.open(DB_NAME,1);
+  req.onupgradeneeded=()=>{
+   const idb=req.result;
+   if(!idb.objectStoreNames.contains(DB_STORE)) idb.createObjectStore(DB_STORE);
+  };
+  req.onsuccess=()=>resolve(req.result);
+  req.onerror=()=>reject(req.error);
+ });
+}
+
+async function loadDB(){
+ const idb=await openDB();
+ return new Promise((resolve,reject)=>{
+  const tx=idb.transaction(DB_STORE,"readonly");
+  const req=tx.objectStore(DB_STORE).get(DB_KEY);
+  req.onsuccess=()=>resolve(req.result||null);
+  req.onerror=()=>reject(req.error);
+ });
+}
+
+async function persistDB(){
+ try{
+  normalizeDB();
+  const idb=await openDB();
+  await new Promise((resolve,reject)=>{
+   const tx=idb.transaction(DB_STORE,"readwrite");
+   tx.objectStore(DB_STORE).put(db,DB_KEY);
+   tx.oncomplete=()=>resolve();
+   tx.onerror=()=>reject(tx.error);
+   tx.onabort=()=>reject(tx.error);
+  });
+  return true;
+ }catch(err){
+  console.error("Erro IndexedDB:",err);
+  alert("Não foi possível salvar os dados: "+(err?.message||err));
+  return false;
+ }
+}
+
+async function clearDB(){
+ const idb=await openDB();
+ await new Promise((resolve,reject)=>{
+  const tx=idb.transaction(DB_STORE,"readwrite");
+  tx.objectStore(DB_STORE).delete(DB_KEY);
+  tx.oncomplete=()=>resolve();
+  tx.onerror=()=>reject(tx.error);
+ });
+}
 const $=id=>document.getElementById(id),today=()=>new Date().toISOString().slice(0,10);
 const norm=v=>String(v??"").trim().toUpperCase();
 function normHeader(v){
@@ -58,7 +131,7 @@ function appSelfCheck(){
  return true;
 }
 
-function save(){localStorage.setItem(KEY,JSON.stringify(db));render()}
+function save(){render();persistDB()}
 function brdate(v){if(!v)return"—";let d=new Date(v+"T12:00:00");return isNaN(d)?esc(v):d.toLocaleDateString("pt-BR")}
 function monthNow(){return today().slice(0,7)}
 function getClient(id){return db.clientes.find(x=>x.id===id)}
@@ -404,7 +477,7 @@ function importApuracao(){
    let mapa=new Map();
    linhas.forEach(x=>{let k=norm(x.representante||x.razaoSocial);if(!k)return;if(!mapa.has(k))mapa.set(k,{...x});else{let a=mapa.get(k);a.meta=Math.max(Number(a.meta||0),Number(x.meta||0));a.vrAtingido=Math.max(Number(a.vrAtingido||0),Number(x.vrAtingido||0));if(!a.razaoSocial)a.razaoSocial=x.razaoSocial;if(!a.supervisor)a.supervisor=x.supervisor;a.atingido=a.meta>0&&a.vrAtingido>=a.meta?"Sim":"Não"}});
    db.apuracaoMetas=[...mapa.values()];
-   localStorage.setItem(KEY,JSON.stringify(db));render();
+   render();persistDB();
    let mt=db.apuracaoMetas.reduce((s,x)=>s+Number(x.meta||0),0),va=db.apuracaoMetas.reduce((s,x)=>s+Number(x.vrAtingido||0),0);
    setHTML("apuracaoMsg",`✅ <b>${linhas.length}</b> linhas importadas • <b>${db.apuracaoMetas.length}</b> representantes.<br>🎯 Meta: <b>${money(mt)}</b> • 💰 Vr Atingido: <b>${money(va)}</b><details><summary>Ver colunas reconhecidas</summary>${diag.map(x=>`<div>${esc(x)}</div>`).join("")}</details>`);
   }catch(err){console.error(err);alert("Erro ao importar APURAÇÃO DE VENDAS: "+err.message)}
@@ -440,7 +513,7 @@ function openWhats(id){let c=getClient(id),ps=[c?.tel1,c?.tel2].filter(Boolean);
 function aplicarModeloWhats(){let m={follow:"Olá! Tudo bem? Estou entrando em contato para dar continuidade ao nosso atendimento comercial. Posso te ajudar em algo hoje?",parado:"Olá! Tudo bem? Percebi que faz um tempo desde a última compra e queria saber se posso ajudar com alguma reposição, novidade ou condição comercial.",catalogo:"Olá! Tudo bem? Temos novidades no catálogo e queria compartilhar algumas opções que podem fazer sentido para sua empresa. Posso te enviar?",pedido:"Olá! Tudo bem? Estou entrando em contato para acompanhar seu pedido/retorno comercial. Se precisar de qualquer informação, estou à disposição.",personalizada:""};$("wMensagem").value=m[$("wModelo").value]||""}
 function abrirWhatsApp(){window.open(`https://wa.me/${$("wTelefone").value}?text=${encodeURIComponent($("wMensagem").value)}`,"_blank")}
 async function enableNotifications(){if(!("Notification"in window))return alert("Navegador sem suporte.");let p=await Notification.requestPermission();$("notifyBtn").textContent=p==="granted"?"🔔 Notificações ativadas":"🔕 Bloqueadas";checkNotifications()}
-function checkNotifications(){if(!("Notification"in window)||Notification.permission!=="granted")return;let changed=false;db.alertas.filter(a=>!a.done&&!a.notified&&a.data<=today()).forEach(a=>{let c=getClient(a.clienteId);new Notification("Follow-up comercial",{body:`${c?.codigo||""} ${c?.razao||"Cliente"} — ${a.texto}`});a.notified=true;changed=true});if(changed)localStorage.setItem(KEY,JSON.stringify(db))}
+function checkNotifications(){if(!("Notification"in window)||Notification.permission!=="granted")return;let changed=false;db.alertas.filter(a=>!a.done&&!a.notified&&a.data<=today()).forEach(a=>{let c=getClient(a.clienteId);new Notification("Follow-up comercial",{body:`${c?.codigo||""} ${c?.razao||"Cliente"} — ${a.texto}`});a.notified=true;changed=true});if(changed)persistDB()}
 function excelDate(v){if(v instanceof Date)return v.toISOString().slice(0,10);if(typeof v==="number"){let d=XLSX.SSF.parse_date_code(v);return d?`${d.y}-${String(d.m).padStart(2,"0")}-${String(d.d).padStart(2,"0")}`:""}if(!v)return"";let s=String(v).trim(),m=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);if(m)return`${m[3]}-${m[2].padStart(2,"0")}-${m[1].padStart(2,"0")}`;let d=new Date(s);return isNaN(d)?"":d.toISOString().slice(0,10)}
 function pick(row,names){for(let n of names)for(let k of Object.keys(row))if(norm(k)===norm(n))return row[k];return""}
 
@@ -504,7 +577,7 @@ function importClientes(){
     }
    });
    db.clientes=[...mapa.values()];
-   localStorage.setItem(KEY,JSON.stringify(db));render();
+   render();persistDB();
    setHTML("clientesMsg",`✅ <b>${lidos}</b> linhas lidas • <b>${db.clientes.length}</b> clientes disponíveis.<details><summary>Ver colunas reconhecidas</summary>${diag.map(x=>`<div>${esc(x)}</div>`).join("")}</details>`);
   }catch(err){console.error(err);alert("Erro ao importar TODOS OS CLIENTES: "+err.message)}
  };
@@ -549,7 +622,7 @@ function importPedidos(){
     }
    });
    db.pedidos=[...existing.values()];
-   localStorage.setItem(KEY,JSON.stringify(db));render();
+   render();persistDB();
    let sem=db.pedidos.reduce((s,p)=>s+Number(p.valorSemImpostos||0),0),liq=db.pedidos.reduce((s,p)=>s+Number(p.valorLiquido||0),0);
    setHTML("pedidosMsg",`✅ <b>${count}</b> linhas lidas • <b>${db.pedidos.length}</b> pedidos únicos.<br>💰 Sem impostos: <b>${money(sem)}</b> • 🧾 Líquido: <b>${money(liq)}</b><details><summary>Ver colunas reconhecidas</summary>${diag.map(x=>`<div>${esc(x)}</div>`).join("")}</details>`);
   }catch(err){console.error(err);alert("Erro ao importar DIGITAÇÃO DE ORDEM: "+err.message)}
@@ -558,13 +631,12 @@ function importPedidos(){
 }
 function exportExcel(){let wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(db.clientes),"Clientes");XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(db.vendas),"Vendas");XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(db.pedidos),"Pedidos");XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(db.orcamentos.map(o=>({...o,itens:JSON.stringify(o.itens)}))),"Orçamentos");XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(db.apuracaoLinhas||[]),"Apuração Metas");XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(db.followups),"Follow-ups");XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(db.alertas),"Alertas");XLSX.writeFile(wb,"Gestor_Comercial_Completo.xlsx")}
 
-function limparTudo(){
- if(!confirm("Isso vai apagar TODOS os dados desta versão neste navegador. Deseja continuar?"))return;
- localStorage.removeItem(KEY);
+async function limparTudo(){
+ if(!confirm("Isso apagará todos os dados desta versão neste navegador. Deseja continuar?"))return;
+ await clearDB();
  db={clientes:[],pedidos:[],vendas:[],orcamentos:[],followups:[],alertas:[],apuracaoLinhas:[],apuracaoMetas:[]};
- localStorage.setItem(KEY,JSON.stringify(db));
  render();
- alert("Sistema zerado. Agora só aparecerão dados depois da importação/cadastro.");
+ alert("Sistema zerado.");
 }
 
 function backupDados(){let blob=new Blob([JSON.stringify({aplicativo:"Gestor Comercial",versao:5,criadoEm:new Date().toISOString(),dados:db},null,2)],{type:"application/json"}),a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=`Backup_Gestor_Comercial_${today()}.json`;a.click()}
@@ -572,3 +644,9 @@ function restaurarBackup(e){let f=e.target.files[0];if(!f)return;if(!confirm("Su
 function render(){fillSelectors();refreshSupervisorFilter();renderClientes();renderVendas();renderPedidos();renderOrcamentos();renderFollow();renderAlerts();try{renderApuracao()}catch(e){console.warn("renderApuracao:",e)}renderDashboard();checkNotifications()}
 try{appSelfCheck();render()}catch(e){console.error("Erro de inicialização:",e);alert("O aplicativo encontrou um erro ao iniciar. Faça um backup/restauração ou atualize a página. Detalhe: "+e.message)}
 setInterval(()=>{try{checkNotifications()}catch(e){console.warn(e)}},60000);
+
+async function iniciarApp(){
+ try{const salvo=await loadDB();if(salvo){db=salvo;normalizeDB()}}catch(err){console.error(err)}
+ render();setInterval(checkNotifications,60000);
+}
+iniciarApp();

@@ -29,3 +29,23 @@ CORREÇÃO: importador robusto para cabeçalhos com acentos, espaços e parênte
 
 
 CORREÇÃO V2: corrigido campo ausente dashValor/kLiquido que causava erro 'Cannot read properties of null (reading value)'.
+
+
+NOVOS MÓDULOS
+1) APURAÇÃO DE METAS
+- Importa o relatório 3.2.5 - Apuração das metas de vendas.
+- Tabela: Atingido, Representante, Razão Social, Meta, Vr Atingido, Falta, % e Supervisor.
+- Filtros por texto, supervisor e meta atingida.
+- KPIs de meta total, valor atingido e quanto falta.
+
+2) ORÇAMENTOS
+- Cliente selecionado pelo código.
+- Representante preenchido automaticamente.
+- Vários itens com quantidade e preço unitário.
+- Desconto e cálculo automático do total.
+- Validade e observações.
+- Aprovar, recusar, imprimir e enviar via WhatsApp.
+- Botão VIRAR PEDIDO transforma o orçamento em pedido e preserva o vínculo.
+- O pedido criado entra automaticamente na área Pedidos e no Dashboard.
+
+A chave localStorage continua gestor_comercial_v4 para preservar os dados existentes.

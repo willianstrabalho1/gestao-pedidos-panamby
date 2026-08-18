@@ -17,9 +17,11 @@
   <button class="nav" data-tab="clientes">👥 Clientes</button>
   <button class="nav" data-tab="vendas">💰 Vendas</button>
   <button class="nav" data-tab="pedidos">🧾 Pedidos</button>
+  <button class="nav" data-tab="orcamentos">📝 Orçamentos</button>
   <button class="nav" data-tab="followups">📞 Follow-ups</button>
   <button class="nav" data-tab="alertas">🔔 Alertas</button>
   <button class="nav" data-tab="metas">🎯 Metas</button>
+  <button class="nav" data-tab="apuracao">📋 Apuração de Metas</button>
   <button class="nav" data-tab="excel">📗 Excel / Backup</button>
 </aside>
 
@@ -128,6 +130,28 @@
   <div id="pedidosList"></div>
 </section>
 
+
+<section id="orcamentos" class="tab">
+  <div class="toolbar">
+    <button class="primary" onclick="openOrcamento()">+ Novo orçamento</button>
+    <input id="buscaOrcamento" placeholder="Pesquisar nº, código, cliente ou representante...">
+    <select id="statusOrcamento">
+      <option value="">Todos os status</option>
+      <option>Em aberto</option>
+      <option>Aprovado</option>
+      <option>Virou pedido</option>
+      <option>Recusado</option>
+      <option>Expirado</option>
+    </select>
+  </div>
+  <div class="kpis smallkpis">
+    <div class="card kpi"><small>Orçamentos</small><strong id="oQtd">0</strong></div>
+    <div class="card kpi"><small>Valor em aberto</small><strong id="oAberto">R$ 0,00</strong></div>
+    <div class="card kpi"><small>Convertidos em pedido</small><strong id="oConvertidos">0</strong></div>
+  </div>
+  <div id="orcamentosList"></div>
+</section>
+
 <section id="followups" class="tab">
   <div class="toolbar"><button class="primary" onclick="openFollow()">+ Novo follow-up</button></div>
   <div id="followList"></div>
@@ -150,6 +174,35 @@
   <div id="metasList"></div>
 </section>
 
+
+<section id="apuracao" class="tab">
+  <div class="toolbar">
+    <input id="buscaApuracao" placeholder="Pesquisar representante, razão social ou supervisor...">
+    <select id="filtroSupervisor"><option value="">Todos os supervisores</option></select>
+    <select id="filtroAtingido">
+      <option value="">Todos</option>
+      <option value="Sim">Meta atingida</option>
+      <option value="Não">Meta não atingida</option>
+    </select>
+  </div>
+  <div class="kpis smallkpis">
+    <div class="card kpi"><small>Meta total</small><strong id="aMetaTotal">R$ 0,00</strong></div>
+    <div class="card kpi"><small>Valor atingido</small><strong id="aAtingidoTotal">R$ 0,00</strong></div>
+    <div class="card kpi"><small>Falta para meta</small><strong id="aFaltaTotal">R$ 0,00</strong></div>
+  </div>
+  <div class="card table-card">
+    <div class="table-scroll">
+      <table class="data-table">
+        <thead><tr>
+          <th>Atingido</th><th>Representante</th><th>Razão Social</th>
+          <th>Meta</th><th>Vr Atingido</th><th>Falta</th><th>%</th><th>Supervisor</th>
+        </tr></thead>
+        <tbody id="apuracaoBody"></tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
 <section id="excel" class="tab">
   <div class="grid2">
     <div class="card">
@@ -164,6 +217,13 @@
       <button class="primary" onclick="importPedidos()">Importar relatório</button>
       <p id="pedidosMsg"></p>
     </div>
+  </div>
+  <div class="card intro">
+    <h3>📋 Importar Apuração das Metas</h3>
+    <p class="muted">Importa: Atingido, Representante, Razão Social, Meta, Vr Atingido e Nome do Supervisor.</p>
+    <input type="file" id="apuracaoFile" accept=".xls,.xlsx">
+    <button class="primary" onclick="importApuracao()">Importar apuração</button>
+    <p id="apuracaoMsg"></p>
   </div>
   <div class="card intro">
     <h3>💾 Backup e exportação</h3>
@@ -224,6 +284,45 @@
 <label>Mensagem<textarea id="wMensagem" rows="6"></textarea></label>
 <button class="whatsapp-main" onclick="abrirWhatsApp()">💬 Abrir WhatsApp</button>
 </div></div>
+
+<div class="modal" id="orcamentoModal"><div class="modalbox wide-modal">
+<button class="x" onclick="closeModal('orcamentoModal')">×</button>
+<h3>📝 Novo orçamento</h3>
+<div class="form-grid">
+  <label>Código do cliente<input id="orcCodigo" oninput="buscarClienteOrcamento()" placeholder="Digite o código"></label>
+  <label>Cliente<input id="orcCliente" readonly></label>
+  <input type="hidden" id="orcClienteId">
+  <label>Representante<select id="orcRep"></select></label>
+  <label>Validade<input id="orcValidade" type="date"></label>
+</div>
+
+<h4>Itens do orçamento</h4>
+<div class="table-scroll">
+<table class="data-table budget-table">
+<thead><tr><th>Descrição</th><th>Qtd.</th><th>Preço unit.</th><th>Subtotal</th><th></th></tr></thead>
+<tbody id="orcItens"></tbody>
+</table>
+</div>
+<button onclick="addOrcItem()">+ Adicionar item</button>
+
+<div class="form-grid totals-grid">
+  <label>Desconto (R$)<input id="orcDesconto" type="number" min="0" step="0.01" value="0" oninput="recalcOrc()"></label>
+  <label>Total do orçamento<input id="orcTotal" readonly></label>
+</div>
+<label>Observações<textarea id="orcObs" rows="3"></textarea></label>
+<button class="primary" onclick="saveOrcamento()">Salvar orçamento</button>
+</div></div>
+
+<div class="modal" id="converterModal"><div class="modalbox">
+<button class="x" onclick="closeModal('converterModal')">×</button>
+<h3>🧾 Transformar orçamento em pedido</h3>
+<input type="hidden" id="convOrcId">
+<label>Número do pedido / ordem<input id="convPedido" placeholder="Ex.: 22800"></label>
+<label>Data do pedido<input id="convData" type="date"></label>
+<label>Status<select id="convStatus"><option>Digitado</option><option>Liberado</option><option>Faturado</option><option>Pendente</option></select></label>
+<button class="primary" onclick="converterOrcamento()">Criar pedido</button>
+</div></div>
+
 <script src="app.js"></script>
 </body>
 </html>

@@ -1,6 +1,6 @@
 const KEY="gestor_comercial_v4";
 let db=JSON.parse(localStorage.getItem(KEY)||'{"clientes":[],"pedidos":[],"vendas":[],"followups":[],"alertas":[],"metas":{}}');
-if(!db.vendas)db.vendas=[];
+if(!db.vendas)db.vendas=[]; if(!db.orcamentos)db.orcamentos=[]; if(!db.apuracaoMetas)db.apuracaoMetas=[];
 const $=id=>document.getElementById(id),today=()=>new Date().toISOString().slice(0,10);
 const norm=v=>String(v??"").trim().toUpperCase();
 function normHeader(v){
@@ -63,6 +63,10 @@ $("dashMes").value=$("mesPedido").value=$("mesVenda").value=monthNow();
 ["buscaCliente","filtroDias"].forEach(id=>$(id).oninput=renderClientes);
 ["buscaPedido","mesPedido","repPedido"].forEach(id=>$(id).oninput=renderPedidos);
 ["buscaVenda","mesVenda"].forEach(id=>$(id).oninput=renderVendas);
+
+["buscaOrcamento","statusOrcamento"].forEach(id=>{const el=$(id);if(el)el.oninput=renderOrcamentos});
+["buscaApuracao","filtroSupervisor","filtroAtingido"].forEach(id=>{const el=$(id);if(el)el.oninput=renderApuracao});
+
 ["dashMes","dashRep","dashRegiao","dashValor"].forEach(id=>{const el=$(id); if(el) el.onchange=renderDashboard});
 
 let charts={};
@@ -132,8 +136,121 @@ function renderPedidos(){
 function fillSelectors(){
  let r=reps(),opts='<option value="">Todos</option>'+r.map(x=>`<option>${esc(x)}</option>`).join("");
  let vals={dashRep:$("dashRep").value,repPedido:$("repPedido").value};$("dashRep").innerHTML=opts;$("dashRep").value=vals.dashRep;$("repPedido").innerHTML=opts;$("repPedido").value=vals.repPedido;
- $("metaRep").innerHTML=r.map(x=>`<option>${esc(x)}</option>`).join("");$("vRepresentante").innerHTML=r.map(x=>`<option>${esc(x)}</option>`).join("");$("fCliente").innerHTML=db.clientes.map(c=>`<option value="${c.id}">${esc(c.codigo)} — ${esc(c.razao)}</option>`).join("")
+ $("metaRep").innerHTML=r.map(x=>`<option>${esc(x)}</option>`).join("");$("vRepresentante").innerHTML=r.map(x=>`<option>${esc(x)}</option>`).join("");if($("orcRep"))$("orcRep").innerHTML=r.map(x=>`<option>${esc(x)}</option>`).join("");$("fCliente").innerHTML=db.clientes.map(c=>`<option value="${c.id}">${esc(c.codigo)} — ${esc(c.razao)}</option>`).join("")
 }
+
+function orcNumber(){return "ORC-"+new Date().getFullYear()+"-"+String(Date.now()).slice(-6)}
+function openOrcamento(){
+ fillSelectors();
+ $("orcCodigo").value="";$("orcCliente").value="";$("orcClienteId").value="";
+ $("orcValidade").value=new Date(Date.now()+7*86400000).toISOString().slice(0,10);
+ $("orcDesconto").value=0;$("orcObs").value="";$("orcItens").innerHTML="";
+ addOrcItem();recalcOrc();$("orcamentoModal").classList.add("open")
+}
+function buscarClienteOrcamento(){
+ let c=findClientByCode($("orcCodigo").value);
+ $("orcClienteId").value=c?.id||"";$("orcCliente").value=c?.razao||"";
+ if(c?.representante)$("orcRep").value=c.representante
+}
+function addOrcItem(desc="",qtd=1,preco=0){
+ let tr=document.createElement("tr");
+ tr.innerHTML=`<td><input class="desc" value="${esc(desc)}" placeholder="Produto / descrição"></td>
+ <td><input class="qtd" type="number" min="0" step="1" value="${qtd}" oninput="recalcOrc()"></td>
+ <td><input class="preco" type="number" min="0" step="0.01" value="${preco}" oninput="recalcOrc()"></td>
+ <td class="subtotal">${money(qtd*preco)}</td>
+ <td><button class="deletebtn" onclick="this.closest('tr').remove();recalcOrc()">×</button></td>`;
+ $("orcItens").appendChild(tr);recalcOrc()
+}
+function collectOrcItens(){
+ return [...$("orcItens").querySelectorAll("tr")].map(tr=>({
+   descricao:tr.querySelector(".desc").value.trim(),
+   qtd:Number(tr.querySelector(".qtd").value||0),
+   preco:Number(tr.querySelector(".preco").value||0)
+ })).filter(x=>x.descricao&&x.qtd>0)
+}
+function recalcOrc(){
+ let itens=collectOrcItens(),bruto=itens.reduce((s,x)=>s+x.qtd*x.preco,0),desc=Number($("orcDesconto")?.value||0),total=Math.max(bruto-desc,0);
+ [...$("orcItens").querySelectorAll("tr")].forEach(tr=>{let q=Number(tr.querySelector(".qtd").value||0),p=Number(tr.querySelector(".preco").value||0);tr.querySelector(".subtotal").textContent=money(q*p)});
+ if($("orcTotal"))$("orcTotal").value=money(total)
+}
+function saveOrcamento(){
+ let c=findClientByCode($("orcCodigo").value),itens=collectOrcItens();
+ if(!c)return alert("Código do cliente não encontrado.");
+ if(!itens.length)return alert("Adicione pelo menos um item.");
+ let bruto=itens.reduce((s,x)=>s+x.qtd*x.preco,0),desconto=Number($("orcDesconto").value||0);
+ db.orcamentos.push({id:uid(),numero:orcNumber(),data:today(),validade:$("orcValidade").value,clienteId:c.id,codigoCliente:c.codigo,cliente:c.razao,representante:$("orcRep").value||c.representante||"",cidade:c.cidade,uf:c.uf,itens,bruto,desconto,total:Math.max(bruto-desconto,0),observacao:$("orcObs").value.trim(),status:"Em aberto",pedidoGerado:""});
+ closeModal("orcamentoModal");save()
+}
+function renderOrcamentos(){
+ let q=norm($("buscaOrcamento")?.value),st=$("statusOrcamento")?.value||"";
+ let arr=db.orcamentos.filter(o=>(!st||o.status===st)&&(!q||norm([o.numero,o.codigoCliente,o.cliente,o.representante].join(" ")).includes(q))).sort((a,b)=>(b.data||"").localeCompare(a.data||""));
+ $("oQtd").textContent=arr.length;
+ $("oAberto").textContent=money(db.orcamentos.filter(o=>o.status==="Em aberto").reduce((s,o)=>s+Number(o.total||0),0));
+ $("oConvertidos").textContent=db.orcamentos.filter(o=>o.status==="Virou pedido").length;
+ $("orcamentosList").innerHTML=arr.map(o=>`<div class="quote-card"><div class="quote-top"><div><h3>${esc(o.numero)} • ${esc(o.codigoCliente)} — ${esc(o.cliente)}</h3><div class="muted">${brdate(o.data)} • Validade ${brdate(o.validade)} • ${esc(o.representante||"Sem representante")}</div></div><div class="quote-total">${money(o.total)}</div></div>
+ <div class="tags"><span class="tag ${o.status==="Aprovado"?"approved":o.status==="Virou pedido"?"converted":""}">${esc(o.status)}</span>${o.pedidoGerado?`<span class="tag">Pedido ${esc(o.pedidoGerado)}</span>`:""}</div>
+ <div class="quote-items">${o.itens.map(i=>`${esc(i.descricao)} • ${i.qtd} × ${money(i.preco)}`).join("<br>")}</div>
+ <div class="quote-actions">
+   ${o.status!=="Virou pedido"?`<button onclick="setOrcStatus('${o.id}','Aprovado')">✅ Aprovar</button><button class="primary" onclick="openConverter('${o.id}')">🧾 Virar pedido</button>`:""}
+   <button onclick="printOrcamento('${o.id}')">🖨️ Imprimir</button>
+   <button class="whatsappbtn" onclick="whatsOrcamento('${o.id}')">💬 WhatsApp</button>
+   ${o.status==="Em aberto"?`<button class="deletebtn" onclick="setOrcStatus('${o.id}','Recusado')">Recusado</button>`:""}
+ </div></div>`).join("")||'<div class="card muted">Nenhum orçamento cadastrado.</div>'
+}
+function setOrcStatus(id,status){let o=db.orcamentos.find(x=>x.id===id);if(o){o.status=status;save()}}
+function openConverter(id){
+ let o=db.orcamentos.find(x=>x.id===id);if(!o)return;
+ $("convOrcId").value=id;$("convPedido").value="";$("convData").value=today();$("converterModal").classList.add("open")
+}
+function converterOrcamento(){
+ let o=db.orcamentos.find(x=>x.id===$("convOrcId").value);if(!o)return;
+ let numero=$("convPedido").value.trim()||("PED-"+String(Date.now()).slice(-6));
+ let existente=db.pedidos.find(p=>String(p.ordem)===String(numero));
+ if(existente)return alert("Já existe um pedido com esse número.");
+ db.pedidos.push({id:uid(),ordem:numero,codigoCliente:o.codigoCliente,cliente:o.cliente,clienteId:o.clienteId,data:$("convData").value,representante:o.representante,valorSemImpostos:o.total,valorLiquido:o.total,valor:o.total,cidade:o.cidade,uf:o.uf,status:$("convStatus").value,origem:"Orçamento",orcamentoId:o.id,itens:o.itens});
+ o.status="Virou pedido";o.pedidoGerado=numero;
+ closeModal("converterModal");save();alert(`Orçamento ${o.numero} convertido no pedido ${numero}.`)
+}
+function printOrcamento(id){
+ let o=db.orcamentos.find(x=>x.id===id);if(!o)return;
+ let w=window.open("","_blank");
+ let linhas=o.itens.map(i=>`<tr><td>${esc(i.descricao)}</td><td>${i.qtd}</td><td>${money(i.preco)}</td><td>${money(i.qtd*i.preco)}</td></tr>`).join("");
+ w.document.write(`<html><head><title>${o.numero}</title><style>body{font-family:Arial;padding:30px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #ccc;padding:8px;text-align:left}h1{margin-bottom:3px}.tot{text-align:right;font-size:20px;font-weight:bold}</style></head><body><h1>Orçamento ${esc(o.numero)}</h1><p>${esc(o.codigoCliente)} — ${esc(o.cliente)}<br>Representante: ${esc(o.representante)}<br>Validade: ${brdate(o.validade)}</p><table><tr><th>Item</th><th>Qtd.</th><th>Unitário</th><th>Subtotal</th></tr>${linhas}</table><p>Desconto: ${money(o.desconto)}</p><p class="tot">Total: ${money(o.total)}</p><p>${esc(o.observacao||"")}</p></body></html>`);
+ w.document.close();w.print()
+}
+function whatsOrcamento(id){
+ let o=db.orcamentos.find(x=>x.id===id),c=getClient(o?.clienteId);if(!o||!c)return;
+ let phone=cleanPhone(c.tel1||c.tel2);if(!phone)return alert("Cliente sem telefone.");
+ let itens=o.itens.map(i=>`• ${i.descricao}: ${i.qtd} x ${money(i.preco)}`).join("\n");
+ let msg=`Olá! Segue o orçamento ${o.numero}:\n\n${itens}\n\nTotal: ${money(o.total)}\nValidade: ${brdate(o.validade)}`;
+ window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`,"_blank")
+}
+
+function renderApuracao(){
+ let q=norm($("buscaApuracao")?.value),sup=$("filtroSupervisor")?.value||"",at=$("filtroAtingido")?.value||"";
+ let arr=db.apuracaoMetas.filter(x=>(!q||norm([x.representante,x.razaoSocial,x.supervisor].join(" ")).includes(q))&&(!sup||x.supervisor===sup)&&(!at||x.atingido===at));
+ let meta=arr.reduce((s,x)=>s+Number(x.meta||0),0),ating=arr.reduce((s,x)=>s+Number(x.vrAtingido||0),0);
+ $("aMetaTotal").textContent=money(meta);$("aAtingidoTotal").textContent=money(ating);$("aFaltaTotal").textContent=money(Math.max(meta-ating,0));
+ $("apuracaoBody").innerHTML=arr.map(x=>{let falta=Math.max(Number(x.meta)-Number(x.vrAtingido),0),pct=Number(x.meta)?Number(x.vrAtingido)/Number(x.meta)*100:0;return `<tr><td class="${x.atingido==="Sim"?"status-ok":"status-no"}">${esc(x.atingido)}</td><td>${esc(x.representante)}</td><td>${esc(x.razaoSocial)}</td><td>${money(x.meta)}</td><td>${money(x.vrAtingido)}</td><td>${money(falta)}</td><td>${pct.toFixed(1)}%</td><td>${esc(x.supervisor)}</td></tr>`}).join("")||'<tr><td colspan="8">Nenhum dado importado.</td></tr>'
+}
+function refreshSupervisorFilter(){
+ let el=$("filtroSupervisor");if(!el)return;let cur=el.value,sups=[...new Set(db.apuracaoMetas.map(x=>x.supervisor).filter(Boolean))].sort();el.innerHTML='<option value="">Todos os supervisores</option>'+sups.map(x=>`<option>${esc(x)}</option>`).join("");el.value=cur
+}
+function importApuracao(){
+ let f=$("apuracaoFile").files[0];if(!f)return alert("Selecione o arquivo de Apuração das metas.");
+ let r=new FileReader();r.onload=e=>{try{
+   let wb=XLSX.read(e.target.result,{type:"array",raw:true}),rows=[];
+   wb.SheetNames.forEach(sn=>{let raw=XLSX.utils.sheet_to_json(wb.Sheets[sn],{defval:""});raw.forEach(row=>{
+     let at=pick(row,["Atingido"]),rep=pick(row,["Representante"]),razao=pick(row,["Razão Social","Razao Social"]),meta=pick(row,["Meta"]),vr=pick(row,["Vr Atingido","Valor Atingido"]),sup=pick(row,["Nome do Supervisor","Supervisor"]);
+     if(rep===""&&razao==="")return;
+     rows.push({atingido:String(at||"Não"),representante:String(rep),razaoSocial:String(razao),meta:numBR(meta),vrAtingido:numBR(vr),supervisor:String(sup)})
+   })});
+   db.apuracaoMetas=rows;
+   $("apuracaoMsg").innerHTML=`✅ <b>${rows.length}</b> representantes importados • Meta total: <b>${money(rows.reduce((s,x)=>s+x.meta,0))}</b> • Atingido: <b>${money(rows.reduce((s,x)=>s+x.vrAtingido,0))}</b>`;
+   save()
+ }catch(err){alert("Erro ao importar apuração: "+err.message)}};r.readAsArrayBuffer(f)
+}
+
 function openVenda(id){
  fillSelectors();$("vData").value=today();$("vPedido").value="";$("vValor").value="";$("vObs").value="";$("vCodigo").value="";$("vClienteNome").value="";$("vClienteId").value="";
  if(id){let c=getClient(id);$("vCodigo").value=c?.codigo||"";buscarClienteVenda()}
@@ -275,8 +392,8 @@ function importPedidos(){
  };
  r.readAsArrayBuffer(f);
 }
-function exportExcel(){let wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(db.clientes),"Clientes");XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(db.vendas),"Vendas");XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(db.pedidos),"Pedidos");XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(db.followups),"Follow-ups");XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(db.alertas),"Alertas");XLSX.writeFile(wb,"Gestor_Comercial_Completo.xlsx")}
+function exportExcel(){let wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(db.clientes),"Clientes");XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(db.vendas),"Vendas");XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(db.pedidos),"Pedidos");XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(db.orcamentos.map(o=>({...o,itens:JSON.stringify(o.itens)}))),"Orçamentos");XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(db.apuracaoMetas),"Apuração Metas");XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(db.followups),"Follow-ups");XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(db.alertas),"Alertas");XLSX.writeFile(wb,"Gestor_Comercial_Completo.xlsx")}
 function backupDados(){let blob=new Blob([JSON.stringify({aplicativo:"Gestor Comercial",versao:5,criadoEm:new Date().toISOString(),dados:db},null,2)],{type:"application/json"}),a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=`Backup_Gestor_Comercial_${today()}.json`;a.click()}
-function restaurarBackup(e){let f=e.target.files[0];if(!f)return;if(!confirm("Substituir os dados atuais pelo backup?"))return;let r=new FileReader();r.onload=x=>{try{let p=JSON.parse(x.target.result),d=p.dados||p;db={clientes:d.clientes||[],pedidos:d.pedidos||[],vendas:d.vendas||[],followups:d.followups||[],alertas:d.alertas||[],metas:d.metas||{}};save();alert("Backup restaurado.")}catch{alert("Backup inválido.")}};r.readAsText(f)}
-function render(){fillSelectors();renderClientes();renderVendas();renderPedidos();renderFollow();renderAlerts();renderMetas();renderDashboard();checkNotifications()}
+function restaurarBackup(e){let f=e.target.files[0];if(!f)return;if(!confirm("Substituir os dados atuais pelo backup?"))return;let r=new FileReader();r.onload=x=>{try{let p=JSON.parse(x.target.result),d=p.dados||p;db={clientes:d.clientes||[],pedidos:d.pedidos||[],vendas:d.vendas||[],orcamentos:d.orcamentos||[],apuracaoMetas:d.apuracaoMetas||[],followups:d.followups||[],alertas:d.alertas||[],metas:d.metas||{}};save();alert("Backup restaurado.")}catch{alert("Backup inválido.")}};r.readAsText(f)}
+function render(){fillSelectors();refreshSupervisorFilter();renderClientes();renderVendas();renderPedidos();renderOrcamentos();renderFollow();renderAlerts();renderMetas();renderApuracao();renderDashboard();checkNotifications()}
 render();setInterval(checkNotifications,60000);

@@ -25,7 +25,7 @@ for(const id of ["dashMes","dashRep","dashRegiao","dashMetric","qCliente","diasC
 
 let charts={};function chart(id,type,labels,data,label,horizontal=false){if(!el(id)||typeof Chart==="undefined")return;if(charts[id])charts[id].destroy();charts[id]=new Chart(el(id),{type,data:{labels,datasets:[{label,data,borderWidth:2,tension:.25}]},options:{responsive:true,maintainAspectRatio:false,indexAxis:horizontal?"y":"x",plugins:{legend:{display:false}},scales:{x:{beginAtZero:true},y:{beginAtZero:true}}}})}
 
-function allSales(){let arr=db.pedidos.map(p=>({id:"P"+p.id,data:p.data,clienteId:p.clienteId,cliente:p.cliente,codigoCliente:p.codigoCliente,representante:p.representante,uf:p.uf,cidade:p.cidade,sem:Number(p.valorSemImpostos??p.valor??0),liq:Number(p.valorLiquido??p.valor??0),origem:"Pedido",ordem:p.ordem,status:p.status}));for(let v of db.vendas)arr.push({id:"V"+v.id,data:v.data,clienteId:v.clienteId,cliente:v.cliente,codigoCliente:v.codigoCliente,representante:v.representante,uf:v.uf,cidade:v.cidade,sem:Number(v.valorSemImpostos??v.valor??0),liq:Number(v.valorLiquido??v.valor??0),origem:v.origem||"Venda",ordem:v.ordem||v.pedido});return arr}
+function allSales(){let arr=db.pedidos.map(p=>({id:"P"+p.id,data:p.data,clienteId:p.clienteId,cliente:p.cliente,codigoCliente:p.codigoCliente,representante:p.representante,uf:p.uf,cidade:p.cidade,sem:Number(p.valorSemImpostos??p.valor??0),liq:Number(p.valorLiquido??p.valor??0),origem:"Pedido",ordem:p.ordem,status:p.status}));for(let v of db.vendas)arr.push({id:"V"+v.id,data:v.data,clienteId:v.clienteId,cliente:v.cliente,codigoCliente:v.codigoCliente,representante:v.representante,uf:v.uf,cidade:v.cidade,sem:Number(v.valorSemImpostos??v.valor??0),liq:Number(v.valorLiquido??v.valor??0),origem:v.origem||"Venda",ordem:v.ordem||v.pedido,status:v.cancelada?"CANCELADA":(v.status||"")});return arr}
 function fillSelectors(){let rr=reps(),opts='<option value="">Todos</option>'+rr.map(r=>`<option>${esc(r)}</option>`).join("");for(const id of ["dashRep","repPedido"]){let x=el(id);if(x){let old=x.value;x.innerHTML=opts;x.value=old}}for(const id of ["vRep","oRep"]){let x=el(id);if(x)x.innerHTML=rr.map(r=>`<option>${esc(r)}</option>`).join("")}let f=el("fCliente");if(f)f.innerHTML=db.clientes.map(c=>`<option value="${c.id}">${esc(c.codigo)} — ${esc(c.razao)}</option>`).join("")}
 
 function renderDashboard(){let mes=val("dashMes"),rp=val("dashRep"),rg=val("dashRegiao"),metric=val("dashMetric")||"sem";let arr=allSales().filter(s=>(!mes||String(s.data).slice(0,7)===mes)&&(!rp||norm(s.representante)===norm(rp))&&(!rg||reg(s.uf)===rg)&&norm(s.status)!=="CANCELADO");let sem=arr.reduce((s,x)=>s+x.sem,0),liq=arr.reduce((s,x)=>s+x.liq,0),chosen=metric==="liq"?"liq":"sem";setText("kSem",money(sem));setText("kLiq",money(liq));setText("kQtd",arr.length);setText("kTicket",money(arr.length?arr.reduce((s,x)=>s+x[chosen],0)/arr.length:0));let ra={},rr={},dd={},cc={};arr.forEach(x=>{let v=x[chosen],r=reg(x.uf),p=x.representante||"Sem representante",d=String(x.data||"").slice(8,10),c=x.cliente||"Cliente";ra[r]=(ra[r]||0)+v;rr[p]=(rr[p]||0)+v;if(d)dd[d]=(dd[d]||0)+v;cc[c]=(cc[c]||0)+v});let rs=Object.entries(ra).sort((a,b)=>b[1]-a[1]),rps=Object.entries(rr).sort((a,b)=>b[1]-a[1]);setText("kRegiao",rs[0]?.[0]||"—");setText("kRep",rps[0]?.[0]||"—");setText("kAlertas",db.alertas.filter(a=>!a.done&&a.data<=today()).length);setText("kFollow",db.followups.filter(f=>!f.done).length);let days=Object.keys(dd).sort((a,b)=>+a-+b);chart("chDia","line",days,days.map(d=>dd[d]),"Vendas");chart("chRep","bar",rps.slice(0,12).map(x=>x[0]),rps.slice(0,12).map(x=>x[1]),"Vendas");chart("chReg","bar",rs.map(x=>x[0]),rs.map(x=>x[1]),"Vendas");setHTML("topClientes",Object.entries(cc).sort((a,b)=>b[1]-a[1]).slice(0,10).map((x,i)=>`<div class="rank"><span>${i+1}. ${esc(x[0])}</span><b>${money(x[1])}</b></div>`).join("")||'<p class="muted">Sem dados no período.</p>')}
@@ -34,14 +34,115 @@ function renderClientes(){let q=norm(val("qCliente")),dias=Number(val("diasClien
 
 function renderPedidos(){let q=norm(val("qPedido")),mes=val("mesPedido"),rp=val("repPedido");let arr=db.pedidos.filter(p=>(!q||norm([p.ordem,p.codigoCliente,p.cliente,p.representante].join(" ")).includes(q))&&(!mes||String(p.data).slice(0,7)===mes)&&(!rp||norm(p.representante)===norm(rp)));setText("pSem",money(arr.reduce((s,p)=>s+Number(p.valorSemImpostos??p.valor??0),0)));setText("pLiq",money(arr.reduce((s,p)=>s+Number(p.valorLiquido??p.valor??0),0)));setText("pQtd",arr.length);setHTML("pedidosList",arr.sort((a,b)=>String(b.data).localeCompare(String(a.data))).map(p=>`<div class="itemcard"><div class="top"><div><b>Pedido ${esc(p.ordem)} • ${esc(p.codigoCliente||"")} ${esc(p.cliente||"")}</b><div class="muted">${brdate(p.data)} • ${esc(p.representante||"")} • ${esc(p.cidade||"")}/${esc(p.uf||"")}</div></div><div style="text-align:right"><b>${money(p.valorSemImpostos??p.valor)}</b><div class="muted">Líquido ${money(p.valorLiquido??p.valor)}</div></div></div><div class="tags">${p.orcamentoNumero?`<span class="tag">📝 ${esc(p.orcamentoNumero)}</span>`:""}${p.vendaId?'<span class="tag ok">💰 Venda confirmada</span>':`<button class="primary" onclick="confirmVenda('${p.id}')">💰 Confirmar venda</button>`}</div></div>`).join("")||'<div class="card">Nenhum pedido.</div>')}
 
-function renderVendas(){let q=norm(val("qVenda")),mes=val("mesVenda");let arr=db.vendas.filter(v=>(!q||norm([v.ordem,v.codigoCliente,v.cliente,v.representante,v.origem].join(" ")).includes(q))&&(!mes||String(v.data).slice(0,7)===mes));setText("vSem",money(arr.reduce((s,v)=>s+Number(v.valorSemImpostos??v.valor??0),0)));setText("vLiq",money(arr.reduce((s,v)=>s+Number(v.valorLiquido??v.valor??0),0)));setText("vQtd",arr.length);setHTML("vendasList",arr.sort((a,b)=>String(b.data).localeCompare(String(a.data))).map(v=>`<div class="itemcard"><div class="top"><div><b>${esc(v.codigoCliente||"")} — ${esc(v.cliente||"")}</b><div class="muted">${brdate(v.data)} • Pedido ${esc(v.ordem||"—")} • ${esc(v.representante||"")}<br>${v.origem?`🔗 ${esc(v.origem)}`:""}</div></div><div style="text-align:right"><b>${money(v.valorSemImpostos??v.valor)}</b><div class="muted">Líquido ${money(v.valorLiquido??v.valor)}</div></div></div></div>`).join("")||'<div class="card">Nenhuma venda.</div>')}
+
+function cancelarVenda(id){
+ let v=db.vendas.find(x=>x.id===id);
+ if(!v)return;
+ if(v.cancelada)return alert("Esta venda já está cancelada.");
+ if(!confirm(`Deseja realmente cancelar a venda do pedido ${v.ordem||"sem número"}?`))return;
+
+ v.cancelada=true;
+ v.canceladaEm=new Date().toISOString();
+ v.status="CANCELADA";
+
+ // Se veio de um pedido, reabre o pedido para nova confirmação.
+ if(v.pedidoId){
+   let p=db.pedidos.find(x=>x.id===v.pedidoId);
+   if(p){
+     p.vendaId="";
+     p.status="Venda cancelada";
+   }
+ }
+
+ // Se veio de orçamento, volta o orçamento para "Virou pedido".
+ if(v.orcamentoId){
+   let o=db.orcamentos.find(x=>x.id===v.orcamentoId);
+   if(o){
+     o.vendaId="";
+     if(o.pedidoGerado)o.status="Virou pedido";
+   }
+ }
+
+ save();
+ alert("Venda cancelada com sucesso. Ela continuará no histórico, mas não contará nos totais e gráficos.");
+}
+
+function renderVendas(){
+ let q=norm(val("qVenda")),mes=val("mesVenda");
+ let arr=db.vendas.filter(v=>(!q||norm([v.ordem,v.codigoCliente,v.cliente,v.representante,v.origem,v.status].join(" ")).includes(q))&&(!mes||String(v.data).slice(0,7)===mes));
+ let validas=arr.filter(v=>!v.cancelada&&norm(v.status)!=="CANCELADA");
+ setText("vSem",money(validas.reduce((s,v)=>s+Number(v.valorSemImpostos??v.valor??0),0)));
+ setText("vLiq",money(validas.reduce((s,v)=>s+Number(v.valorLiquido??v.valor??0),0)));
+ setText("vQtd",validas.length);
+
+ setHTML("vendasList",arr.sort((a,b)=>String(b.data).localeCompare(String(a.data))).map(v=>{
+   let cancelada=v.cancelada||norm(v.status)==="CANCELADA";
+   return `<div class="itemcard ${cancelada?"sale-cancelled":""}">
+     <div class="top">
+       <div>
+         <b>${esc(v.codigoCliente||"")} — ${esc(v.cliente||"")}</b>
+         <div class="muted">${brdate(v.data)} • Pedido ${esc(v.ordem||"—")} • ${esc(v.representante||"")}
+         <br>${v.origem?`🔗 ${esc(v.origem)}`:""}</div>
+       </div>
+       <div style="text-align:right">
+         <b>${money(v.valorSemImpostos??v.valor)}</b>
+         <div class="muted">Líquido ${money(v.valorLiquido??v.valor)}</div>
+       </div>
+     </div>
+     <div class="tags">
+       ${cancelada?'<span class="tag bad">❌ CANCELADA</span>':'<span class="tag ok">✅ Venda ativa</span>'}
+     </div>
+     <div class="actions">
+       ${!cancelada?`<button class="danger" onclick="cancelarVenda('${v.id}')">❌ Cancelar venda</button>`:""}
+     </div>
+   </div>`
+ }).join("")||'<div class="card">Nenhuma venda.</div>')
+}
 
 function renderOrcamentos(){let q=norm(val("qOrc")),st=val("statusOrc");let arr=db.orcamentos.filter(o=>(!q||norm([o.numero,o.codigoCliente,o.cliente,o.representante].join(" ")).includes(q))&&(!st||o.status===st));setHTML("orcamentosList",arr.sort((a,b)=>String(b.data).localeCompare(String(a.data))).map(o=>`<div class="itemcard"><div class="top"><div><b>${esc(o.numero)} • ${esc(o.codigoCliente)} — ${esc(o.cliente)}</b><div class="muted">${brdate(o.data)} • Validade ${brdate(o.validade)} • ${esc(o.representante||"")}</div></div><b>${money(o.total)}</b></div><div class="tags"><span class="tag">${esc(o.status)}</span>${o.pedidoGerado?`<span class="tag">Pedido ${esc(o.pedidoGerado)}</span>`:""}</div><div class="muted">${(o.itens||[]).map(i=>`${esc(i.descricao)} • ${i.qtd} x ${money(i.preco)}`).join("<br>")}</div><div class="actions">${!["Virou pedido","Venda concluída"].includes(o.status)?`<button onclick="approveOrc('${o.id}')">✅ Aprovar</button><button class="primary" onclick="openConvert('${o.id}')">🧾 Virar pedido</button>`:""}<button class="whatsapp" onclick="whatsOrc('${o.id}')">💬 WhatsApp</button></div></div>`).join("")||'<div class="card">Nenhum orçamento.</div>')}
 
 function renderFollow(){setHTML("followList",db.followups.sort((a,b)=>String(a.data).localeCompare(String(b.data))).map(f=>{let c=clienteById(f.clienteId);return`<div class="itemcard ${f.done?"muted":""}"><b>${esc(c?.codigo||"")} ${esc(c?.razao||"Cliente")}</b><div class="muted">${brdate(f.data)} • ${esc(f.texto)}</div><button onclick="toggleFollow('${f.id}')">${f.done?"Reabrir":"Concluir"}</button></div>`}).join("")||'<div class="card">Nenhum follow-up.</div>')}
 function renderAlerts(){setHTML("alertList",db.alertas.sort((a,b)=>String(a.data).localeCompare(String(b.data))).map(a=>{let c=clienteById(a.clienteId);return`<div class="itemcard ${a.done?"muted":""}"><b>🔔 ${esc(c?.codigo||"")} ${esc(c?.razao||"Cliente")}</b><div class="muted">${brdate(a.data)} • ${esc(a.prioridade)} • ${esc(a.texto)}</div><button onclick="toggleAlert('${a.id}')">${a.done?"Reabrir":"Concluir"}</button></div>`}).join("")||'<div class="card">Nenhum alerta.</div>')}
 
-function renderMetas(){let q=norm(val("qMeta")),sup=val("supMeta"),st=val("statusMeta"),base=db.apuracaoMetas||[];let sups=[...new Set(base.map(x=>x.supervisor).filter(Boolean))].sort(),se=el("supMeta");if(se){let old=se.value;se.innerHTML='<option value="">Todos os supervisores</option>'+sups.map(s=>`<option>${esc(s)}</option>`).join("");se.value=old}let arr=base.map(x=>({...x,pct:Number(x.meta)>0?Number(x.vrAtingido)/Number(x.meta)*100:0,falta:Math.max(Number(x.meta||0)-Number(x.vrAtingido||0),0)})).filter(x=>(!q||norm([x.representante,x.razaoSocial,x.supervisor].join(" ")).includes(q))&&(!sup||x.supervisor===sup)&&(!st||(st==="sim"&&x.pct>=100)||(st==="nao"&&x.pct<100)||(st==="80"&&x.pct>=80))).sort((a,b)=>b.pct-a.pct);let mt=base.reduce((s,x)=>s+Number(x.meta||0),0),at=base.reduce((s,x)=>s+Number(x.vrAtingido||0),0);setText("mMeta",money(mt));setText("mAtingido",money(at));setText("mFalta",money(Math.max(mt-at,0)));setHTML("metaBody",arr.map((x,i)=>`<tr><td>${i+1}</td><td class="${x.pct>=100?"statusok":"statusno"}">${x.pct>=100?"Sim":"Não"}</td><td><b>${esc(x.representante)}</b></td><td>${esc(x.razaoSocial||"")}</td><td>${money(x.meta)}</td><td>${money(x.vrAtingido)}</td><td>${money(x.falta)}</td><td><b>${x.pct.toFixed(1)}%</b><div class="progress"><div class="fill" style="width:${Math.min(x.pct,100)}%"></div></div></td><td>${esc(x.supervisor||"")}</td></tr>`).join("")||'<tr><td colspan="9">Importe a planilha de Apuração das Metas.</td></tr>');chart("chMeta","bar",arr.slice(0,20).map(x=>x.representante),arr.slice(0,20).map(x=>Number(x.pct.toFixed(2))),"% da meta",true)}
+function renderMetas(){
+ let q=norm(val("qMeta")),sup=val("supMeta"),st=val("statusMeta"),base=db.apuracaoMetas||[];
+ let sups=[...new Set(base.map(x=>x.supervisor).filter(Boolean))].sort(),se=el("supMeta");
+ if(se){let old=se.value;se.innerHTML='<option value="">Todos os supervisores</option>'+sups.map(s=>`<option>${esc(s)}</option>`).join("");se.value=old}
+
+ let calc=base.map(x=>({...x,pct:Number(x.meta)>0?Number(x.vrAtingido)/Number(x.meta)*100:0,falta:Math.max(Number(x.meta||0)-Number(x.vrAtingido||0),0)}));
+ let arr=calc.filter(x=>(!q||norm([x.representante,x.razaoSocial,x.supervisor].join(" ")).includes(q))&&(!sup||x.supervisor===sup)&&(!st||(st==="sim"&&x.pct>=100)||(st==="nao"&&x.pct<100)||(st==="80"&&x.pct>=80))).sort((a,b)=>b.pct-a.pct);
+
+ let mt=base.reduce((s,x)=>s+Number(x.meta||0),0),at=base.reduce((s,x)=>s+Number(x.vrAtingido||0),0);
+ setText("mMeta",money(mt));setText("mAtingido",money(at));setText("mFalta",money(Math.max(mt-at,0)));
+
+ setHTML("metaBody",arr.map((x,i)=>`<tr>
+   <td>${i+1}</td>
+   <td class="${x.pct>=100?"statusok":"statusno"}">${x.pct>=100?"Sim":"Não"}</td>
+   <td><b>${esc(x.representante)}</b></td>
+   <td>${esc(x.razaoSocial||"")}</td>
+   <td>${money(x.meta)}</td>
+   <td>${money(x.vrAtingido)}</td>
+   <td>${money(x.falta)}</td>
+   <td><b>${x.pct.toFixed(1)}%</b><div class="progress"><div class="fill" style="width:${Math.min(x.pct,100)}%"></div></div></td>
+   <td>${esc(x.supervisor||"")}</td>
+ </tr>`).join("")||'<tr><td colspan="9">Importe a planilha de Apuração das Metas.</td></tr>');
+
+ let top5=[...calc].sort((a,b)=>b.pct-a.pct).slice(0,5);
+ let proximos=[...calc].filter(x=>x.pct<100).sort((a,b)=>Math.abs(100-a.pct)-Math.abs(100-b.pct)).slice(0,5);
+ let abaixo=[...calc].sort((a,b)=>a.pct-b.pct).slice(0,5);
+
+ const cards=(list,mode)=>list.map((x,i)=>`<div class="meta-mini">
+   <div><b>${i+1}. ${esc(x.representante||"—")}</b><div class="muted">${esc(x.supervisor||"")}</div></div>
+   <div style="text-align:right"><b>${x.pct.toFixed(1)}%</b><div class="muted">${mode==="abaixo"?`Falta ${money(x.falta)}`:money(x.vrAtingido)}</div></div>
+ </div>`).join("")||'<p class="muted">Sem dados.</p>';
+
+ setHTML("metaTop5",cards(top5,"top"));
+ setHTML("metaProximos",cards(proximos,"prox"));
+ setHTML("metaAbaixo",cards(abaixo,"abaixo"));
+
+ let top10=[...calc].sort((a,b)=>b.pct-a.pct).slice(0,10);
+ chart("chMeta","bar",top10.map(x=>x.representante),top10.map(x=>Number(x.pct.toFixed(2))),"% da meta",true)
+}
 
 function openVenda(id){fillSelectors();for(const x of ["vCodigo","vCliente","vClienteId","vOrdem","vValorSem","vValorLiq","vObs"])if(el(x))el(x).value="";if(el("vData"))el("vData").value=today();if(id){let c=clienteById(id);el("vCodigo").value=c?.codigo||"";lookupVenda()}el("vendaModal")?.classList.add("open")}
 function lookupVenda(){let c=clienteByCode(val("vCodigo"));if(el("vCliente"))el("vCliente").value=c?.razao||"";if(el("vClienteId"))el("vClienteId").value=c?.id||"";if(c?.representante&&el("vRep"))el("vRep").value=c.representante}

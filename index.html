@@ -87,7 +87,12 @@
 <section id="apuracao" class="tab">
   <div class="toolbar"><input id="qMeta" placeholder="Representante, razão social, supervisor..."><select id="supMeta"><option value="">Todos os supervisores</option></select><select id="statusMeta"><option value="">Todos</option><option value="sim">Meta atingida</option><option value="nao">Meta não atingida</option><option value="80">Acima de 80%</option></select></div>
   <div class="kpis small"><div class="card kpi"><small>Meta total</small><strong id="mMeta">R$ 0,00</strong></div><div class="card kpi"><small>Vr Atingido</small><strong id="mAtingido">R$ 0,00</strong></div><div class="card kpi"><small>Falta</small><strong id="mFalta">R$ 0,00</strong></div></div>
-  <div class="card chart"><h3>Percentual dos representantes</h3><canvas id="chMeta"></canvas></div>
+  <div class="grid3 meta-summary-grid">
+    <div class="card"><h3>🏆 Top 5 acima da meta</h3><div id="metaTop5"></div></div>
+    <div class="card"><h3>🎯 Mais próximos de 100%</h3><div id="metaProximos"></div></div>
+    <div class="card"><h3>⚠️ Mais distantes da meta</h3><div id="metaAbaixo"></div></div>
+  </div>
+  <div class="card chart compact-chart"><h3>📊 Top 10 por percentual</h3><canvas id="chMeta"></canvas></div>
   <div class="card tablebox"><table><thead><tr><th>#</th><th>Atingido</th><th>Representante</th><th>Razão Social</th><th>Meta</th><th>Vr Atingido</th><th>Falta</th><th>%</th><th>Supervisor</th></tr></thead><tbody id="metaBody"></tbody></table></div>
 </section>
 

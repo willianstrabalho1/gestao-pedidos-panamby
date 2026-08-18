@@ -37,3 +37,10 @@ ATUALIZAÇÃO NO GITHUB
 IMPORTANTE
 Não misture arquivos deste pacote com versões anteriores.
 Envie index.html, app.js, style.css e README.txt juntos no mesmo commit.
+
+VERSÃO ZERADA
+- Usa uma nova chave localStorage: gestor_comercial_v6_zerado.
+- Não puxa dados de versões anteriores.
+- O sistema inicia vazio.
+- Só aparecem dados depois de importar/cadastrar.
+- Incluído botão "Limpar todos os dados" na área Excel / Backup.

@@ -207,8 +207,23 @@ function renderDashboard(){
  let metasDash=(db.apuracaoMetas||[]).map(x=>{
    let meta=Number(x.meta||0), ating=Number(x.vrAtingido||0), pct=meta?ating/meta*100:0;
    return {...x,pct,falta:Math.max(meta-ating,0)}
- }).sort((a,b)=>b.pct-a.pct);
- $("repRanking").innerHTML=metasDash.slice(0,10).map(x=>`<div class="barrow"><div class="barlabel"><b>${esc(x.representante||"—")}</b><span>${x.pct.toFixed(1)}%</span></div><div class="muted">Meta ${money(x.meta)} • Atingido ${money(x.vrAtingido)} • Falta ${money(x.falta)}</div><div class="bartrack"><div class="barfill" style="width:${Math.min(x.pct,100)}%"></div></div></div>`).join("")||'<p class="muted">Importe a Apuração das Metas.</p>';
+ }).sort((a,b)=>Number(b.vrAtingido||0)-Number(a.vrAtingido||0));
+
+ $("repRanking").innerHTML=metasDash.slice(0,10).map((x,i)=>{
+   let nome=(x.razaoSocial||x.representante||"—").trim();
+   let codigo=x.representante&&norm(x.representante)!==norm(nome)?x.representante:"";
+   return `<div class="barrow meta-rep-row">
+     <div class="barlabel">
+       <div>
+         <b>${i+1}. ${esc(nome)}</b>
+         ${codigo?`<div class="rep-code">Código ${esc(codigo)}</div>`:""}
+       </div>
+       <span>${x.pct.toFixed(1)}%</span>
+     </div>
+     <div class="muted">Vendido ${money(x.vrAtingido)} • Meta ${money(x.meta)} • Falta ${money(x.falta)}</div>
+     <div class="bartrack"><div class="barfill" style="width:${Math.min(x.pct,100)}%"></div></div>
+   </div>`
+ }).join("")||'<p class="muted">Importe a Apuração das Metas.</p>';
  let aa=db.alertas.filter(a=>!a.done&&a.data<=today()).sort((a,b)=>a.data.localeCompare(b.data)).slice(0,6);
  $("painelAlertas").innerHTML=aa.length?aa.map(alertHtml).join(""):'<p class="muted">Nenhum alerta.</p>';
  let ff=db.followups.filter(f=>!f.done).sort((a,b)=>a.data.localeCompare(b.data)).slice(0,6);

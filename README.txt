@@ -43,3 +43,9 @@ Depois faça Commit changes, aguarde o GitHub Pages e pressione Ctrl + F5.
 CONFIRMAÇÃO
 No topo deve aparecer:
 V10 INDEXEDDB 2026.08.18
+
+ATUALIZAÇÃO V11 — NOMES E RANKING
+- No quadro "Metas dos representantes", o nome/Razão Social aparece como informação principal.
+- O código do representante aparece menor abaixo do nome.
+- A ordem agora é pelo Vr Atingido: do maior vendedor para o menor.
+- Percentual, Meta, Vendido e Falta continuam visíveis.

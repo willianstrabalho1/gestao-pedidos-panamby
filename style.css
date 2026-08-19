@@ -36,3 +36,8 @@
 .supervisor-table{min-width:900px}
 .supervisor-table tfoot td{background:#f3f6fb;border-top:2px solid #dbe3ef;padding:12px}
 .supervisor-total td{font-size:13px}
+
+.meta-rep-row .barlabel{align-items:flex-start}
+.meta-rep-row .barlabel>div:first-child{min-width:0}
+.meta-rep-row .barlabel b{font-size:13px}
+.rep-code{font-size:10px;color:#8a96aa;margin-top:2px;font-weight:500}

@@ -24,7 +24,7 @@
 <button class="nav" data-tab="excel">📗 Excel / Backup</button>
 </aside>
 <main>
-<header><div><h2 id="pageTitle">Dashboard</h2><small id="todayLabel"></small><br><small class="version">V12 DO ZERO • 2026.08.19</small></div><button class="primary" onclick="enableNotifications()">🔔 Ativar notificações</button></header>
+<header><div><h2 id="pageTitle">Dashboard</h2><small id="todayLabel"></small><br><small class="version">V13 DASHBOARD ANIMADO • 2026.08.19</small></div><button class="primary" onclick="enableNotifications()">🔔 Ativar notificações</button></header>
 
 <section id="dashboard" class="tab active">
 <div class="card filters">
@@ -34,6 +34,22 @@
 <div><label>Região</label><select id="dashRegiao"><option value="">Todas</option><option>Sudeste</option><option>Sul</option><option>Nordeste</option><option>Centro-Oeste</option><option>Norte</option><option>Não informado</option></select></div>
 <div><label>Valor dos gráficos</label><select id="dashMetric"><option value="sem">Sem impostos</option><option value="liq">Valor líquido</option></select></div>
 <button class="primary" onclick="renderDashboard()">Atualizar dashboard</button>
+</div>
+
+<div class="live-strip">
+  <div class="live-badge">● AO VIVO</div>
+  <div class="ticker-window">
+    <div class="ticker-track">
+      <span>💰 Sem impostos: <b id="tickSem">R$ 0,00</b></span>
+      <span>🧾 Líquido: <b id="tickLiq">R$ 0,00</b></span>
+      <span>📦 Registros: <b id="tickQtd">0</b></span>
+      <span>🎯 Ticket: <b id="tickTicket">R$ 0,00</b></span>
+      <span>🗺️ Região líder: <b id="tickRegiao">—</b></span>
+      <span>👔 Representante líder: <b id="tickRep">—</b></span>
+      <span>🔔 Alertas: <b id="tickAlert">0</b></span>
+      <span>📞 Follow-ups: <b id="tickFollow">0</b></span>
+    </div>
+  </div>
 </div>
 <div class="kpis five">
 <div class="card kpi"><small>💰 Vendas sem impostos</small><strong id="kSem">R$ 0,00</strong><span>período selecionado</span></div>

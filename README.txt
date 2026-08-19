@@ -52,3 +52,9 @@ ATUALIZAÇÃO
 3. Aguarde GitHub Pages.
 4. Ctrl + F5.
 5. Confirme no topo: V12 DO ZERO • 2026.08.19
+
+V13 DASHBOARD ANIMADO
+- Faixa AO VIVO com informações passando.
+- Indicadores principais com contagem animada.
+- Cards e gráficos com movimento suave ao passar o mouse.
+- Mantém filtro por Data inicial e Data final.

@@ -58,3 +58,10 @@ V13 DASHBOARD ANIMADO
 - Indicadores principais com contagem animada.
 - Cards e gráficos com movimento suave ao passar o mouse.
 - Mantém filtro por Data inicial e Data final.
+
+V14 FUNIL DE VENDAS
+- Funil no Dashboard.
+- Orçamentos -> Aprovados -> Viraram Pedido -> Vendas concluídas.
+- Quantidade e valor por etapa.
+- Conversão entre etapas e conversão geral.
+- Respeita Data inicial, Data final, Representante e Região.

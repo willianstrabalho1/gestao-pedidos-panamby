@@ -1,13 +1,27 @@
-GESTOR COMERCIAL PANAMBY — V10 INDEXEDDB 2026.08.18
+GESTOR COMERCIAL PANAMBY — V12 DO ZERO • 2026.08.19
 
-CORREÇÃO PRINCIPAL
-O aplicativo agora usa IndexedDB para salvar clientes, pedidos, vendas,
-orçamentos, follow-ups, alertas e apuração.
+REFEITO DO ZERO
+- Código novo
+- IndexedDB
+- Sem localStorage para a base principal
 
-Isso corrige o erro:
-Failed to execute 'setItem' on 'Storage': exceeded the quota.
+DASHBOARD
+- Data inicial
+- Data final
+- Representante
+- Região
+- Valor dos gráficos: sem impostos ou líquido
+- Totais do período
+- Ticket médio
+- Região líder
+- Representante líder
+- Clientes compradores
+- Evolução por período
+- Faturamento por região e representante
+- Top clientes
+- Metas ordenadas do maior Vr Atingido para o menor
 
-RECURSOS MANTIDOS
+MÓDULOS
 - Dashboard
 - Clientes
 - Vendas
@@ -21,31 +35,20 @@ RECURSOS MANTIDOS
 - Resumo por Supervisor
 - Excel / Backup
 
-PLANILHAS
+IMPORTAÇÃO
 1. TODOS OS CLIENTES.xls
 2. DIGITAÇÃO DE ORDEM.xls
 3. APURAÇÃO DE VENDAS.xls
 
-ORDEM RECOMENDADA
-1. TODOS OS CLIENTES
-2. DIGITAÇÃO DE ORDEM
-3. APURAÇÃO DE VENDAS
-
-PARA ATUALIZAR NO GITHUB
-Substitua juntos:
+ARQUIVOS PARA SUBSTITUIR NO GITHUB
 - index.html
 - app.js
 - style.css
 - README.txt
 
-Depois faça Commit changes, aguarde o GitHub Pages e pressione Ctrl + F5.
-
-CONFIRMAÇÃO
-No topo deve aparecer:
-V10 INDEXEDDB 2026.08.18
-
-ATUALIZAÇÃO V11 — NOMES E RANKING
-- No quadro "Metas dos representantes", o nome/Razão Social aparece como informação principal.
-- O código do representante aparece menor abaixo do nome.
-- A ordem agora é pelo Vr Atingido: do maior vendedor para o menor.
-- Percentual, Meta, Vendido e Falta continuam visíveis.
+ATUALIZAÇÃO
+1. Envie os 4 arquivos juntos.
+2. Commit changes.
+3. Aguarde GitHub Pages.
+4. Ctrl + F5.
+5. Confirme no topo: V12 DO ZERO • 2026.08.19

@@ -65,3 +65,12 @@ V14 FUNIL DE VENDAS
 - Quantidade e valor por etapa.
 - Conversão entre etapas e conversão geral.
 - Respeita Data inicial, Data final, Representante e Região.
+
+V15 SEM FUNIL + EXCLUSÃO
+- Funil removido do Dashboard.
+- Botão Excluir pedido em cada pedido.
+- Ao excluir pedido com venda vinculada, a venda vinculada também é removida.
+- Se o pedido veio de orçamento, o orçamento volta para Aprovado.
+- Botão Excluir orçamento em cada orçamento.
+- Ao excluir orçamento, pedidos/vendas existentes são preservados e apenas o vínculo é removido.
+- Todas as exclusões exigem confirmação.

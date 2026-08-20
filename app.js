@@ -40,19 +40,7 @@ function animateValue(id,end,currency=false,duration=650){
  }
  requestAnimationFrame(step);
 }
-function renderFunil(){
- const inicio=$("dashInicio")?.value||"",fim=$("dashFim")?.value||"",rep=$("dashRep")?.value||"",reg=$("dashRegiao")?.value||"";
- const base=(db.orcamentos||[]).filter(o=>inPeriod(o.data,inicio,fim)&&(!rep||norm(o.representante)===norm(rep))&&(!reg||region(o.uf||getClient(o.clienteId)?.uf)===reg));
- const orcs=base;
- const aprov=base.filter(o=>["Aprovado","Virou pedido","Venda concluída"].includes(o.status));
- const pedidos=base.filter(o=>["Virou pedido","Venda concluída"].includes(o.status)||o.pedidoGerado);
- const vendas=base.filter(o=>o.status==="Venda concluída"||o.vendaId);
- const sum=a=>a.reduce((s,o)=>s+Number(o.total||0),0),pct=(a,b)=>b>0?a/b*100:0;
- const q1=orcs.length,q2=aprov.length,q3=pedidos.length,q4=vendas.length;
- setText("funilOrcQtd",q1.toLocaleString("pt-BR"));setText("funilAprQtd",q2.toLocaleString("pt-BR"));setText("funilPedQtd",q3.toLocaleString("pt-BR"));setText("funilVendaQtd",q4.toLocaleString("pt-BR"));
- setText("funilOrcValor",money(sum(orcs)));setText("funilAprValor",money(sum(aprov)));setText("funilPedValor",money(sum(pedidos)));setText("funilVendaValor",money(sum(vendas)));
- setText("funilAprConv",pct(q2,q1).toFixed(1)+"%");setText("funilPedConv",pct(q3,q2).toFixed(1)+"%");setText("funilVendaConv",pct(q4,q3).toFixed(1)+"%");setText("funilConversao",pct(q4,q1).toFixed(1)+"%");
-}
+
 function renderDashboard(){let start=$("dashInicio").value,end=$("dashFim").value,rep=$("dashRep").value,reg=$("dashRegiao").value,metric=$("dashMetric").value,arr=combinedSales().filter(x=>inPeriod(x.data,start,end)&&(!rep||norm(x.representante)===norm(rep))&&(!reg||region(x.uf||getClient(x.clienteId)?.uf)===reg)&&norm(x.status)!=="CANCELADO");let sem=arr.reduce((s,x)=>s+saleValue(x,"sem"),0),liq=arr.reduce((s,x)=>s+saleValue(x,"liq"),0),tot=arr.reduce((s,x)=>s+saleValue(x,metric),0);animateValue("kSem",sem,true);animateValue("kLiq",liq,true);animateValue("kQtd",arr.length,false);animateValue("kTicket",arr.length?tot/arr.length:0,true);let regs={},rps={},cls={},days={};arr.forEach(x=>{let v=saleValue(x,metric),rg=region(x.uf||getClient(x.clienteId)?.uf),rp=x.representante||"Sem representante",cl=x.cliente||getClient(x.clienteId)?.razao||"Cliente";regs[rg]=(regs[rg]||0)+v;rps[rp]=(rps[rp]||0)+v;cls[cl]=(cls[cl]||0)+v;days[x.data]=(days[x.data]||0)+v});let sr=Object.entries(regs).sort((a,b)=>b[1]-a[1]),sp=Object.entries(rps).sort((a,b)=>b[1]-a[1]),sc=Object.entries(cls).sort((a,b)=>b[1]-a[1]),sd=Object.keys(days).sort();setText("kRegiao",sr[0]?.[0]||"—");setText("kRegiaoVal",money(sr[0]?.[1]||0));setText("kRepLider",sp[0]?.[0]||"—");setText("kRepVal",money(sp[0]?.[1]||0));setText("kCli",Object.keys(cls).length);setText("kAlert",db.alertas.filter(a=>!a.done&&a.data<=today()).length);setText("kFollow",db.followups.filter(f=>!f.done).length);makeChart("chartEvolucao","line",sd.map(brdate),sd.map(k=>days[k]),"Valor");makeChart("chartRegiao","bar",sr.map(x=>x[0]),sr.map(x=>x[1]),"Valor");makeChart("chartRep","bar",sp.slice(0,12).map(x=>x[0]),sp.slice(0,12).map(x=>x[1]),"Valor");makeChart("chartPizza","pie",sr.map(x=>x[0]),sr.map(x=>x[1]),"Valor");setHTML("topClientes",sc.slice(0,10).map((x,i)=>`<div class="rankline"><span>${i+1}. ${esc(x[0])}</span><b>${money(x[1])}</b></div>`).join("")||'<p class="muted">Sem dados no período.</p>');let metas=(db.apuracaoMetas||[]).map(x=>{let m=Number(x.meta||0),v=Number(x.vrAtingido||0);return{...x,pct:m?v/m*100:0,falta:Math.max(m-v,0)}}).sort((a,b)=>b.vrAtingido-a.vrAtingido);setHTML("repRanking",metas.slice(0,10).map((x,i)=>{let nome=x.razaoSocial||x.representante||"—",cod=x.representante&&norm(x.representante)!==norm(nome)?x.representante:"";return`<div class="barrow"><div class="barlabel"><div><b>${i+1}. ${esc(nome)}</b>${cod?`<div class="rep-code">Código ${esc(cod)}</div>`:""}</div><span>${x.pct.toFixed(1)}%</span></div><div class="muted">Vendido ${money(x.vrAtingido)} • Meta ${money(x.meta)} • Falta ${money(x.falta)}</div><div class="bartrack"><div class="barfill" style="width:${Math.min(x.pct,100)}%"></div></div></div>`}).join("")||'<p class="muted">Importe APURAÇÃO DE VENDAS.xls.</p>')
 setText("tickSem",money(sem));
 setText("tickLiq",money(liq));
@@ -63,11 +51,58 @@ setText("tickRep",sp[0]?.[0]||"—");
 setText("tickAlert",db.alertas.filter(a=>!a.done&&a.data<=today()).length);
 setText("tickFollow",db.followups.filter(f=>!f.done).length);
 
-renderFunil();
+
 }
 function renderClientes(){let q=norm($("buscaCliente").value),dias=Number($("filtroDias").value||0),a=db.clientes.filter(c=>(!q||norm([c.codigo,c.razao,c.cnpj,c.cidade,c.uf,c.representante,c.responsavel,c.tel1,c.tel2].join(" ")).includes(q))&&(!dias||Number(c.dias)>=dias));setHTML("clientesList",a.map(c=>`<div class="client"><div class="toprow"><div><h3>${esc(c.codigo)} — ${esc(c.razao)}</h3><span class="muted">${esc(c.cidade)}/${esc(c.uf)} • CNPJ ${esc(c.cnpj||"—")}</span></div><b>${Number(c.dias||0)} dias</b></div><div class="tags"><span class="tag">${esc(c.representante||"Sem representante")}</span></div><div class="muted">Última compra: ${brdate(c.ultima)} • ${money(c.valor)}<br>☎ ${esc(c.tel1||"")} ${c.tel2?" | "+esc(c.tel2):""}</div><div class="actions"><button class="followbtn" onclick="openFollow('${c.id}')">📞 Follow-up</button><button class="alertbtn" onclick="openAlert('${c.id}')">🔔 Alerta</button><button class="whatsbtn" onclick="openWhats('${c.id}')">💬 WhatsApp</button><button onclick="openVenda('${c.id}')">💰 Venda</button><button onclick="openOrcamento('${c.id}')">📝 Orçamento</button></div></div>`).join("")||'<div class="card muted">Nenhum cliente.</div>')}
 function renderVendas(){let q=norm($("buscaVenda").value),s=$("vendaInicio").value,e=$("vendaFim").value,a=db.vendas.filter(v=>inPeriod(v.data,s,e)&&(!q||norm([v.ordem,v.codigoCliente,v.cliente,v.representante,v.origem].join(" ")).includes(q))).sort((a,b)=>(b.data||"").localeCompare(a.data||""));setText("vSem",money(a.reduce((s,x)=>s+saleValue(x,"sem"),0)));setText("vLiq",money(a.reduce((s,x)=>s+saleValue(x,"liq"),0)));setText("vQtd",a.length);setHTML("vendasList",a.map(v=>`<div class="sale"><div class="toprow"><div><h3>${esc(v.codigoCliente||"")} — ${esc(v.cliente||"Cliente")}</h3><span class="muted">${brdate(v.data)} • Pedido ${esc(v.ordem||"—")} • ${esc(v.representante||"")}</span></div><div><b>${money(saleValue(v,"sem"))}</b><br><span class="muted">Líquido ${money(saleValue(v,"liq"))}</span></div></div></div>`).join("")||'<div class="card muted">Nenhuma venda.</div>')}
-function renderPedidos(){let q=norm($("buscaPedido").value),s=$("pedidoInicio").value,e=$("pedidoFim").value,rep=$("repPedido").value,a=db.pedidos.filter(p=>inPeriod(p.data,s,e)&&(!rep||norm(p.representante)===norm(rep))&&(!q||norm([p.ordem,p.codigoCliente,p.cliente,p.representante].join(" ")).includes(q))).sort((a,b)=>(b.data||"").localeCompare(a.data||""));setText("pSem",money(a.reduce((s,x)=>s+saleValue(x,"sem"),0)));setText("pLiq",money(a.reduce((s,x)=>s+saleValue(x,"liq"),0)));setText("pQtd",a.length);setHTML("pedidosList",a.map(p=>`<div class="order"><div class="toprow"><div><h3>Pedido ${esc(p.ordem)} • ${esc(p.codigoCliente||"")} ${esc(p.cliente||"")}</h3><span class="muted">${brdate(p.data)} • ${esc(p.representante||"")} • ${esc(p.cidade||"")}/${esc(p.uf||"")}</span></div><div><b>${money(saleValue(p,"sem"))}</b><br><span class="muted">Líquido ${money(saleValue(p,"liq"))}</span></div></div><div class="tags"><span class="tag">${esc(p.status||"Sem status")}</span>${p.vendaId?'<span class="pill ok">Venda confirmada</span>':""}</div><div class="actions">${p.vendaId?"":`<button class="primary" onclick="confirmarVendaPedido('${p.id}')">💰 Confirmar venda</button>`}</div></div>`).join("")||'<div class="card muted">Nenhum pedido.</div>')}
+function renderPedidos(){let q=norm($("buscaPedido").value),s=$("pedidoInicio").value,e=$("pedidoFim").value,rep=$("repPedido").value,a=db.pedidos.filter(p=>inPeriod(p.data,s,e)&&(!rep||norm(p.representante)===norm(rep))&&(!q||norm([p.ordem,p.codigoCliente,p.cliente,p.representante].join(" ")).includes(q))).sort((a,b)=>(b.data||"").localeCompare(a.data||""));setText("pSem",money(a.reduce((s,x)=>s+saleValue(x,"sem"),0)));setText("pLiq",money(a.reduce((s,x)=>s+saleValue(x,"liq"),0)));setText("pQtd",a.length);setHTML("pedidosList",a.map(p=>`<div class="order"><div class="toprow"><div><h3>Pedido ${esc(p.ordem)} • ${esc(p.codigoCliente||"")} ${esc(p.cliente||"")}</h3><span class="muted">${brdate(p.data)} • ${esc(p.representante||"")} • ${esc(p.cidade||"")}/${esc(p.uf||"")}</span></div><div><b>${money(saleValue(p,"sem"))}</b><br><span class="muted">Líquido ${money(saleValue(p,"liq"))}</span></div></div><div class="tags"><span class="tag">${esc(p.status||"Sem status")}</span>${p.vendaId?'<span class="pill ok">Venda confirmada</span>':""}</div><div class="actions">${p.vendaId?"":`<button class="primary" onclick="confirmarVendaPedido('${p.id}')">💰 Confirmar venda</button>`}<button class="deletebtn" onclick="excluirPedido('${p.id}')">🗑️ Excluir pedido</button></div></div>`).join("")||'<div class="card muted">Nenhum pedido.</div>')}
+
+
+function excluirPedido(id){
+ const p=db.pedidos.find(x=>x.id===id);
+ if(!p)return;
+ const vendasLigadas=db.vendas.filter(v=>v.pedidoId===p.id || String(v.ordem||"")===String(p.ordem||""));
+ let aviso=vendasLigadas.length?`\n\nEste pedido possui ${vendasLigadas.length} venda(s) vinculada(s). Elas também serão excluídas.`:"";
+ if(!confirm(`Excluir o pedido ${p.ordem}?${aviso}`))return;
+
+ db.vendas=db.vendas.filter(v=>!(v.pedidoId===p.id || String(v.ordem||"")===String(p.ordem||"")));
+ db.pedidos=db.pedidos.filter(x=>x.id!==id);
+
+ if(p.orcamentoId){
+   const o=db.orcamentos.find(x=>x.id===p.orcamentoId);
+   if(o){
+     o.pedidoGerado="";
+     o.vendaId="";
+     if(o.status==="Virou pedido"||o.status==="Venda concluída")o.status="Aprovado";
+   }
+ }
+ save();
+}
+
+function excluirOrcamento(id){
+ const o=db.orcamentos.find(x=>x.id===id);
+ if(!o)return;
+ const temLigacao=db.pedidos.some(p=>p.orcamentoId===id)||db.vendas.some(v=>v.orcamentoId===id);
+ let aviso=temLigacao?"\n\nPedidos/vendas já criados serão mantidos; apenas o vínculo com este orçamento será removido.":"";
+ if(!confirm(`Excluir o orçamento ${o.numero}?${aviso}`))return;
+
+ db.pedidos.forEach(p=>{
+   if(p.orcamentoId===id){
+     p.orcamentoId="";
+     p.orcamentoNumero="";
+     if(p.origem==="Orçamento")p.origem="Pedido";
+   }
+ });
+ db.vendas.forEach(v=>{
+   if(v.orcamentoId===id){
+     v.orcamentoId="";
+     v.orcamentoNumero="";
+     if(String(v.origem||"").startsWith("Orçamento"))v.origem=`Pedido ${v.ordem||""}`.trim();
+   }
+ });
+ db.orcamentos=db.orcamentos.filter(x=>x.id!==id);
+ save();
+}
 
 function openVenda(id){fillSelectors();$("vData").value=today();$("vCodigo").value="";$("vCliente").value="";$("vPedido").value="";$("vValorSem").value="";$("vValorLiq").value="";$("vObs").value="";if(id){let c=getClient(id);$("vCodigo").value=c.codigo;buscarClienteVenda()}$("vendaModal").classList.add("open")}
 function buscarClienteVenda(){let c=findClientCode($("vCodigo").value);$("vClienteId").value=c?.id||"";$("vCliente").value=c?.razao||"";if(c?.representante)$("vRep").value=c.representante}
@@ -81,7 +116,7 @@ function addOrcItem(desc="",qtd=1,preco=0){let tr=document.createElement("tr");t
 function orcItems(){return[...$("orcItens").querySelectorAll("tr")].map(tr=>({descricao:tr.querySelector(".desc").value.trim(),qtd:Number(tr.querySelector(".qtd").value||0),preco:Number(tr.querySelector(".preco").value||0)})).filter(x=>x.descricao&&x.qtd>0)}
 function recalcOrc(){let bruto=orcItems().reduce((s,x)=>s+x.qtd*x.preco,0),desc=Number($("orcDesconto").value||0);[...$("orcItens").querySelectorAll("tr")].forEach(tr=>tr.querySelector(".sub").textContent=money(Number(tr.querySelector(".qtd").value||0)*Number(tr.querySelector(".preco").value||0)));$("orcTotal").value=money(Math.max(bruto-desc,0))}
 function saveOrcamento(){let c=findClientCode($("orcCodigo").value),it=orcItems();if(!c)return alert("Cliente não encontrado.");if(!it.length)return alert("Adicione itens.");let bruto=it.reduce((s,x)=>s+x.qtd*x.preco,0),desc=Number($("orcDesconto").value||0);db.orcamentos.push({id:uid(),numero:orcNumber(),data:today(),validade:$("orcValidade").value,clienteId:c.id,codigoCliente:c.codigo,cliente:c.razao,representante:$("orcRep").value||c.representante||"",cidade:c.cidade,uf:c.uf,itens:it,bruto,desconto:desc,total:Math.max(bruto-desc,0),observacao:$("orcObs").value.trim(),status:"Em aberto",pedidoGerado:""});closeModal("orcModal");save()}
-function renderOrcamentos(){let q=norm($("buscaOrcamento").value),st=$("statusOrcamento").value,a=db.orcamentos.filter(o=>(!st||o.status===st)&&(!q||norm([o.numero,o.codigoCliente,o.cliente,o.representante].join(" ")).includes(q))).sort((a,b)=>(b.data||"").localeCompare(a.data||""));setText("oQtd",a.length);setText("oAberto",money(db.orcamentos.filter(o=>o.status==="Em aberto").reduce((s,o)=>s+Number(o.total||0),0)));setText("oConv",db.orcamentos.filter(o=>["Virou pedido","Venda concluída"].includes(o.status)).length);setHTML("orcamentosList",a.map(o=>`<div class="quote"><div class="toprow"><div><h3>${esc(o.numero)} • ${esc(o.codigoCliente)} — ${esc(o.cliente)}</h3><span class="muted">${brdate(o.data)} • validade ${brdate(o.validade)} • ${esc(o.representante||"")}</span></div><b>${money(o.total)}</b></div><div class="tags"><span class="tag">${esc(o.status)}</span>${o.pedidoGerado?`<span class="tag">Pedido ${esc(o.pedidoGerado)}</span>`:""}</div><div class="muted">${o.itens.map(i=>`${esc(i.descricao)} • ${i.qtd} × ${money(i.preco)}`).join("<br>")}</div><div class="actions">${["Em aberto","Aprovado"].includes(o.status)?`<button onclick="setOrcStatus('${o.id}','Aprovado')">✅ Aprovar</button><button class="primary" onclick="openConverter('${o.id}')">🧾 Virar pedido</button>`:""}<button onclick="printOrc('${o.id}')">🖨️ Imprimir</button><button class="whatsbtn" onclick="whatsOrc('${o.id}')">💬 WhatsApp</button></div></div>`).join("")||'<div class="card muted">Nenhum orçamento.</div>')}
+function renderOrcamentos(){let q=norm($("buscaOrcamento").value),st=$("statusOrcamento").value,a=db.orcamentos.filter(o=>(!st||o.status===st)&&(!q||norm([o.numero,o.codigoCliente,o.cliente,o.representante].join(" ")).includes(q))).sort((a,b)=>(b.data||"").localeCompare(a.data||""));setText("oQtd",a.length);setText("oAberto",money(db.orcamentos.filter(o=>o.status==="Em aberto").reduce((s,o)=>s+Number(o.total||0),0)));setText("oConv",db.orcamentos.filter(o=>["Virou pedido","Venda concluída"].includes(o.status)).length);setHTML("orcamentosList",a.map(o=>`<div class="quote"><div class="toprow"><div><h3>${esc(o.numero)} • ${esc(o.codigoCliente)} — ${esc(o.cliente)}</h3><span class="muted">${brdate(o.data)} • validade ${brdate(o.validade)} • ${esc(o.representante||"")}</span></div><b>${money(o.total)}</b></div><div class="tags"><span class="tag">${esc(o.status)}</span>${o.pedidoGerado?`<span class="tag">Pedido ${esc(o.pedidoGerado)}</span>`:""}</div><div class="muted">${o.itens.map(i=>`${esc(i.descricao)} • ${i.qtd} × ${money(i.preco)}`).join("<br>")}</div><div class="actions">${["Em aberto","Aprovado"].includes(o.status)?`<button onclick="setOrcStatus('${o.id}','Aprovado')">✅ Aprovar</button><button class="primary" onclick="openConverter('${o.id}')">🧾 Virar pedido</button>`:""}<button onclick="printOrc('${o.id}')">🖨️ Imprimir</button><button class="whatsbtn" onclick="whatsOrc('${o.id}')">💬 WhatsApp</button><button class="deletebtn" onclick="excluirOrcamento('${o.id}')">🗑️ Excluir orçamento</button></div></div>`).join("")||'<div class="card muted">Nenhum orçamento.</div>')}
 function setOrcStatus(id,s){let o=db.orcamentos.find(x=>x.id===id);if(o){o.status=s;save()}}
 function openConverter(id){$("convOrcId").value=id;$("convPedido").value="";$("convData").value=today();$("convModal").classList.add("open")}
 function converterOrcamento(){let o=db.orcamentos.find(x=>x.id===$("convOrcId").value);if(!o)return;let n=$("convPedido").value.trim()||("PED-"+String(Date.now()).slice(-6));if(db.pedidos.some(p=>String(p.ordem)===n))return alert("Pedido já existe.");db.pedidos.push({id:uid(),ordem:n,clienteId:o.clienteId,codigoCliente:o.codigoCliente,cliente:o.cliente,representante:o.representante,data:$("convData").value,valorSemImpostos:o.total,valorLiquido:o.total,cidade:o.cidade,uf:o.uf,status:$("convStatus").value,origem:"Orçamento",orcamentoId:o.id,orcamentoNumero:o.numero,itens:o.itens,vendaId:""});o.status="Virou pedido";o.pedidoGerado=n;closeModal("convModal");save();alert("Pedido criado.")}

@@ -24,7 +24,7 @@
 <button class="nav" data-tab="excel">📗 Excel / Backup</button>
 </aside>
 <main>
-<header><div><h2 id="pageTitle">Dashboard</h2><small id="todayLabel"></small><br><small class="version">V14 FUNIL DE VENDAS • 2026.08.19</small></div><button class="primary" onclick="enableNotifications()">🔔 Ativar notificações</button></header>
+<header><div><h2 id="pageTitle">Dashboard</h2><small id="todayLabel"></small><br><small class="version">V15 SEM FUNIL + EXCLUIR • 2026.08.20</small></div><button class="primary" onclick="enableNotifications()">🔔 Ativar notificações</button></header>
 
 <section id="dashboard" class="tab active">
 <div class="card filters">
@@ -64,17 +64,7 @@
 <div class="card kpi"><small>Alertas pendentes</small><strong id="kAlert">0</strong></div>
 <div class="card kpi"><small>Follow-ups pendentes</small><strong id="kFollow">0</strong></div>
 </div>
-<div class="card funnel-card">
-<div class="funnel-head"><div><h3>🔻 Funil de Vendas</h3><p class="muted">Orçamentos → Aprovados → Pedidos → Vendas concluídas.</p></div><div class="funnel-summary">Conversão geral: <b id="funilConversao">0%</b></div></div>
-<div class="funnel-wrap">
-<div class="funnel-step funnel-1"><div><strong>📝 Orçamentos</strong><span id="funilOrcQtd">0</span></div><small id="funilOrcValor">R$ 0,00</small></div>
-<div class="funnel-arrow">↓</div>
-<div class="funnel-step funnel-2"><div><strong>✅ Aprovados</strong><span id="funilAprQtd">0</span></div><small><span id="funilAprValor">R$ 0,00</span> • <b id="funilAprConv">0%</b></small></div>
-<div class="funnel-arrow">↓</div>
-<div class="funnel-step funnel-3"><div><strong>🧾 Viraram Pedido</strong><span id="funilPedQtd">0</span></div><small><span id="funilPedValor">R$ 0,00</span> • <b id="funilPedConv">0%</b></small></div>
-<div class="funnel-arrow">↓</div>
-<div class="funnel-step funnel-4"><div><strong>💰 Vendas concluídas</strong><span id="funilVendaQtd">0</span></div><small><span id="funilVendaValor">R$ 0,00</span> • <b id="funilVendaConv">0%</b></small></div>
-</div></div><div class="chart-grid">
+<div class="chart-grid">
 <div class="card chart-card"><h3>📅 Evolução no período</h3><canvas id="chartEvolucao"></canvas></div>
 <div class="card chart-card"><h3>🗺️ Faturamento por região</h3><canvas id="chartRegiao"></canvas></div>
 <div class="card chart-card"><h3>👔 Faturamento por representante</h3><canvas id="chartRep"></canvas></div>

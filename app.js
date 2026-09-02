@@ -316,65 +316,23 @@ function pipeCard(d){
  </div>`;
 }
 
-
-const PIPE_PAGE_SIZE=80;
-let pipeVisible={Contato:PIPE_PAGE_SIZE,Orçamento:PIPE_PAGE_SIZE,Negociação:PIPE_PAGE_SIZE,Pedido:PIPE_PAGE_SIZE,Venda:PIPE_PAGE_SIZE};
-let pipeCache={Contato:[],Orçamento:[],Negociação:[],Pedido:[],Venda:[]};
-
-function resetPipelineLimits(){
- pipeVisible={Contato:PIPE_PAGE_SIZE,Orçamento:PIPE_PAGE_SIZE,Negociação:PIPE_PAGE_SIZE,Pedido:PIPE_PAGE_SIZE,Venda:PIPE_PAGE_SIZE};
-}
-
-function renderPipelineColumn(stage,containerId,buttonId){
- const list=pipeCache[stage]||[];
- const limit=pipeVisible[stage]||PIPE_PAGE_SIZE;
- const visible=list.slice(0,limit);
-
- setHTML(containerId,visible.map(pipeCard).join("")||'<div class="pipe-empty">Sem clientes</div>');
-
- const btn=$(buttonId);
- if(btn){
-   const rest=list.length-visible.length;
-   btn.style.display=rest>0?"block":"none";
-   btn.textContent=rest>0?`Carregar mais (${rest.toLocaleString("pt-BR")} restantes)`:"";
- }
-}
-
-function loadMorePipeline(stage){
- pipeVisible[stage]=(pipeVisible[stage]||PIPE_PAGE_SIZE)+PIPE_PAGE_SIZE;
- const map={
-   Contato:["pipeContato","moreContato"],
-   Orçamento:["pipeOrcamento","moreOrcamento"],
-   Negociação:["pipeNegociacao","moreNegociacao"],
-   Pedido:["pipePedido","morePedido"],
-   Venda:["pipeVenda","moreVenda"]
- };
- const x=map[stage];
- if(x)renderPipelineColumn(stage,x[0],x[1]);
- initPipelinePointerDrag(true);
-}
-
 function renderPipeline(){
- const t0=performance.now();
  const deals=pipelineDeals();
  const stages={Contato:[],Orçamento:[],Negociação:[],Pedido:[],Venda:[]};
-
  deals.forEach(d=>stages[d.stage]?.push(d));
 
- // Contato: mais dias sem comprar primeiro.
+ // Contato: clientes com mais dias sem comprar aparecem primeiro.
  stages.Contato.sort((a,b)=>Number(b.dias||0)-Number(a.dias||0));
  stages.Orçamento.sort((a,b)=>Number(b.valor||0)-Number(a.valor||0));
  stages.Negociação.sort((a,b)=>Number(b.valor||0)-Number(a.valor||0));
  stages.Pedido.sort((a,b)=>Number(b.valor||0)-Number(a.valor||0));
  stages.Venda.sort((a,b)=>Number(b.valor||0)-Number(a.valor||0));
 
- pipeCache=stages;
-
- renderPipelineColumn("Contato","pipeContato","moreContato");
- renderPipelineColumn("Orçamento","pipeOrcamento","moreOrcamento");
- renderPipelineColumn("Negociação","pipeNegociacao","moreNegociacao");
- renderPipelineColumn("Pedido","pipePedido","morePedido");
- renderPipelineColumn("Venda","pipeVenda","moreVenda");
+ setHTML("pipeContato",stages.Contato.map(pipeCard).join("")||'<div class="pipe-empty">Sem clientes</div>');
+ setHTML("pipeOrcamento",stages.Orçamento.map(pipeCard).join("")||'<div class="pipe-empty">Sem clientes</div>');
+ setHTML("pipeNegociacao",stages.Negociação.map(pipeCard).join("")||'<div class="pipe-empty">Sem clientes</div>');
+ setHTML("pipePedido",stages.Pedido.map(pipeCard).join("")||'<div class="pipe-empty">Sem clientes</div>');
+ setHTML("pipeVenda",stages.Venda.map(pipeCard).join("")||'<div class="pipe-empty">Sem clientes</div>');
 
  setText("countContato",stages.Contato.length);
  setText("countOrcamento",stages.Orçamento.length);
@@ -387,9 +345,6 @@ function renderPipeline(){
  setText("pipeValor",money(em.reduce((s,d)=>s+Number(d.valor||0),0)));
  setText("pipePedidos",stages.Pedido.length);
  setText("pipeVendas",stages.Venda.length);
-
- const ms=Math.round(performance.now()-t0);
- setText("pipelinePerf",`Base: ${deals.length.toLocaleString("pt-BR")} clientes • exibindo até ${PIPE_PAGE_SIZE} por coluna inicialmente • ${ms} ms`);
 
  initPipelinePointerDrag();
 }
@@ -512,10 +467,9 @@ async function moverClientePipeline(clienteId,targetStage){
 // Drag robusto com Pointer Events.
 let pipeDrag=null;
 
-function initPipelinePointerDrag(force=false){
+function initPipelinePointerDrag(){
  const board=document.querySelector(".pipeline-board");
- if(!board)return;
- if(board.dataset.dragReady==="1")return;
+ if(!board || board.dataset.dragReady==="1")return;
  board.dataset.dragReady="1";
 
  board.addEventListener("pointerdown",e=>{
@@ -624,8 +578,8 @@ function bind(id,event,fn){let e=$(id);if(e)e[event]=fn}
 ["buscaOrcamento","statusOrcamento"].forEach(id=>bind(id,"oninput",renderOrcamentos));
 ["buscaApuracao","filtroSupervisor","filtroAtingido"].forEach(id=>bind(id,"oninput",renderApuracao));
 ["dashInicio","dashFim","dashRep","dashRegiao","dashMetric"].forEach(id=>bind(id,"onchange",renderDashboard));
-["pipeInicio","pipeFim","pipeRep"].forEach(id=>bind(id,"onchange",()=>{resetPipelineLimits();renderPipeline()}));
-bind("pipeBusca","oninput",()=>{resetPipelineLimits();renderPipeline()});
+["pipeInicio","pipeFim","pipeRep"].forEach(id=>bind(id,"onchange",renderPipeline));
+bind("pipeBusca","oninput",renderPipeline);
 function render(){fillSelectors();refreshSup();renderClientes();renderVendas();renderPedidos();renderOrcamentos();renderFollow();renderAlerts();renderApuracao();renderPipeline();renderDashboard();checkNotifications()}
 async function iniciarApp(){try{let saved=await loadDB();if(saved){db=saved;normalizeDB()}let d=new Date(),first=new Date(d.getFullYear(),d.getMonth(),1).toISOString().slice(0,10);$("dashInicio").value=first;$("dashFim").value=today();$("vendaInicio").value=first;$("vendaFim").value=today();$("pedidoInicio").value=first;$("pedidoFim").value=today();$("pipeInicio").value=first;$("pipeFim").value=today();render();setInterval(checkNotifications,60000)}catch(err){console.error(err);alert("Erro ao iniciar: "+err.message);render()}}
 iniciarApp();

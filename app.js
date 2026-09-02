@@ -15,16 +15,26 @@ let currentWorkbook=null, currentHeaders=[], currentRows=[], currentFilename='',
 let chart, calendar;
 
 const aliases = {
-  client:['cliente','razao social','razão social','nome cliente','nome do cliente','fantasia','nome fantasia','destinatario','destinatário'],
-  date:['data','data pedido','dt pedido','emissao','emissão','data emissao','data emissão','data venda'],
-  value:['valor','valor total','total','vl total','venda','valor pedido','faturamento','vlr total'],
+  client:['razao cliente','razão cliente','cliente','razao social','razão social','nome cliente','nome do cliente','fantasia','nome fantasia','destinatario','destinatário'],
+  clientCode:['codigo cliente','código cliente','cod cliente'],
+  date:['ultima compra','última compra','data ultima compra','data última compra','digitação','digitacao','data pedido','dt pedido','emissao','emissão','data emissao','data emissão','data venda','data'],
+  value:['vr total (liquido)','vr total (líquido)','vr total (s/impostos)','valor ultima compra','valor última compra','valor total','vl total','valor pedido','faturamento','vlr total','valor'],
+  order:['ordem','pedido','nr pedido','n pedido','numero pedido','número pedido'],
   city:['cidade','municipio','município'],
   uf:['uf','estado'],
-  order:['pedido','nr pedido','n pedido','numero pedido','número pedido','ordem'],
-  seller:['vendedor','representante','rep','consultor'],
-  qty:['quantidade','qtd','qtde'],
+  seller:['representante','vendedor','rep','consultor'],
+  sellerCode:['rep cod','representante'],
+  supervisor:['nome do supervisor','supervisor'],
+  goal:['meta'],
+  achieved:['vr atingido','valor atingido','atingido'],
+  daysNoBuy:['dias sem comprar'],
+  phone1:['telefone 1','telefone','fone 1','celular'],
+  phone2:['telefone 2','fone 2'],
+  contact:['responsavel','responsável','contato'],
+  cnpj:['cnpj'],
   product:['produto','descricao','descrição','item','nome produto'],
-  status:['status','situacao','situação','etapa']
+  qty:['quantidade','qtd','qtde'],
+  status:['etapa','status','situacao','situação']
 };
 
 function save(){ localStorage.setItem('salesflow-crm',JSON.stringify(state)); }
@@ -51,19 +61,27 @@ function parseDateValue(v){
 }
 function autoMap(headers){
   const out={};
+  const used=new Set();
+
   Object.entries(aliases).forEach(([field,list])=>{
-    const found=headers.find(h=>list.some(a=>norm(h)===norm(a) || norm(h).includes(norm(a))));
-    if(found) out[field]=found;
+    const found=headers.find(h=>{
+      if(used.has(h)) return false;
+      const nh=norm(h);
+      return list.some(a=>nh===norm(a) || nh.includes(norm(a)));
+    });
+
+    if(found){
+      out[field]=found;
+      used.add(found);
+    }
   });
+
   return out;
 }
 function buildMapping(headers,mapping={}){
-  const fields=[['client','Cliente *'],['date','Data da venda'],['value','Valor'],['order','Pedido'],['city','Cidade'],['uf','UF'],['seller','Vendedor'],['product','Produto'],['qty','Quantidade'],['status','Status']];
-  const opts = `<option value="">— não usar —</option>`+headers.map(h=>`<option>${escapeHtml(h)}</option>`).join('');
-  $('#mappingPanel').innerHTML = fields.map(([f,label])=>`<div class="mapping-row"><strong>${label}</strong><select data-map="${f}">${opts}</select></div>`).join('')+
-    `<button class="btn primary" id="confirmImportBtn">Importar dados</button>`;
-  fields.forEach(([f])=>{ const sel=document.querySelector(`[data-map="${f}"]`); if(mapping[f]&&headers.includes(mapping[f])) sel.value=mapping[f]; });
-  $('#confirmImportBtn').onclick=confirmImport;
+  // Mantido apenas por compatibilidade interna.
+  // A importação agora é totalmente automática e não exibe tela de mapeamento.
+  return mapping;
 }
 function escapeHtml(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));}
 
@@ -72,67 +90,109 @@ async function readFiles(files){
     currentFilename=file.name;
     const data=await file.arrayBuffer();
     let wb;
-    try{ wb=XLSX.read(data,{type:'array',cellDates:true}); }catch(e){toast('Não consegui ler '+file.name);continue;}
+    try{
+      wb=XLSX.read(data,{type:'array',cellDates:true});
+    }catch(e){
+      toast('Não consegui ler '+file.name);
+      continue;
+    }
+
     currentWorkbook=wb;
     currentSheet=wb.SheetNames[0];
     const ws=wb.Sheets[currentSheet];
     const rows=XLSX.utils.sheet_to_json(ws,{defval:'',raw:true});
-    if(!rows.length){toast('Planilha sem linhas reconhecíveis: '+file.name);continue;}
-    currentRows=rows; currentHeaders=Object.keys(rows[0]);
-    const mapping=state.mappings[file.name]||autoMap(currentHeaders);
-    buildMapping(currentHeaders,mapping);
-    $('#importMessages').insertAdjacentHTML('beforeend',`<div class="import-note"><b>${escapeHtml(file.name)}</b>: ${rows.length} linhas encontradas na aba <b>${escapeHtml(currentSheet)}</b>.</div>`);
+
+    if(!rows.length){
+      toast('Planilha sem linhas reconhecíveis: '+file.name);
+      continue;
+    }
+
+    currentRows=rows;
+    currentHeaders=Object.keys(rows[0]);
+
+    const mapping=autoMap(currentHeaders);
+
+    if(!mapping.client){
+      $('#importMessages').insertAdjacentHTML(
+        'beforeend',
+        `<div class="import-note" style="background:#fff1f1;color:#a33"><b>${escapeHtml(file.name)}</b>: não encontrei automaticamente uma coluna de cliente. Renomeie a coluna para algo como CLIENTE, NOME CLIENTE, RAZÃO SOCIAL ou CÓDIGO CLIENTE.</div>`
+      );
+      continue;
+    }
+
+    importRowsAutomatically(rows, mapping, file.name, currentSheet);
   }
 }
-function confirmImport(){
-  const map={}; $$('[data-map]').forEach(s=>map[s.dataset.map]=s.value);
-  if(!map.client){toast('Selecione a coluna de Cliente.');return;}
-  const imported=currentRows.map((r,i)=>({
-    id:uid(), source:currentFilename, sheet:currentSheet, row:i+2,
-    client:String(valueFrom(r,map.client)||'').trim(),
+function importRowsAutomatically(rows, map, filename, sheetname){
+  const imported=rows.map((r,i)=>({
+    id:uid(), source:filename, sheet:sheetname, row:i+2,
+    client:String(valueFrom(r,map.client)||valueFrom(r,map.clientCode)||'').trim(),
+    clientCode:String(valueFrom(r,map.clientCode)||'').trim(),
     date:parseDateValue(valueFrom(r,map.date)),
     value:parseNumber(valueFrom(r,map.value)),
     order:String(valueFrom(r,map.order)||'').trim(),
     city:String(valueFrom(r,map.city)||'').trim(),
     uf:String(valueFrom(r,map.uf)||'').trim(),
     seller:String(valueFrom(r,map.seller)||'').trim(),
+    sellerCode:String(valueFrom(r,map.sellerCode)||'').trim(),
+    supervisor:String(valueFrom(r,map.supervisor)||'').trim(),
+    goal:parseNumber(valueFrom(r,map.goal)),
+    achieved:parseNumber(valueFrom(r,map.achieved)),
+    daysNoBuy:parseNumber(valueFrom(r,map.daysNoBuy)),
+    phone1:String(valueFrom(r,map.phone1)||'').trim(),
+    phone2:String(valueFrom(r,map.phone2)||'').trim(),
+    contact:String(valueFrom(r,map.contact)||'').trim(),
+    cnpj:String(valueFrom(r,map.cnpj)||'').trim(),
     product:String(valueFrom(r,map.product)||'').trim(),
     qty:parseNumber(valueFrom(r,map.qty)),
     status:String(valueFrom(r,map.status)||'').trim(),
     raw:r
   })).filter(r=>r.client);
-  state.records=state.records.filter(r=>r.source!==currentFilename).concat(imported);
-  state.mappings[currentFilename]=map;
-  if(!state.importedFiles.includes(currentFilename)) state.importedFiles.push(currentFilename);
-  save(); autoCreateDeals(imported); renderAll(); toast(`${imported.length} linhas importadas.`);
+
+  state.records=state.records.filter(r=>r.source!==filename).concat(imported);
+  state.mappings[filename]=map;
+  if(!state.importedFiles.includes(filename)) state.importedFiles.push(filename);
+  save(); autoCreateDeals(imported); renderAll();
+
+  $('#importMessages').insertAdjacentHTML('beforeend',
+    `<div class="import-note"><b>${escapeHtml(filename)}</b>: ${imported.length} registros integrados automaticamente ao CRM.</div>`);
+  toast(`${imported.length} registros integrados.`);
 }
 function autoCreateDeals(rows){
+  const salesRows=rows.filter(r=>r.order || ['EM ANÁLISE','AUTORIZADO','FATURADO'].includes(String(r.status).toUpperCase()));
   const groups={};
-  rows.forEach(r=>{
+  salesRows.forEach(r=>{
     const key=r.client+'|'+(r.order||r.date||r.id);
-    groups[key]??={client:r.client,title:r.order?`Pedido ${r.order}`:'Oportunidade importada',value:0,date:r.date,status:r.status};
+    groups[key]??={client:r.client,title:r.order?`Ordem ${r.order}`:'Oportunidade importada',value:0,date:r.date,status:r.status};
     groups[key].value+=r.value||0;
   });
-  Object.values(groups).slice(0,500).forEach(g=>{
-    const exists=state.deals.some(d=>d.importKey===g.client+'|'+g.title);
-    if(!exists) state.deals.push({id:uid(),importKey:g.client+'|'+g.title,client:g.client,title:g.title,value:g.value,stage:stageFromStatus(g.status),followup:'',created:g.date||todayISO()});
+  Object.values(groups).slice(0,1000).forEach(g=>{
+    const ik=g.client+'|'+g.title;
+    const existing=state.deals.find(d=>d.importKey===ik);
+    if(existing){ existing.value=g.value; existing.stage=stageFromStatus(g.status); }
+    else state.deals.push({id:uid(),importKey:ik,client:g.client,title:g.title,value:g.value,stage:stageFromStatus(g.status),followup:'',created:g.date||todayISO()});
   });
   save();
 }
 function stageFromStatus(s){
   const n=norm(s);
   if(n.includes('fatur')||n.includes('fech')||n.includes('ganh')) return 'Fechado';
-  if(n.includes('negoc')) return 'Negociação';
-  if(n.includes('propost')||n.includes('orc')) return 'Proposta';
+  if(n.includes('autoriz')) return 'Negociação';
+  if(n.includes('analise')) return 'Proposta';
   if(n.includes('contat')) return 'Contato feito';
   return 'Qualificado';
 }
 function clientStats(){
   const m={};
   state.records.forEach(r=>{
-    const k=norm(r.client); if(!k)return;
-    m[k]??={name:r.client,city:r.city,uf:r.uf,records:[],total:0};
-    m[k].records.push(r);m[k].total+=r.value||0;if(r.city)m[k].city=r.city;if(r.uf)m[k].uf=r.uf;
+    const key = r.clientCode ? 'cod:'+r.clientCode : 'name:'+norm(r.client);
+    if(!key)return;
+    m[key]??={name:r.client,clientCode:r.clientCode,city:r.city,uf:r.uf,records:[],total:0,phone1:r.phone1,phone2:r.phone2,contact:r.contact,cnpj:r.cnpj,seller:r.seller,daysNoBuy:r.daysNoBuy};
+    const c=m[key];
+    c.records.push(r);
+    c.total+=r.value||0;
+    ['city','uf','phone1','phone2','contact','cnpj','seller','clientCode'].forEach(k=>{if(r[k])c[k]=r[k]});
+    if(r.daysNoBuy)c.daysNoBuy=r.daysNoBuy;
   });
   return Object.values(m).map(c=>{
     const dates=c.records.map(r=>r.date).filter(Boolean).sort();

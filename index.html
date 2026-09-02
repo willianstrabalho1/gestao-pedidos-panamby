@@ -111,19 +111,15 @@
       </section>
 
       <section id="view-importar" class="view">
-        <div class="import-layout">
+        <div class="import-layout single">
           <article class="panel">
-            <div class="panel-head"><div><h3>Importar planilha</h3><p>Arraste arquivos .XLS, .XLSX ou .CSV. O CRM tenta reconhecer as colunas automaticamente.</p></div></div>
+            <div class="panel-head"><div><h3>Importar planilha</h3><p>Importe as 3 bases: carteira de clientes, vendas do mês e apuração de metas. O CRM identifica cada relatório e cruza os dados automaticamente.</p></div></div>
             <div id="dropzone" class="dropzone">
-              <div class="upload-icon">⇪</div><h3>Jogue sua planilha aqui</h3><p>ou clique para selecionar</p>
+              <div class="upload-icon">⇪</div><h3>Jogue as 3 planilhas aqui</h3><p>Você pode selecionar as três de uma vez: carteira, vendas e apuração de metas.</p>
               <input id="fileInput" type="file" accept=".xls,.xlsx,.csv" multiple hidden>
               <button class="btn primary" id="selectFileBtn">Selecionar planilha</button>
             </div>
             <div id="importMessages" class="import-messages"></div>
-          </article>
-          <article class="panel">
-            <div class="panel-head"><div><h3>Mapeamento inteligente</h3><p>Se o nome da coluna for diferente, ajuste uma vez e importe.</p></div></div>
-            <div id="mappingPanel" class="mapping-panel muted">Nenhum arquivo selecionado.</div>
           </article>
         </div>
       </section>

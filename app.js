@@ -115,7 +115,73 @@ function buscarClienteOrc(){let c=findClientCode($("orcCodigo").value);$("orcCli
 function addOrcItem(desc="",qtd=1,preco=0){let tr=document.createElement("tr");tr.innerHTML=`<td><input class="desc" value="${esc(desc)}"></td><td><input class="qtd" type="number" value="${qtd}" min="0" oninput="recalcOrc()"></td><td><input class="preco" type="number" value="${preco}" min="0" step="0.01" oninput="recalcOrc()"></td><td class="sub">${money(qtd*preco)}</td><td><button class="deletebtn" onclick="this.closest('tr').remove();recalcOrc()">×</button></td>`;$("orcItens").appendChild(tr);recalcOrc()}
 function orcItems(){return[...$("orcItens").querySelectorAll("tr")].map(tr=>({descricao:tr.querySelector(".desc").value.trim(),qtd:Number(tr.querySelector(".qtd").value||0),preco:Number(tr.querySelector(".preco").value||0)})).filter(x=>x.descricao&&x.qtd>0)}
 function recalcOrc(){let bruto=orcItems().reduce((s,x)=>s+x.qtd*x.preco,0),desc=Number($("orcDesconto").value||0);[...$("orcItens").querySelectorAll("tr")].forEach(tr=>tr.querySelector(".sub").textContent=money(Number(tr.querySelector(".qtd").value||0)*Number(tr.querySelector(".preco").value||0)));$("orcTotal").value=money(Math.max(bruto-desc,0))}
-function saveOrcamento(){let c=findClientCode($("orcCodigo").value),it=orcItems();if(!c)return alert("Cliente não encontrado.");if(!it.length)return alert("Adicione itens.");let bruto=it.reduce((s,x)=>s+x.qtd*x.preco,0),desc=Number($("orcDesconto").value||0);db.orcamentos.push({id:uid(),numero:orcNumber(),data:today(),validade:$("orcValidade").value,clienteId:c.id,codigoCliente:c.codigo,cliente:c.razao,representante:$("orcRep").value||c.representante||"",cidade:c.cidade,uf:c.uf,itens:it,bruto,desconto:desc,total:Math.max(bruto-desc,0),observacao:$("orcObs").value.trim(),status:"Em aberto",pedidoGerado:""});closeModal("orcModal");save()}
+function saveOrcamento(){
+ let c=findClientCode($("orcCodigo").value),it=orcItems();
+ if(!c)return alert("Cliente não encontrado.");
+ if(!it.length)return alert("Adicione itens.");
+
+ let bruto=it.reduce((s,x)=>s+x.qtd*x.preco,0),desc=Number($("orcDesconto").value||0);
+
+ const o={
+   id:uid(),numero:orcNumber(),data:today(),validade:$("orcValidade").value,
+   clienteId:c.id,codigoCliente:c.codigo,cliente:c.razao,
+   representante:$("orcRep").value||c.representante||"",
+   cidade:c.cidade,uf:c.uf,itens:it,bruto,desconto:desc,
+   total:Math.max(bruto-desc,0),observacao:$("orcObs").value.trim(),
+   status:"Em aberto",pedidoGerado:""
+ };
+
+ db.orcamentos.push(o);
+
+ const pending=window.__pipelinePending;
+ window.__pipelinePending=null;
+
+ if(pending && pending.clienteId===c.id){
+   if(pending.stage==="Orçamento"){
+     setPipelineOverride(c.id,"Orçamento");
+   }else if(pending.stage==="Negociação"){
+     o.status="Aprovado";
+     setPipelineOverride(c.id,"Negociação");
+   }else if(pending.stage==="Pedido"){
+     const n="PED-"+String(Date.now()).slice(-6);
+     db.pedidos.push({
+       id:uid(),ordem:n,clienteId:o.clienteId,codigoCliente:o.codigoCliente,cliente:o.cliente,
+       representante:o.representante,data:today(),valorSemImpostos:o.total,valorLiquido:o.total,
+       cidade:o.cidade,uf:o.uf,status:"Digitado",origem:"Orçamento",
+       orcamentoId:o.id,orcamentoNumero:o.numero,itens:o.itens,vendaId:""
+     });
+     o.status="Virou pedido";
+     o.pedidoGerado=n;
+     setPipelineOverride(c.id,"Pedido");
+   }else if(pending.stage==="Venda"){
+     const n="PED-"+String(Date.now()).slice(-6);
+     const p={
+       id:uid(),ordem:n,clienteId:o.clienteId,codigoCliente:o.codigoCliente,cliente:o.cliente,
+       representante:o.representante,data:today(),valorSemImpostos:o.total,valorLiquido:o.total,
+       cidade:o.cidade,uf:o.uf,status:"Venda confirmada",origem:"Orçamento",
+       orcamentoId:o.id,orcamentoNumero:o.numero,itens:o.itens,vendaId:""
+     };
+     db.pedidos.push(p);
+     const v={
+       id:uid(),pedidoId:p.id,ordem:p.ordem,clienteId:p.clienteId,codigoCliente:p.codigoCliente,
+       cliente:p.cliente,representante:p.representante,data:today(),
+       valorSemImpostos:p.valorSemImpostos,valorLiquido:p.valorLiquido,
+       cidade:p.cidade,uf:p.uf,origem:`Pedido ${p.ordem}`
+     };
+     db.vendas.push(v);
+     p.vendaId=v.id;
+     o.status="Venda concluída";
+     o.pedidoGerado=n;
+     o.vendaId=v.id;
+     setPipelineOverride(c.id,"Venda");
+   }
+ }else{
+   setPipelineOverride(c.id,"Orçamento");
+ }
+
+ closeModal("orcModal");
+ save();
+}
 function renderOrcamentos(){let q=norm($("buscaOrcamento").value),st=$("statusOrcamento").value,a=db.orcamentos.filter(o=>(!st||o.status===st)&&(!q||norm([o.numero,o.codigoCliente,o.cliente,o.representante].join(" ")).includes(q))).sort((a,b)=>(b.data||"").localeCompare(a.data||""));setText("oQtd",a.length);setText("oAberto",money(db.orcamentos.filter(o=>o.status==="Em aberto").reduce((s,o)=>s+Number(o.total||0),0)));setText("oConv",db.orcamentos.filter(o=>["Virou pedido","Venda concluída"].includes(o.status)).length);setHTML("orcamentosList",a.map(o=>`<div class="quote"><div class="toprow"><div><h3>${esc(o.numero)} • ${esc(o.codigoCliente)} — ${esc(o.cliente)}</h3><span class="muted">${brdate(o.data)} • validade ${brdate(o.validade)} • ${esc(o.representante||"")}</span></div><b>${money(o.total)}</b></div><div class="tags"><span class="tag">${esc(o.status)}</span>${o.pedidoGerado?`<span class="tag">Pedido ${esc(o.pedidoGerado)}</span>`:""}</div><div class="muted">${o.itens.map(i=>`${esc(i.descricao)} • ${i.qtd} × ${money(i.preco)}`).join("<br>")}</div><div class="actions">${["Em aberto","Aprovado"].includes(o.status)?`<button onclick="setOrcStatus('${o.id}','Aprovado')">✅ Aprovar</button><button class="primary" onclick="openConverter('${o.id}')">🧾 Virar pedido</button>`:""}<button onclick="printOrc('${o.id}')">🖨️ Imprimir</button><button class="whatsbtn" onclick="whatsOrc('${o.id}')">💬 WhatsApp</button><button class="deletebtn" onclick="excluirOrcamento('${o.id}')">🗑️ Excluir orçamento</button></div></div>`).join("")||'<div class="card muted">Nenhum orçamento.</div>')}
 function setOrcStatus(id,s){let o=db.orcamentos.find(x=>x.id===id);if(o){o.status=s;save()}}
 function openConverter(id){$("convOrcId").value=id;$("convPedido").value="";$("convData").value=today();$("convModal").classList.add("open")}
@@ -141,13 +207,14 @@ function checkNotifications(){if(!("Notification"in window)||Notification.permis
 
 
 
+
 function pipelineOverride(clienteId){
  return (db.pipelineStages||[]).find(x=>x.clienteId===clienteId)?.stage||"";
 }
 function setPipelineOverride(clienteId,stage){
  db.pipelineStages=db.pipelineStages||[];
  let x=db.pipelineStages.find(x=>x.clienteId===clienteId);
- if(x)x.stage=stage;
+ if(x){x.stage=stage;x.updatedAt=new Date().toISOString()}
  else db.pipelineStages.push({clienteId,stage,updatedAt:new Date().toISOString()});
 }
 function latestOrcamento(clienteId){
@@ -159,47 +226,66 @@ function latestPedido(clienteId){
 function latestVenda(clienteId){
  return (db.vendas||[]).filter(v=>v.clienteId===clienteId).sort((a,b)=>(b.data||"").localeCompare(a.data||""))[0]||null;
 }
+
+// Regra V19:
+// Todo cliente importado começa em CONTATO.
+// Só sai de Contato quando você movimenta manualmente no Pipeline.
 function derivedStage(c){
- const override=pipelineOverride(c.id);
- if(override)return override;
- const v=latestVenda(c.id);
- if(v)return"Venda";
- const p=latestPedido(c.id);
- if(p)return p.vendaId?"Venda":"Pedido";
- const o=latestOrcamento(c.id);
- if(o){
-   if(o.status==="Venda concluída")return"Venda";
-   if(o.status==="Virou pedido")return"Pedido";
-   if(o.status==="Aprovado")return"Negociação";
-   return"Orçamento";
- }
- const f=(db.followups||[]).find(x=>x.clienteId===c.id&&!x.done);
- return f?"Contato":"Contato";
+ return pipelineOverride(c.id)||"Contato";
 }
+
 function pipelineDeals(){
- const inicio=$("pipeInicio")?.value||"",fim=$("pipeFim")?.value||"",rep=$("pipeRep")?.value||"",busca=norm($("pipeBusca")?.value||"");
+ const rep=$("pipeRep")?.value||"";
+ const busca=norm($("pipeBusca")?.value||"");
+
  return (db.clientes||[]).map(c=>{
-   const o=latestOrcamento(c.id),p=latestPedido(c.id),v=latestVenda(c.id);
    const stage=derivedStage(c);
-   let valor=Number(v?.valorSemImpostos||p?.valorSemImpostos||o?.total||c.valor||0);
-   let data=v?.data||p?.data||o?.data||c.ultima||"";
-   let detalhe=stage==="Venda"?(v?.ordem?`Venda / Pedido ${v.ordem}`:"Venda concluída"):
-               stage==="Pedido"?`Pedido ${p?.ordem||o?.pedidoGerado||""}`:
-               stage==="Negociação"?`${o?.numero||"Orçamento"} aprovado`:
-               stage==="Orçamento"?`${o?.numero||"Orçamento em aberto"}`:
-               ((db.followups||[]).find(f=>f.clienteId===c.id&&!f.done)?.texto||"Cliente para contato");
+   const o=latestOrcamento(c.id),p=latestPedido(c.id),v=latestVenda(c.id);
+
+   let valor=Number(c.valor||0);
+   let detalhe="Cliente importado — aguardando processo comercial";
+
+   if(stage==="Orçamento"){
+     valor=Number(o?.total||c.valor||0);
+     detalhe=o?.numero||"Orçamento em preparação";
+   }else if(stage==="Negociação"){
+     valor=Number(o?.total||c.valor||0);
+     detalhe=o?`${o.numero} • aprovado / negociação`:"Negociação";
+   }else if(stage==="Pedido"){
+     valor=Number(p?.valorSemImpostos||o?.total||c.valor||0);
+     detalhe=p?`Pedido ${p.ordem}`:"Pedido";
+   }else if(stage==="Venda"){
+     valor=Number(v?.valorSemImpostos||p?.valorSemImpostos||o?.total||c.valor||0);
+     detalhe=v?(v.ordem?`Venda concluída • Pedido ${v.ordem}`:"Venda concluída"):"Venda concluída";
+   }
+
    return {
-     key:"C-"+c.id,stage,clienteId:c.id,codigo:c.codigo,cliente:c.razao,representante:c.representante||"",
-     data,valor,detalhe,cidade:c.cidade||"",uf:c.uf||"",ultima:c.ultima||"",dias:Number(c.dias||0),
-     ultimaValor:Number(c.valor||0),tel1:c.tel1||"",tel2:c.tel2||"",orcamentoId:o?.id||"",pedidoId:p?.id||"",
+     key:"C-"+c.id,
+     stage,
+     clienteId:c.id,
+     codigo:c.codigo,
+     cliente:c.razao,
+     representante:c.representante||"",
+     data:c.ultima||"",
+     valor,
+     detalhe,
+     cidade:c.cidade||"",
+     uf:c.uf||"",
+     ultima:c.ultima||"",
+     dias:Number(c.dias||0),
+     ultimaValor:Number(c.valor||0),
+     tel1:c.tel1||"",
+     tel2:c.tel2||"",
+     orcamentoId:o?.id||"",
+     pedidoId:p?.id||"",
      vendaId:v?.id||""
    };
  }).filter(d=>
-   (!inicio||!d.data||d.data>=inicio)&&(!fim||!d.data||d.data<=fim)&&
-   (!rep||norm(d.representante)===norm(rep))&&
+   (!rep||norm(d.representante)===norm(rep)) &&
    (!busca||norm([d.codigo,d.cliente,d.representante,d.cidade,d.uf,d.tel1,d.tel2,d.detalhe].join(" ")).includes(busca))
  );
 }
+
 function pipeCard(d){
  const c=getClient(d.clienteId);
  return `<div class="pipe-card" data-cliente-id="${d.clienteId}">
@@ -208,15 +294,18 @@ function pipeCard(d){
      <span>${money(d.valor)}</span>
    </div>
    <div class="pipe-meta">${esc(d.representante||"Sem representante")} • ${esc(d.cidade||"")}${d.uf?"/"+esc(d.uf):""}</div>
+
    <div class="pipe-client-info">
      <span>🛒 Última compra: <b>${brdate(d.ultima)}</b></span>
      <span>⏳ ${d.dias} dias sem comprar</span>
-     <span>💵 Última compra: ${money(d.ultimaValor)}</span>
+     <span>💵 Valor última compra: ${money(d.ultimaValor)}</span>
      ${d.tel1||d.tel2?`<span>☎ ${esc(d.tel1||d.tel2)}</span>`:""}
    </div>
+
    <div class="pipe-detail">${esc(d.detalhe||"")}</div>
+
    <div class="pipe-bottom">
-     <small>${d.data?brdate(d.data):"Sem data"}</small>
+     <small>${d.stage==="Contato"?"Pronto para contato":esc(d.stage)}</small>
      <div class="pipe-actions">
        ${c&&(c.tel1||c.tel2)?`<button class="pipe-icon whatsbtn" onclick="openWhats('${c.id}')" title="WhatsApp">💬</button>`:""}
        <button class="pipe-icon" onclick="openFollow('${d.clienteId}')" title="Follow-up">📞</button>
@@ -226,34 +315,57 @@ function pipeCard(d){
    </div>
  </div>`;
 }
+
 function renderPipeline(){
- const deals=pipelineDeals(),stages={Contato:[],Orçamento:[],Negociação:[],Pedido:[],Venda:[]};
+ const deals=pipelineDeals();
+ const stages={Contato:[],Orçamento:[],Negociação:[],Pedido:[],Venda:[]};
  deals.forEach(d=>stages[d.stage]?.push(d));
- Object.values(stages).forEach(a=>a.sort((x,y)=>Number(y.valor||0)-Number(x.valor||0)));
+
+ // Contato: clientes com mais dias sem comprar aparecem primeiro.
+ stages.Contato.sort((a,b)=>Number(b.dias||0)-Number(a.dias||0));
+ stages.Orçamento.sort((a,b)=>Number(b.valor||0)-Number(a.valor||0));
+ stages.Negociação.sort((a,b)=>Number(b.valor||0)-Number(a.valor||0));
+ stages.Pedido.sort((a,b)=>Number(b.valor||0)-Number(a.valor||0));
+ stages.Venda.sort((a,b)=>Number(b.valor||0)-Number(a.valor||0));
+
  setHTML("pipeContato",stages.Contato.map(pipeCard).join("")||'<div class="pipe-empty">Sem clientes</div>');
  setHTML("pipeOrcamento",stages.Orçamento.map(pipeCard).join("")||'<div class="pipe-empty">Sem clientes</div>');
  setHTML("pipeNegociacao",stages.Negociação.map(pipeCard).join("")||'<div class="pipe-empty">Sem clientes</div>');
  setHTML("pipePedido",stages.Pedido.map(pipeCard).join("")||'<div class="pipe-empty">Sem clientes</div>');
  setHTML("pipeVenda",stages.Venda.map(pipeCard).join("")||'<div class="pipe-empty">Sem clientes</div>');
- setText("countContato",stages.Contato.length);setText("countOrcamento",stages.Orçamento.length);setText("countNegociacao",stages.Negociação.length);setText("countPedido",stages.Pedido.length);setText("countVenda",stages.Venda.length);
- const em=[...stages.Contato,...stages.Orçamento,...stages.Negociação,...stages.Pedido];
- setText("pipeQtd",em.length);setText("pipeValor",money(em.reduce((s,d)=>s+Number(d.valor||0),0)));setText("pipePedidos",stages.Pedido.length);setText("pipeVendas",stages.Venda.length);
+
+ setText("countContato",stages.Contato.length);
+ setText("countOrcamento",stages.Orçamento.length);
+ setText("countNegociacao",stages.Negociação.length);
+ setText("countPedido",stages.Pedido.length);
+ setText("countVenda",stages.Venda.length);
+
+ setText("pipeQtd",deals.length);
+ const em=[...stages.Orçamento,...stages.Negociação,...stages.Pedido];
+ setText("pipeValor",money(em.reduce((s,d)=>s+Number(d.valor||0),0)));
+ setText("pipePedidos",stages.Pedido.length);
+ setText("pipeVendas",stages.Venda.length);
+
  initPipelinePointerDrag();
 }
 
 async function moverClientePipeline(clienteId,targetStage){
  const c=getClient(clienteId);
  if(!c)return;
+
  const current=derivedStage(c);
  if(current===targetStage)return;
 
  try{
+   if(targetStage==="Contato"){
+     setPipelineOverride(clienteId,"Contato");
+   }
+
    if(targetStage==="Orçamento"){
      const o=latestOrcamento(clienteId);
      if(!o){
-       setPipelineOverride(clienteId,"Orçamento");
-       await persistDB();
-       renderPipeline();
+       // Só muda definitivamente para orçamento quando ele for salvo.
+       window.__pipelinePending={clienteId,stage:"Orçamento"};
        openOrcamento(clienteId);
        return;
      }
@@ -262,9 +374,10 @@ async function moverClientePipeline(clienteId,targetStage){
    }
 
    if(targetStage==="Negociação"){
-     let o=latestOrcamento(clienteId);
+     const o=latestOrcamento(clienteId);
      if(!o){
        alert("Crie um orçamento para este cliente antes de mover para Negociação.");
+       window.__pipelinePending={clienteId,stage:"Negociação"};
        openOrcamento(clienteId);
        return;
      }
@@ -277,16 +390,18 @@ async function moverClientePipeline(clienteId,targetStage){
      if(!p){
        const o=latestOrcamento(clienteId);
        if(!o){
-         alert("Este cliente ainda não possui orçamento. Crie um orçamento antes de virar pedido.");
+         alert("Crie um orçamento antes de transformar o cliente em Pedido.");
+         window.__pipelinePending={clienteId,stage:"Pedido"};
          openOrcamento(clienteId);
          return;
        }
+
        const n="PED-"+String(Date.now()).slice(-6);
        p={
          id:uid(),ordem:n,clienteId:o.clienteId,codigoCliente:o.codigoCliente,cliente:o.cliente,
          representante:o.representante,data:today(),valorSemImpostos:o.total,valorLiquido:o.total,
-         cidade:o.cidade,uf:o.uf,status:"Digitado",origem:"Orçamento",orcamentoId:o.id,
-         orcamentoNumero:o.numero,itens:o.itens,vendaId:""
+         cidade:o.cidade,uf:o.uf,status:"Digitado",origem:"Orçamento",
+         orcamentoId:o.id,orcamentoNumero:o.numero,itens:o.itens,vendaId:""
        };
        db.pedidos.push(p);
        o.status="Virou pedido";
@@ -299,43 +414,46 @@ async function moverClientePipeline(clienteId,targetStage){
      let v=latestVenda(clienteId);
      if(!v){
        let p=latestPedido(clienteId);
+
        if(!p){
          const o=latestOrcamento(clienteId);
          if(!o){
-           alert("Para concluir a venda, o cliente precisa ter ao menos um orçamento.");
+           alert("Para concluir uma venda, crie primeiro um orçamento.");
+           window.__pipelinePending={clienteId,stage:"Venda"};
            openOrcamento(clienteId);
            return;
          }
+
          const n="PED-"+String(Date.now()).slice(-6);
          p={
            id:uid(),ordem:n,clienteId:o.clienteId,codigoCliente:o.codigoCliente,cliente:o.cliente,
            representante:o.representante,data:today(),valorSemImpostos:o.total,valorLiquido:o.total,
-           cidade:o.cidade,uf:o.uf,status:"Digitado",origem:"Orçamento",orcamentoId:o.id,
-           orcamentoNumero:o.numero,itens:o.itens,vendaId:""
+           cidade:o.cidade,uf:o.uf,status:"Digitado",origem:"Orçamento",
+           orcamentoId:o.id,orcamentoNumero:o.numero,itens:o.itens,vendaId:""
          };
          db.pedidos.push(p);
          o.status="Virou pedido";
          o.pedidoGerado=n;
        }
+
        v={
          id:uid(),pedidoId:p.id,ordem:p.ordem,clienteId:p.clienteId,codigoCliente:p.codigoCliente,
          cliente:p.cliente,representante:p.representante,data:today(),
-         valorSemImpostos:Number(p.valorSemImpostos||0),valorLiquido:Number(p.valorLiquido||0),
+         valorSemImpostos:Number(p.valorSemImpostos||0),
+         valorLiquido:Number(p.valorLiquido||0),
          cidade:p.cidade,uf:p.uf,origem:`Pedido ${p.ordem}`
        };
+
        db.vendas.push(v);
        p.vendaId=v.id;
        p.status="Venda confirmada";
+
        if(p.orcamentoId){
          const o=db.orcamentos.find(x=>x.id===p.orcamentoId);
          if(o){o.status="Venda concluída";o.vendaId=v.id}
        }
      }
      setPipelineOverride(clienteId,"Venda");
-   }
-
-   if(targetStage==="Contato"){
-     setPipelineOverride(clienteId,"Contato");
    }
 
    await persistDB();
@@ -346,7 +464,7 @@ async function moverClientePipeline(clienteId,targetStage){
  }
 }
 
-// Drag robusto com Pointer Events: funciona com mouse, touchpad e toque.
+// Drag robusto com Pointer Events.
 let pipeDrag=null;
 
 function initPipelinePointerDrag(){
@@ -405,17 +523,15 @@ function initPipelinePointerDrag(){
 
    const col=under?.closest?.(".pipe-column")||null;
    document.querySelectorAll(".pipe-column").forEach(x=>x.classList.remove("drag-over"));
+
    if(col){
      col.classList.add("drag-over");
      pipeDrag.target=col;
-   }else{
-     pipeDrag.target=null;
-   }
+   }else pipeDrag.target=null;
  });
 
  const finish=async e=>{
    if(!pipeDrag || (e.pointerId!==undefined && pipeDrag.pointerId!==e.pointerId))return;
-
    const d=pipeDrag;
    pipeDrag=null;
 
@@ -426,7 +542,6 @@ function initPipelinePointerDrag(){
    try{d.card?.releasePointerCapture?.(d.pointerId)}catch{}
 
    if(!d.active || !d.target)return;
-
    const stage=d.target.dataset.stage;
    if(stage)await moverClientePipeline(d.clienteId,stage);
  };
@@ -435,8 +550,10 @@ function initPipelinePointerDrag(){
  board.addEventListener("pointercancel",finish);
 }
 
-// Mantém fallback do HTML5 drag/drop caso o navegador prefira.
-function pipelineDragOver(event){event.preventDefault();event.currentTarget?.classList.add("drag-over")}
+function pipelineDragOver(event){
+ event.preventDefault();
+ event.currentTarget?.classList.add("drag-over");
+}
 async function pipelineDrop(event,targetStage){
  event.preventDefault();
  document.querySelectorAll(".pipe-column").forEach(x=>x.classList.remove("drag-over"));
@@ -447,7 +564,7 @@ async function pipelineDrop(event,targetStage){
 function renderApuracao(){let q=norm($("buscaApuracao").value),sup=$("filtroSupervisor").value,at=$("filtroAtingido").value,fonte=db.apuracaoLinhas||[],arr=fonte.map(x=>{let m=Number(x.meta||0),v=Number(x.vrAtingido||0);return{...x,pct:m?v/m*100:0,falta:Math.max(m-v,0)}}).filter(x=>(!q||norm([x.representante,x.razaoSocial,x.supervisor].join(" ")).includes(q))&&(!sup||x.supervisor===sup)&&(!at||x.atingido===at));let resumo=db.apuracaoMetas||[],mt=resumo.reduce((s,x)=>s+Number(x.meta||0),0),va=resumo.reduce((s,x)=>s+Number(x.vrAtingido||0),0),qtd=resumo.filter(x=>Number(x.meta)>0&&Number(x.vrAtingido)>=Number(x.meta)).length;setText("aMetaTotal",money(mt));setText("aAtingidoTotal",money(va));setText("aFaltaTotal",money(Math.max(mt-va,0)));setText("aQtdMeta",qtd);setText("aPctMeta",(resumo.length?qtd/resumo.length*100:0).toFixed(1)+"% da equipe");let sm=new Map();resumo.forEach(x=>{let n=(x.supervisor||"Sem supervisor").trim()||"Sem supervisor";if(!sm.has(n))sm.set(n,{supervisor:n,reps:0,meta:0,atingido:0});let s=sm.get(n);s.reps++;s.meta+=Number(x.meta||0);s.atingido+=Number(x.vrAtingido||0)});let sups=[...sm.values()].map(s=>({...s,falta:Math.max(s.meta-s.atingido,0),pct:s.meta?s.atingido/s.meta*100:0})).filter(s=>!sup||s.supervisor===sup).sort((a,b)=>b.pct-a.pct);setHTML("supervisorBody",sups.map(s=>`<tr><td><b>${esc(s.supervisor)}</b></td><td>${s.reps}</td><td>${money(s.meta)}</td><td>${money(s.atingido)}</td><td>${money(s.falta)}</td><td><b>${s.pct.toFixed(1)}%</b></td><td><span class="pill ${s.pct>=100?"ok":s.pct>=80?"near":"no"}">${s.pct>=100?"Meta atingida":s.pct>=80?"Próximo da meta":"Abaixo da meta"}</span></td></tr>`).join("")||'<tr><td colspan="7">Sem dados.</td></tr>');let tm=sups.reduce((s,x)=>s+x.meta,0),ta=sups.reduce((s,x)=>s+x.atingido,0),tr=sups.reduce((s,x)=>s+x.reps,0);setHTML("supervisorFoot",`<tr><td>TOTAL</td><td>${tr}</td><td>${money(tm)}</td><td>${money(ta)}</td><td>${money(Math.max(tm-ta,0))}</td><td>${(tm?ta/tm*100:0).toFixed(1)}%</td><td></td></tr>`);setHTML("apuracaoBody",arr.map(x=>`<tr><td class="${x.atingido==="Sim"?"status-ok":"status-no"}">${esc(x.atingido)}</td><td><b>${esc(x.razaoSocial||x.representante||"—")}</b></td><td>${esc(x.representante||"—")}</td><td>${money(x.meta)}</td><td>${money(x.vrAtingido)}</td><td>${money(x.falta)}</td><td>${x.pct.toFixed(1)}%</td><td>${esc(x.supervisor||"—")}</td></tr>`).join("")||'<tr><td colspan="8">Importe APURAÇÃO DE VENDAS.xls.</td></tr>')}
 function refreshSup(){let e=$("filtroSupervisor"),cur=e.value,s=[...new Set((db.apuracaoLinhas||[]).map(x=>x.supervisor).filter(Boolean))].sort();e.innerHTML='<option value="">Todos os supervisores</option>'+s.map(x=>`<option>${esc(x)}</option>`).join("");e.value=cur}
 
-async function importClientes(){let f=$("clientesFile").files[0];if(!f)return alert("Selecione TODOS OS CLIENTES.xls.");let r=new FileReader();r.onload=async e=>{try{let wb=XLSX.read(e.target.result,{type:"array",cellDates:true,raw:true}),map=new Map(),lidos=0;for(const sn of wb.SheetNames){let raw=XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,defval:"",raw:true}),h=localizarCabecalho(raw,[["CODIGO CLIENTE"],["RAZAO CLIENTE"]]);if(h<0)continue;let hd=raw[h].map(v=>String(v??"").trim()),cCod=findCol(hd,["CODIGO CLIENTE","CÓDIGO CLIENTE"]),cRaz=findCol(hd,["RAZAO CLIENTE","RAZÃO CLIENTE"]),cCnpj=findCol(hd,["CNPJ"]),cRep=findCol(hd,["REPRESENTANTE"]),cCid=findCol(hd,["CIDADE"]),cUf=findCol(hd,["UF"]),cUlt=findCol(hd,["ULTIMA COMPRA","ÚLTIMA COMPRA"]),cDias=findCol(hd,["DIAS SEM COMPRAR"]),cVal=findCol(hd,["VALOR ULTIMA COMPRA","VALOR ÚLTIMA COMPRA"]),cResp=findCol(hd,["RESPONSAVEL","RESPONSÁVEL"]),cTel1=findCol(hd,["TELEFONE 1"]),cTel2=findCol(hd,["TELEFONE 2"]);for(let i=h+1;i<raw.length;i++){let row=raw[i],codigo=cCod>=0?row[cCod]:"",razao=cRaz>=0?row[cRaz]:"";if(String(codigo).trim()===""||String(razao).trim()==="")continue;map.set(String(codigo).trim(),{id:uid(),codigo:String(codigo).trim(),razao:String(razao).trim(),cnpj:cCnpj>=0?String(row[cCnpj]??"").trim():"",representante:cRep>=0?String(row[cRep]??"").trim():"",cidade:cCid>=0?String(row[cCid]??"").trim():"",uf:cUf>=0?String(row[cUf]??"").trim():"",ultima:cUlt>=0?excelDate(row[cUlt]):"",dias:cDias>=0?numBR(row[cDias]):0,valor:cVal>=0?numBR(row[cVal]):0,responsavel:cResp>=0?String(row[cResp]??"").trim():"",tel1:cTel1>=0?String(row[cTel1]??"").trim():"",tel2:cTel2>=0?String(row[cTel2]??"").trim():""});lidos++}}db.clientes=[...map.values()];db.pipelineStages=(db.pipelineStages||[]).filter(x=>db.clientes.some(c=>c.id===x.clienteId));await persistDB();render();setHTML("clientesMsg",`✅ <b>${lidos}</b> linhas lidas • <b>${db.clientes.length}</b> clientes.`)}catch(err){console.error(err);alert("Erro ao importar clientes: "+err.message)}};r.readAsArrayBuffer(f)}
+async function importClientes(){let f=$("clientesFile").files[0];if(!f)return alert("Selecione TODOS OS CLIENTES.xls.");let r=new FileReader();r.onload=async e=>{try{let wb=XLSX.read(e.target.result,{type:"array",cellDates:true,raw:true}),map=new Map(),lidos=0,oldByCode=new Map((db.clientes||[]).map(c=>[String(c.codigo),c]));let totalSheet=wb.SheetNames.find(s=>normHeader(s)==="TOTAL");let sheets=totalSheet?[totalSheet]:wb.SheetNames;for(const sn of sheets){let raw=XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,defval:"",raw:true}),h=localizarCabecalho(raw,[["CODIGO CLIENTE"],["RAZAO CLIENTE"]]);if(h<0)continue;let hd=raw[h].map(v=>String(v??"").trim()),cCod=findCol(hd,["CODIGO CLIENTE","CÓDIGO CLIENTE"]),cRaz=findCol(hd,["RAZAO CLIENTE","RAZÃO CLIENTE"]),cCnpj=findCol(hd,["CNPJ"]),cRep=findCol(hd,["REPRESENTANTE"]),cCid=findCol(hd,["CIDADE"]),cUf=findCol(hd,["UF"]),cUlt=findCol(hd,["ULTIMA COMPRA","ÚLTIMA COMPRA"]),cDias=findCol(hd,["DIAS SEM COMPRAR"]),cVal=findCol(hd,["VALOR ULTIMA COMPRA","VALOR ÚLTIMA COMPRA"]),cResp=findCol(hd,["RESPONSAVEL","RESPONSÁVEL"]),cTel1=findCol(hd,["TELEFONE 1"]),cTel2=findCol(hd,["TELEFONE 2"]);for(let i=h+1;i<raw.length;i++){let row=raw[i],codigo=cCod>=0?row[cCod]:"",razao=cRaz>=0?row[cRaz]:"";if(String(codigo).trim()===""||String(razao).trim()==="")continue;let key=String(codigo).trim(),old=oldByCode.get(key);map.set(key,{id:old?.id||("CLI-"+key),codigo:key,razao:String(razao).trim(),cnpj:cCnpj>=0?String(row[cCnpj]??"").trim():"",representante:cRep>=0?String(row[cRep]??"").trim():"",cidade:cCid>=0?String(row[cCid]??"").trim():"",uf:cUf>=0?String(row[cUf]??"").trim():"",ultima:cUlt>=0?excelDate(row[cUlt]):"",dias:cDias>=0?numBR(row[cDias]):0,valor:cVal>=0?numBR(row[cVal]):0,responsavel:cResp>=0?String(row[cResp]??"").trim():"",tel1:cTel1>=0?String(row[cTel1]??"").trim():"",tel2:cTel2>=0?String(row[cTel2]??"").trim():""});lidos++}}db.clientes=[...map.values()];db.pipelineStages=[];await persistDB();render();setHTML("clientesMsg",`✅ <b>${lidos}</b> linhas lidas • <b>${db.clientes.length}</b> clientes.`)}catch(err){console.error(err);alert("Erro ao importar clientes: "+err.message)}};r.readAsArrayBuffer(f)}
 async function importPedidos(){let f=$("pedidosFile").files[0];if(!f)return alert("Selecione DIGITAÇÃO DE ORDEM.xls.");let r=new FileReader();r.onload=async e=>{try{let wb=XLSX.read(e.target.result,{type:"array",cellDates:true,raw:true}),map=new Map(),count=0;for(const sn of wb.SheetNames){let raw=XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,defval:"",raw:true}),h=localizarCabecalho(raw,[["ORDEM"],["RAZAO SOCIAL"],["VR TOTAL (S/IMPOSTOS)"]]);if(h<0)continue;let hd=raw[h].map(v=>String(v??"").trim()),cStatus=findCol(hd,["Status"]),cEtapa=findCol(hd,["Etapa"]),cOrdem=findCol(hd,["Ordem"]),cRaz=findCol(hd,["Razão Social","Razao Social"]),cDig=findCol(hd,["Digitação","Digitacao"]),cFat=findCol(hd,["Faturamento"]),cLib=findCol(hd,["Data Liberação/Crédito"]),cSem=findCol(hd,["Vr Total (s/impostos)"]),cLiq=findCol(hd,["Vr Total (Liquido)","Vr Total (Líquido)"]),cRep=findCol(hd,["Representante"]),cUf=findCol(hd,["UF"]);for(let i=h+1;i<raw.length;i++){let row=raw[i],ord=cOrdem>=0?row[cOrdem]:"",razao=cRaz>=0?String(row[cRaz]??"").trim():"";if(String(ord).trim()===""||razao==="")continue;let cli=findClientRazao(razao);map.set(String(ord).trim(),{id:uid(),ordem:String(ord).trim(),clienteId:cli?.id||"",codigoCliente:cli?.codigo||"",cliente:razao,data:cDig>=0?excelDate(row[cDig]):"",faturamento:cFat>=0?excelDate(row[cFat]):"",liberacao:cLib>=0?excelDate(row[cLib]):"",representante:(cRep>=0?String(row[cRep]??"").trim():"")||cli?.representante||"",valorSemImpostos:cSem>=0?numBR(row[cSem]):0,valorLiquido:cLiq>=0?numBR(row[cLiq]):0,cidade:cli?.cidade||"",uf:(cUf>=0?String(row[cUf]??"").trim():"")||cli?.uf||"",status:(cEtapa>=0?String(row[cEtapa]??"").trim():"")||(cStatus>=0?String(row[cStatus]??"").trim():""),origem:"DIGITAÇÃO DE ORDEM",vendaId:""});count++}}db.pedidos=[...map.values()];await persistDB();render();let sem=db.pedidos.reduce((s,p)=>s+saleValue(p,"sem"),0),liq=db.pedidos.reduce((s,p)=>s+saleValue(p,"liq"),0);setHTML("pedidosMsg",`✅ <b>${count}</b> linhas • <b>${db.pedidos.length}</b> pedidos únicos.<br>Sem impostos: <b>${money(sem)}</b> • Líquido: <b>${money(liq)}</b>`)}catch(err){console.error(err);alert("Erro ao importar pedidos: "+err.message)}};r.readAsArrayBuffer(f)}
 async function importApuracao(){let f=$("apuracaoFile").files[0];if(!f)return alert("Selecione APURAÇÃO DE VENDAS.xls.");let r=new FileReader();r.onload=async e=>{try{let wb=XLSX.read(e.target.result,{type:"array",raw:true}),linhas=[];for(const sn of wb.SheetNames){let raw=XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,defval:"",raw:true}),h=localizarCabecalho(raw,[["ATINGIDO"],["REPRESENTANTE"],["RAZAO SOCIAL"],["META"],["VR ATINGIDO"],["NOME DO SUPERVISOR"]]);if(h<0)continue;let hd=raw[h].map(v=>String(v??"").trim()),cAt=findCol(hd,["Atingido"]),cRep=findCol(hd,["Representante"]),cRaz=findCol(hd,["Razão Social","Razao Social"]),cMeta=findCol(hd,["Meta"]),cVr=findCol(hd,["Vr Atingido"]),cSup=findCol(hd,["Nome do Supervisor"]);for(let i=h+1;i<raw.length;i++){let row=raw[i],rep=cRep>=0?String(row[cRep]??"").trim():"",raz=cRaz>=0?String(row[cRaz]??"").trim():"";if(!rep&&!raz)continue;let meta=cMeta>=0?numBR(row[cMeta]):0,vr=cVr>=0?numBR(row[cVr]):0,atRaw=cAt>=0?String(row[cAt]??"").trim():"";linhas.push({atingido:/^SIM$/i.test(atRaw)||(meta>0&&vr>=meta)?"Sim":"Não",representante:rep,razaoSocial:raz,meta,vrAtingido:vr,supervisor:cSup>=0?String(row[cSup]??"").trim():""})}}db.apuracaoLinhas=linhas;let mapa=new Map();linhas.forEach(x=>{let k=norm(x.representante||x.razaoSocial);if(!k)return;if(!mapa.has(k))mapa.set(k,{...x});else{let a=mapa.get(k);a.meta=Math.max(Number(a.meta||0),Number(x.meta||0));a.vrAtingido=Math.max(Number(a.vrAtingido||0),Number(x.vrAtingido||0));if(!a.razaoSocial)a.razaoSocial=x.razaoSocial;if(!a.supervisor)a.supervisor=x.supervisor;a.atingido=a.meta>0&&a.vrAtingido>=a.meta?"Sim":"Não"}});db.apuracaoMetas=[...mapa.values()];await persistDB();render();setHTML("apuracaoMsg",`✅ <b>${linhas.length}</b> linhas • <b>${db.apuracaoMetas.length}</b> representantes.`)}catch(err){console.error(err);alert("Erro ao importar apuração: "+err.message)}};r.readAsArrayBuffer(f)}
 function backupDados(){let blob=new Blob([JSON.stringify({versao:"V12",data:new Date().toISOString(),dados:db},null,2)],{type:"application/json"}),a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=`Backup_Gestor_Comercial_${today()}.json`;a.click()}

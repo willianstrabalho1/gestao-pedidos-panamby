@@ -67,3 +67,7 @@
  content:" Segure o cartão e mova para outra coluna.";
  font-weight:800;
 }
+
+/* V19: coluna Contato é a base total de clientes */
+.pipe-column[data-stage="Contato"] .pipe-head{background:#f0fff5}
+.pipe-column[data-stage="Contato"]{border-color:#cdebd7}

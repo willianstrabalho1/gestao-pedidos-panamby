@@ -100,3 +100,12 @@ V18 ARRASTAR CORRIGIDO
 - Botões internos continuam clicáveis.
 - Coluna de destino fica destacada.
 - Ao soltar, o sistema executa a mudança de processo.
+
+V19 TOTAL CLIENTES EM CONTATO
+- Ao importar TODOS OS CLIENTES, se existir uma aba chamada "Total", o sistema usa essa aba como base principal.
+- Todos os clientes importados entram inicialmente na coluna Contato.
+- Pedidos antigos/importados não tiram automaticamente o cliente da coluna Contato.
+- O cliente só muda de etapa quando você o arrasta manualmente.
+- Ao reimportar a planilha Total, o Pipeline é reiniciado e todos os clientes voltam para Contato.
+- IDs dos clientes são preservados por código sempre que possível.
+- Contato é ordenado por dias sem comprar, do maior para o menor.

@@ -25,7 +25,7 @@
 <button class="nav" data-tab="excel">📗 Excel / Backup</button>
 </aside>
 <main>
-<header><div><h2 id="pageTitle">Dashboard</h2><small id="todayLabel"></small><br><small class="version">V19 TOTAL CLIENTES EM CONTATO • 2026.09.02</small></div><button class="primary" onclick="enableNotifications()">🔔 Ativar notificações</button></header>
+<header><div><h2 id="pageTitle">Dashboard</h2><small id="todayLabel"></small><br><small class="version">V20 PIPELINE SEM TRAVAR • 2026.09.02</small></div><button class="primary" onclick="enableNotifications()">🔔 Ativar notificações</button></header>
 
 <section id="dashboard" class="tab active">
 <div class="card filters">
@@ -112,12 +112,12 @@
 <div class="card mini-kpi"><small>Pedidos</small><strong id="pipePedidos">0</strong></div>
 <div class="card mini-kpi"><small>Vendas concluídas</small><strong id="pipeVendas">0</strong></div>
 </div>
-<div class="pipeline-help">💡 Arraste os cartões entre as etapas. O sistema atualiza o processo comercial conforme a movimentação.</div><div class="pipeline-board">
-<div class="pipe-column" data-stage="Contato" ondragover="pipelineDragOver(event)" ondrop="pipelineDrop(event,'Contato')"><div class="pipe-head"><span>📞 Contato</span><b id="countContato">0</b></div><div class="pipe-cards" id="pipeContato"></div></div>
-<div class="pipe-column" data-stage="Orçamento" ondragover="pipelineDragOver(event)" ondrop="pipelineDrop(event,'Orçamento')"><div class="pipe-head"><span>📝 Orçamento</span><b id="countOrcamento">0</b></div><div class="pipe-cards" id="pipeOrcamento"></div></div>
-<div class="pipe-column" data-stage="Negociação" ondragover="pipelineDragOver(event)" ondrop="pipelineDrop(event,'Negociação')"><div class="pipe-head"><span>🤝 Negociação</span><b id="countNegociacao">0</b></div><div class="pipe-cards" id="pipeNegociacao"></div></div>
-<div class="pipe-column" data-stage="Pedido" ondragover="pipelineDragOver(event)" ondrop="pipelineDrop(event,'Pedido')"><div class="pipe-head"><span>🧾 Pedido</span><b id="countPedido">0</b></div><div class="pipe-cards" id="pipePedido"></div></div>
-<div class="pipe-column" data-stage="Venda" ondragover="pipelineDragOver(event)" ondrop="pipelineDrop(event,'Venda')"><div class="pipe-head"><span>💰 Venda concluída</span><b id="countVenda">0</b></div><div class="pipe-cards" id="pipeVenda"></div></div>
+<div class="pipeline-help">💡 Arraste os cartões entre as etapas. O sistema atualiza o processo comercial conforme a movimentação.</div><div class="pipeline-perf" id="pipelinePerf">Carregando clientes...</div><div class="pipeline-board">
+<div class="pipe-column" data-stage="Contato" ondragover="pipelineDragOver(event)" ondrop="pipelineDrop(event,'Contato')"><div class="pipe-head"><span>📞 Contato</span><b id="countContato">0</b></div><div class="pipe-cards" id="pipeContato"></div><button class="pipe-more" id="moreContato" onclick="loadMorePipeline('Contato')">Carregar mais</button></div>
+<div class="pipe-column" data-stage="Orçamento" ondragover="pipelineDragOver(event)" ondrop="pipelineDrop(event,'Orçamento')"><div class="pipe-head"><span>📝 Orçamento</span><b id="countOrcamento">0</b></div><div class="pipe-cards" id="pipeOrcamento"></div><button class="pipe-more" id="moreOrcamento" onclick="loadMorePipeline('Orçamento')">Carregar mais</button></div>
+<div class="pipe-column" data-stage="Negociação" ondragover="pipelineDragOver(event)" ondrop="pipelineDrop(event,'Negociação')"><div class="pipe-head"><span>🤝 Negociação</span><b id="countNegociacao">0</b></div><div class="pipe-cards" id="pipeNegociacao"></div><button class="pipe-more" id="moreNegociacao" onclick="loadMorePipeline('Negociação')">Carregar mais</button></div>
+<div class="pipe-column" data-stage="Pedido" ondragover="pipelineDragOver(event)" ondrop="pipelineDrop(event,'Pedido')"><div class="pipe-head"><span>🧾 Pedido</span><b id="countPedido">0</b></div><div class="pipe-cards" id="pipePedido"></div><button class="pipe-more" id="morePedido" onclick="loadMorePipeline('Pedido')">Carregar mais</button></div>
+<div class="pipe-column" data-stage="Venda" ondragover="pipelineDragOver(event)" ondrop="pipelineDrop(event,'Venda')"><div class="pipe-head"><span>💰 Venda concluída</span><b id="countVenda">0</b></div><div class="pipe-cards" id="pipeVenda"></div><button class="pipe-more" id="moreVenda" onclick="loadMorePipeline('Venda')">Carregar mais</button></div>
 </div>
 </section>
 

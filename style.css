@@ -71,3 +71,25 @@
 /* V19: coluna Contato é a base total de clientes */
 .pipe-column[data-stage="Contato"] .pipe-head{background:#f0fff5}
 .pipe-column[data-stage="Contato"]{border-color:#cdebd7}
+
+/* V20 desempenho do pipeline */
+.pipe-more{
+ display:block;
+ width:calc(100% - 18px);
+ margin:0 9px 10px;
+ padding:9px;
+ border:1px solid #d7e0ec;
+ background:#fff;
+ color:#3159cf;
+ font-size:11px;
+ border-radius:8px;
+}
+.pipe-more:hover{background:#eef2ff}
+.pipeline-perf{
+ font-size:10px;
+ color:#6f7f95;
+ margin:-5px 0 10px;
+ padding-left:4px;
+}
+.pipe-cards{contain:content}
+.pipe-card{content-visibility:auto;contain-intrinsic-size:120px}

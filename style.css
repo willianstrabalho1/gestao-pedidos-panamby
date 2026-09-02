@@ -35,3 +35,12 @@
 .pipe-empty{padding:20px 8px;text-align:center;color:#8b98aa;font-size:11px}
 @media(max-width:1100px){.pipeline-toolbar{grid-template-columns:1fr 1fr}.pipeline-kpis{grid-template-columns:1fr 1fr}}
 @media(max-width:650px){.pipeline-toolbar,.pipeline-kpis{grid-template-columns:1fr}}
+
+.pipeline-help{background:#edf5ff;color:#3159cf;border:1px solid #dce8ff;border-radius:10px;padding:9px 12px;margin:0 0 10px;font-size:11px;font-weight:600}
+.pipe-column.drag-over{outline:2px dashed #3854d8;outline-offset:-5px;background:#e8edff}
+.pipe-card.dragging{opacity:.45;transform:rotate(1deg)}
+.pipe-card{cursor:grab}
+.pipe-card:active{cursor:grabbing}
+.pipe-client-info{display:grid;gap:3px;margin-top:7px;padding:7px;background:#f7f9fc;border-radius:7px;font-size:10px;color:#65748b}
+.pipe-client-info b{color:#273653}
+.pipe-actions{display:flex;gap:3px}

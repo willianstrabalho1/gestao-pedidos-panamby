@@ -81,3 +81,14 @@ V16 PIPELINE KANBAN
 - Cartões com cliente, código, valor, representante, data e origem.
 - Filtros por período, representante e pesquisa.
 - Botões rápidos para WhatsApp, virar pedido e confirmar venda quando aplicável.
+
+V17 PIPELINE CLIENTES + ARRASTAR
+- Todos os clientes importados em TODOS OS CLIENTES.xls aparecem no Pipeline.
+- Cada cliente aparece uma única vez.
+- Cartões mostram código, razão social, representante, cidade/UF, telefone, última compra, dias sem comprar e valor da última compra.
+- Ações rápidas: WhatsApp, Follow-up, Alerta e Orçamento.
+- Arrastar e soltar entre Contato, Orçamento, Negociação, Pedido e Venda.
+- Ao arrastar para Negociação, o orçamento é aprovado.
+- Ao arrastar para Pedido, o sistema cria um pedido a partir do orçamento quando necessário.
+- Ao arrastar para Venda, o sistema cria/usa o pedido e registra a venda automaticamente.
+- Posição manual do Pipeline é salva no IndexedDB.

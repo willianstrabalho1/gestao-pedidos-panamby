@@ -202,7 +202,7 @@ function pipelineDeals(){
 }
 function pipeCard(d){
  const c=getClient(d.clienteId);
- return `<div class="pipe-card" draggable="true" ondragstart="pipelineDragStart(event,'${d.clienteId}')">
+ return `<div class="pipe-card" data-cliente-id="${d.clienteId}">
    <div class="pipe-card-top">
      <b>${esc(d.codigo||"")} ${d.codigo?"—":""} ${esc(d.cliente||"Cliente")}</b>
      <span>${money(d.valor)}</span>
@@ -238,24 +238,12 @@ function renderPipeline(){
  setText("countContato",stages.Contato.length);setText("countOrcamento",stages.Orçamento.length);setText("countNegociacao",stages.Negociação.length);setText("countPedido",stages.Pedido.length);setText("countVenda",stages.Venda.length);
  const em=[...stages.Contato,...stages.Orçamento,...stages.Negociação,...stages.Pedido];
  setText("pipeQtd",em.length);setText("pipeValor",money(em.reduce((s,d)=>s+Number(d.valor||0),0)));setText("pipePedidos",stages.Pedido.length);setText("pipeVendas",stages.Venda.length);
+ initPipelinePointerDrag();
 }
-function pipelineDragStart(event,clienteId){
- event.dataTransfer.setData("text/plain",clienteId);
- event.dataTransfer.effectAllowed="move";
- event.currentTarget.classList.add("dragging");
-}
-function pipelineDragOver(event){
- event.preventDefault();
- event.dataTransfer.dropEffect="move";
- event.currentTarget.classList.add("drag-over");
-}
-document.addEventListener("dragend",()=>document.querySelectorAll(".pipe-column,.pipe-card").forEach(x=>x.classList.remove("drag-over","dragging")));
-async function pipelineDrop(event,targetStage){
- event.preventDefault();
- document.querySelectorAll(".pipe-column").forEach(x=>x.classList.remove("drag-over"));
- const clienteId=event.dataTransfer.getData("text/plain");
- if(!clienteId)return;
- const c=getClient(clienteId); if(!c)return;
+
+async function moverClientePipeline(clienteId,targetStage){
+ const c=getClient(clienteId);
+ if(!c)return;
  const current=derivedStage(c);
  if(current===targetStage)return;
 
@@ -264,7 +252,8 @@ async function pipelineDrop(event,targetStage){
      const o=latestOrcamento(clienteId);
      if(!o){
        setPipelineOverride(clienteId,"Orçamento");
-       await persistDB(); renderPipeline();
+       await persistDB();
+       renderPipeline();
        openOrcamento(clienteId);
        return;
      }
@@ -276,7 +265,8 @@ async function pipelineDrop(event,targetStage){
      let o=latestOrcamento(clienteId);
      if(!o){
        alert("Crie um orçamento para este cliente antes de mover para Negociação.");
-       openOrcamento(clienteId); return;
+       openOrcamento(clienteId);
+       return;
      }
      o.status="Aprovado";
      setPipelineOverride(clienteId,"Negociação");
@@ -288,11 +278,19 @@ async function pipelineDrop(event,targetStage){
        const o=latestOrcamento(clienteId);
        if(!o){
          alert("Este cliente ainda não possui orçamento. Crie um orçamento antes de virar pedido.");
-         openOrcamento(clienteId); return;
+         openOrcamento(clienteId);
+         return;
        }
        const n="PED-"+String(Date.now()).slice(-6);
-       p={id:uid(),ordem:n,clienteId:o.clienteId,codigoCliente:o.codigoCliente,cliente:o.cliente,representante:o.representante,data:today(),valorSemImpostos:o.total,valorLiquido:o.total,cidade:o.cidade,uf:o.uf,status:"Digitado",origem:"Orçamento",orcamentoId:o.id,orcamentoNumero:o.numero,itens:o.itens,vendaId:""};
-       db.pedidos.push(p);o.status="Virou pedido";o.pedidoGerado=n;
+       p={
+         id:uid(),ordem:n,clienteId:o.clienteId,codigoCliente:o.codigoCliente,cliente:o.cliente,
+         representante:o.representante,data:today(),valorSemImpostos:o.total,valorLiquido:o.total,
+         cidade:o.cidade,uf:o.uf,status:"Digitado",origem:"Orçamento",orcamentoId:o.id,
+         orcamentoNumero:o.numero,itens:o.itens,vendaId:""
+       };
+       db.pedidos.push(p);
+       o.status="Virou pedido";
+       o.pedidoGerado=n;
      }
      setPipelineOverride(clienteId,"Pedido");
    }
@@ -305,15 +303,33 @@ async function pipelineDrop(event,targetStage){
          const o=latestOrcamento(clienteId);
          if(!o){
            alert("Para concluir a venda, o cliente precisa ter ao menos um orçamento.");
-           openOrcamento(clienteId); return;
+           openOrcamento(clienteId);
+           return;
          }
          const n="PED-"+String(Date.now()).slice(-6);
-         p={id:uid(),ordem:n,clienteId:o.clienteId,codigoCliente:o.codigoCliente,cliente:o.cliente,representante:o.representante,data:today(),valorSemImpostos:o.total,valorLiquido:o.total,cidade:o.cidade,uf:o.uf,status:"Digitado",origem:"Orçamento",orcamentoId:o.id,orcamentoNumero:o.numero,itens:o.itens,vendaId:""};
-         db.pedidos.push(p);o.status="Virou pedido";o.pedidoGerado=n;
+         p={
+           id:uid(),ordem:n,clienteId:o.clienteId,codigoCliente:o.codigoCliente,cliente:o.cliente,
+           representante:o.representante,data:today(),valorSemImpostos:o.total,valorLiquido:o.total,
+           cidade:o.cidade,uf:o.uf,status:"Digitado",origem:"Orçamento",orcamentoId:o.id,
+           orcamentoNumero:o.numero,itens:o.itens,vendaId:""
+         };
+         db.pedidos.push(p);
+         o.status="Virou pedido";
+         o.pedidoGerado=n;
        }
-       v={id:uid(),pedidoId:p.id,ordem:p.ordem,clienteId:p.clienteId,codigoCliente:p.codigoCliente,cliente:p.cliente,representante:p.representante,data:today(),valorSemImpostos:Number(p.valorSemImpostos||0),valorLiquido:Number(p.valorLiquido||0),cidade:p.cidade,uf:p.uf,origem:`Pedido ${p.ordem}`};
-       db.vendas.push(v);p.vendaId=v.id;p.status="Venda confirmada";
-       if(p.orcamentoId){const o=db.orcamentos.find(x=>x.id===p.orcamentoId);if(o){o.status="Venda concluída";o.vendaId=v.id}}
+       v={
+         id:uid(),pedidoId:p.id,ordem:p.ordem,clienteId:p.clienteId,codigoCliente:p.codigoCliente,
+         cliente:p.cliente,representante:p.representante,data:today(),
+         valorSemImpostos:Number(p.valorSemImpostos||0),valorLiquido:Number(p.valorLiquido||0),
+         cidade:p.cidade,uf:p.uf,origem:`Pedido ${p.ordem}`
+       };
+       db.vendas.push(v);
+       p.vendaId=v.id;
+       p.status="Venda confirmada";
+       if(p.orcamentoId){
+         const o=db.orcamentos.find(x=>x.id===p.orcamentoId);
+         if(o){o.status="Venda concluída";o.vendaId=v.id}
+       }
      }
      setPipelineOverride(clienteId,"Venda");
    }
@@ -328,6 +344,104 @@ async function pipelineDrop(event,targetStage){
    console.error(err);
    alert("Não foi possível mover o cliente: "+(err?.message||err));
  }
+}
+
+// Drag robusto com Pointer Events: funciona com mouse, touchpad e toque.
+let pipeDrag=null;
+
+function initPipelinePointerDrag(){
+ const board=document.querySelector(".pipeline-board");
+ if(!board || board.dataset.dragReady==="1")return;
+ board.dataset.dragReady="1";
+
+ board.addEventListener("pointerdown",e=>{
+   if(e.button!==undefined && e.button!==0)return;
+   if(e.target.closest("button,input,select,textarea,a"))return;
+
+   const card=e.target.closest(".pipe-card");
+   if(!card)return;
+
+   const clienteId=card.dataset.clienteId;
+   if(!clienteId)return;
+
+   pipeDrag={
+     clienteId,
+     card,
+     pointerId:e.pointerId,
+     startX:e.clientX,
+     startY:e.clientY,
+     active:false,
+     ghost:null,
+     target:null
+   };
+
+   card.setPointerCapture?.(e.pointerId);
+ });
+
+ board.addEventListener("pointermove",e=>{
+   if(!pipeDrag || pipeDrag.pointerId!==e.pointerId)return;
+
+   const dx=e.clientX-pipeDrag.startX,dy=e.clientY-pipeDrag.startY;
+   if(!pipeDrag.active && Math.hypot(dx,dy)<7)return;
+
+   if(!pipeDrag.active){
+     pipeDrag.active=true;
+     pipeDrag.card.classList.add("dragging-real");
+
+     const g=pipeDrag.card.cloneNode(true);
+     g.classList.add("pipe-ghost");
+     g.style.width=pipeDrag.card.getBoundingClientRect().width+"px";
+     document.body.appendChild(g);
+     pipeDrag.ghost=g;
+   }
+
+   e.preventDefault();
+   pipeDrag.ghost.style.left=(e.clientX+14)+"px";
+   pipeDrag.ghost.style.top=(e.clientY+14)+"px";
+
+   pipeDrag.ghost.style.display="none";
+   const under=document.elementFromPoint(e.clientX,e.clientY);
+   pipeDrag.ghost.style.display="block";
+
+   const col=under?.closest?.(".pipe-column")||null;
+   document.querySelectorAll(".pipe-column").forEach(x=>x.classList.remove("drag-over"));
+   if(col){
+     col.classList.add("drag-over");
+     pipeDrag.target=col;
+   }else{
+     pipeDrag.target=null;
+   }
+ });
+
+ const finish=async e=>{
+   if(!pipeDrag || (e.pointerId!==undefined && pipeDrag.pointerId!==e.pointerId))return;
+
+   const d=pipeDrag;
+   pipeDrag=null;
+
+   d.card?.classList.remove("dragging-real");
+   d.ghost?.remove();
+   document.querySelectorAll(".pipe-column").forEach(x=>x.classList.remove("drag-over"));
+
+   try{d.card?.releasePointerCapture?.(d.pointerId)}catch{}
+
+   if(!d.active || !d.target)return;
+
+   const stage=d.target.dataset.stage;
+   if(stage)await moverClientePipeline(d.clienteId,stage);
+ };
+
+ board.addEventListener("pointerup",finish);
+ board.addEventListener("pointercancel",finish);
+}
+
+// Mantém fallback do HTML5 drag/drop caso o navegador prefira.
+function pipelineDragOver(event){event.preventDefault();event.currentTarget?.classList.add("drag-over")}
+async function pipelineDrop(event,targetStage){
+ event.preventDefault();
+ document.querySelectorAll(".pipe-column").forEach(x=>x.classList.remove("drag-over"));
+ const clienteId=event.dataTransfer?.getData("text/plain");
+ if(clienteId)await moverClientePipeline(clienteId,targetStage);
 }
 
 function renderApuracao(){let q=norm($("buscaApuracao").value),sup=$("filtroSupervisor").value,at=$("filtroAtingido").value,fonte=db.apuracaoLinhas||[],arr=fonte.map(x=>{let m=Number(x.meta||0),v=Number(x.vrAtingido||0);return{...x,pct:m?v/m*100:0,falta:Math.max(m-v,0)}}).filter(x=>(!q||norm([x.representante,x.razaoSocial,x.supervisor].join(" ")).includes(q))&&(!sup||x.supervisor===sup)&&(!at||x.atingido===at));let resumo=db.apuracaoMetas||[],mt=resumo.reduce((s,x)=>s+Number(x.meta||0),0),va=resumo.reduce((s,x)=>s+Number(x.vrAtingido||0),0),qtd=resumo.filter(x=>Number(x.meta)>0&&Number(x.vrAtingido)>=Number(x.meta)).length;setText("aMetaTotal",money(mt));setText("aAtingidoTotal",money(va));setText("aFaltaTotal",money(Math.max(mt-va,0)));setText("aQtdMeta",qtd);setText("aPctMeta",(resumo.length?qtd/resumo.length*100:0).toFixed(1)+"% da equipe");let sm=new Map();resumo.forEach(x=>{let n=(x.supervisor||"Sem supervisor").trim()||"Sem supervisor";if(!sm.has(n))sm.set(n,{supervisor:n,reps:0,meta:0,atingido:0});let s=sm.get(n);s.reps++;s.meta+=Number(x.meta||0);s.atingido+=Number(x.vrAtingido||0)});let sups=[...sm.values()].map(s=>({...s,falta:Math.max(s.meta-s.atingido,0),pct:s.meta?s.atingido/s.meta*100:0})).filter(s=>!sup||s.supervisor===sup).sort((a,b)=>b.pct-a.pct);setHTML("supervisorBody",sups.map(s=>`<tr><td><b>${esc(s.supervisor)}</b></td><td>${s.reps}</td><td>${money(s.meta)}</td><td>${money(s.atingido)}</td><td>${money(s.falta)}</td><td><b>${s.pct.toFixed(1)}%</b></td><td><span class="pill ${s.pct>=100?"ok":s.pct>=80?"near":"no"}">${s.pct>=100?"Meta atingida":s.pct>=80?"Próximo da meta":"Abaixo da meta"}</span></td></tr>`).join("")||'<tr><td colspan="7">Sem dados.</td></tr>');let tm=sups.reduce((s,x)=>s+x.meta,0),ta=sups.reduce((s,x)=>s+x.atingido,0),tr=sups.reduce((s,x)=>s+x.reps,0);setHTML("supervisorFoot",`<tr><td>TOTAL</td><td>${tr}</td><td>${money(tm)}</td><td>${money(ta)}</td><td>${money(Math.max(tm-ta,0))}</td><td>${(tm?ta/tm*100:0).toFixed(1)}%</td><td></td></tr>`);setHTML("apuracaoBody",arr.map(x=>`<tr><td class="${x.atingido==="Sim"?"status-ok":"status-no"}">${esc(x.atingido)}</td><td><b>${esc(x.razaoSocial||x.representante||"—")}</b></td><td>${esc(x.representante||"—")}</td><td>${money(x.meta)}</td><td>${money(x.vrAtingido)}</td><td>${money(x.falta)}</td><td>${x.pct.toFixed(1)}%</td><td>${esc(x.supervisor||"—")}</td></tr>`).join("")||'<tr><td colspan="8">Importe APURAÇÃO DE VENDAS.xls.</td></tr>')}

@@ -92,3 +92,11 @@ V17 PIPELINE CLIENTES + ARRASTAR
 - Ao arrastar para Pedido, o sistema cria um pedido a partir do orçamento quando necessário.
 - Ao arrastar para Venda, o sistema cria/usa o pedido e registra a venda automaticamente.
 - Posição manual do Pipeline é salva no IndexedDB.
+
+V18 ARRASTAR CORRIGIDO
+- Drag and drop refeito com Pointer Events.
+- Funciona melhor com mouse, touchpad e tela touch.
+- Segure o cartão em uma área vazia do cartão e arraste.
+- Botões internos continuam clicáveis.
+- Coluna de destino fica destacada.
+- Ao soltar, o sistema executa a mudança de processo.

@@ -1,407 +1,217 @@
-const $ = (s)=>document.querySelector(s);
-const $$ = (s)=>[...document.querySelectorAll(s)];
-const fmtBRL = v => new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(v)||0);
-const fmtDate = v => { if(!v) return '—'; const d=new Date(v+'T12:00:00'); return isNaN(d)?'—':d.toLocaleDateString('pt-BR'); };
-const todayISO = ()=> new Date().toISOString().slice(0,10);
-const addDays=(iso,n)=>{const d=new Date(iso+'T12:00:00');d.setDate(d.getDate()+n);return d.toISOString().slice(0,10)};
-const diffDays=(a,b)=>Math.round((new Date(b+'T12:00:00')-new Date(a+'T12:00:00'))/86400000);
-const norm=s=>String(s??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
-const uid=()=>Math.random().toString(36).slice(2)+Date.now().toString(36);
+console.info("Gestor Comercial Panamby V12 DO ZERO");
+const DB_NAME="gestor_comercial_panamby_v12",STORE="app",DB_KEY="principal";
+let db={clientes:[],pedidos:[],vendas:[],orcamentos:[],followups:[],alertas:[],apuracaoLinhas:[],apuracaoMetas:[]};
+const $=id=>document.getElementById(id),uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2),today=()=>new Date().toISOString().slice(0,10);
+const money=v=>Number(v||0).toLocaleString("pt-BR",{style:"currency",currency:"BRL"}),norm=v=>String(v??"").trim().toUpperCase();
+const esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+function normHeader(v){return String(v??"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase().replace(/[^A-Z0-9]+/g," ").replace(/\s+/g," ").trim()}
+function findCol(h,a){let hs=h.map(normHeader);for(const x of a){let n=normHeader(x),i=hs.findIndex(y=>y===n);if(i>=0)return i}for(const x of a){let n=normHeader(x),i=hs.findIndex(y=>y.includes(n)||n.includes(y));if(i>=0)return i}return-1}
+function numBR(v){if(typeof v==="number")return v;let s=String(v??"").trim().replace(/R\$/gi,"").replace(/\s/g,"");if(!s)return 0;if(s.includes(",")&&s.includes("."))s=s.replace(/\./g,"").replace(",",".");else if(s.includes(","))s=s.replace(",",".");return Number(s.replace(/[^0-9.-]/g,""))||0}
+function excelDate(v){if(v instanceof Date)return v.toISOString().slice(0,10);if(typeof v==="number"){let d=XLSX.SSF.parse_date_code(v);return d?`${d.y}-${String(d.m).padStart(2,"0")}-${String(d.d).padStart(2,"0")}`:""}if(!v)return"";let s=String(v).trim(),m=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);if(m)return`${m[3]}-${m[2].padStart(2,"0")}-${m[1].padStart(2,"0")}`;let d=new Date(s);return isNaN(d)?"":d.toISOString().slice(0,10)}
+function brdate(v){if(!v)return"—";let d=new Date(v+"T12:00:00");return isNaN(d)?esc(v):d.toLocaleDateString("pt-BR")}
+function setText(id,v){if($(id))$(id).textContent=v} function setHTML(id,v){if($(id))$(id).innerHTML=v}
+function normalizeDB(){for(const k of Object.keys(db))if(!Array.isArray(db[k]))db[k]=[]}
+function openDB(){return new Promise((res,rej)=>{let r=indexedDB.open(DB_NAME,1);r.onupgradeneeded=()=>{if(!r.result.objectStoreNames.contains(STORE))r.result.createObjectStore(STORE)};r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)})}
+async function loadDB(){let d=await openDB();return new Promise((res,rej)=>{let r=d.transaction(STORE,"readonly").objectStore(STORE).get(DB_KEY);r.onsuccess=()=>res(r.result||null);r.onerror=()=>rej(r.error)})}
+async function persistDB(){try{normalizeDB();let d=await openDB();await new Promise((res,rej)=>{let t=d.transaction(STORE,"readwrite");t.objectStore(STORE).put(db,DB_KEY);t.oncomplete=res;t.onerror=()=>rej(t.error);t.onabort=()=>rej(t.error)});return true}catch(e){console.error(e);alert("Erro ao salvar dados: "+(e?.message||e));return false}}
+async function clearDB(){let d=await openDB();await new Promise((res,rej)=>{let t=d.transaction(STORE,"readwrite");t.objectStore(STORE).delete(DB_KEY);t.oncomplete=res;t.onerror=()=>rej(t.error)})}
+function save(){render();persistDB()}
+function getClient(id){return db.clientes.find(c=>c.id===id)} function findClientCode(c){return db.clientes.find(x=>String(x.codigo)===String(c))}
+function findClientRazao(r){let n=norm(r);return db.clientes.find(c=>norm(c.razao)===n)||db.clientes.find(c=>norm(c.razao).includes(n)||n.includes(norm(c.razao)))||null}
+function reps(){return [...new Set([...db.clientes,...db.pedidos,...db.vendas].map(x=>x.representante).filter(Boolean))].sort()}
+function region(uf){let m={SP:"Sudeste",RJ:"Sudeste",MG:"Sudeste",ES:"Sudeste",PR:"Sul",SC:"Sul",RS:"Sul",BA:"Nordeste",SE:"Nordeste",AL:"Nordeste",PE:"Nordeste",PB:"Nordeste",RN:"Nordeste",CE:"Nordeste",PI:"Nordeste",MA:"Nordeste",GO:"Centro-Oeste",MT:"Centro-Oeste",MS:"Centro-Oeste",DF:"Centro-Oeste",AM:"Norte",PA:"Norte",AC:"Norte",RO:"Norte",RR:"Norte",AP:"Norte",TO:"Norte"};return m[norm(uf)]||"Não informado"}
+function saleValue(x,m){return m==="liq"?Number(x.valorLiquido||0):Number(x.valorSemImpostos||0)}
+function inPeriod(d,s,e){return !!d&&(!s||d>=s)&&(!e||d<=e)}
+function localizarCabecalho(raw,req,limit=60){for(let i=0;i<Math.min(raw.length,limit);i++){let rr=raw[i].map(normHeader);if(req.every(g=>g.some(a=>rr.some(v=>v===normHeader(a)||v.includes(normHeader(a))))))return i}return-1}
+function combinedSales(){let p=db.pedidos.map(x=>({...x,pedido:x.ordem})),ord=new Set(p.map(x=>String(x.ordem||"")).filter(Boolean));let v=db.vendas.filter(x=>!x.pedidoId&&!ord.has(String(x.ordem||"")));return [...p,...v]}
+let charts={}; function makeChart(id,type,labels,data,label){let el=$(id);if(!el||typeof Chart==="undefined")return;if(charts[id])charts[id].destroy();charts[id]=new Chart(el,{type,data:{labels,datasets:[{label,data,borderWidth:2,tension:.25}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:type==="pie"}},scales:type==="pie"?{}:{y:{beginAtZero:true}}}})}
+document.querySelectorAll(".nav").forEach(b=>b.onclick=()=>{document.querySelectorAll(".nav,.tab").forEach(x=>x.classList.remove("active"));b.classList.add("active");$(b.dataset.tab)?.classList.add("active");setText("pageTitle",b.textContent.replace(/^[^\s]+\s/,""))});
+setText("todayLabel",new Date().toLocaleDateString("pt-BR",{weekday:"long",day:"2-digit",month:"long",year:"numeric"}));
+function fillSelectors(){let r=reps(),opts='<option value="">Todos</option>'+r.map(x=>`<option>${esc(x)}</option>`).join(""),dr=$("dashRep")?.value||"",pr=$("repPedido")?.value||"";if($("dashRep")){$("dashRep").innerHTML=opts;$("dashRep").value=dr}if($("repPedido")){$("repPedido").innerHTML=opts;$("repPedido").value=pr}if($("vRep"))$("vRep").innerHTML=r.map(x=>`<option>${esc(x)}</option>`).join("");if($("orcRep"))$("orcRep").innerHTML=r.map(x=>`<option>${esc(x)}</option>`).join("");if($("pipeRep")){let cur=$("pipeRep").value||"";$("pipeRep").innerHTML=opts;$("pipeRep").value=cur}if($("fCliente"))$("fCliente").innerHTML=db.clientes.map(c=>`<option value="${c.id}">${esc(c.codigo)} — ${esc(c.razao)}</option>`).join("")}
 
-function loadState(){
-  try{
-    const raw=localStorage.getItem('salesflow-crm');
-    const parsed=raw ? JSON.parse(raw) : null;
-    return parsed && typeof parsed==='object' ? parsed : {records:[],deals:[],activities:[],mappings:{},importedFiles:[]};
-  }catch(e){
-    console.warn('Falha ao carregar dados locais:',e);
-    return {records:[],deals:[],activities:[],mappings:{},importedFiles:[]};
-  }
+function animateValue(id,end,currency=false,duration=650){
+ const el=$(id); if(!el)return;
+ const start=Number(el.dataset.num||0), target=Number(end||0), t0=performance.now();
+ function step(t){
+   const p=Math.min((t-t0)/duration,1), eased=1-Math.pow(1-p,3);
+   const v=start+(target-start)*eased;
+   el.textContent=currency?money(v):Math.round(v).toLocaleString("pt-BR");
+   if(p<1)requestAnimationFrame(step); else el.dataset.num=String(target);
+ }
+ requestAnimationFrame(step);
 }
-const state = loadState();
-let currentWorkbook=null, currentHeaders=[], currentRows=[], currentFilename='', currentSheet='';
-let chart, calendar;
 
-const aliases = {
-  client:['razao cliente','razão cliente','cliente','razao social','razão social','nome cliente','nome do cliente','fantasia','nome fantasia','destinatario','destinatário'],
-  clientCode:['codigo cliente','código cliente','cod cliente'],
-  date:['ultima compra','última compra','data ultima compra','data última compra','digitação','digitacao','data pedido','dt pedido','emissao','emissão','data emissao','data emissão','data venda','data'],
-  value:['vr total (liquido)','vr total (líquido)','vr total (s/impostos)','valor ultima compra','valor última compra','valor total','vl total','valor pedido','faturamento','vlr total','valor'],
-  order:['ordem','pedido','nr pedido','n pedido','numero pedido','número pedido'],
-  city:['cidade','municipio','município'],
-  uf:['uf','estado'],
-  seller:['representante','vendedor','rep','consultor'],
-  sellerCode:['rep cod','representante'],
-  supervisor:['nome do supervisor','supervisor'],
-  goal:['meta'],
-  achieved:['vr atingido','valor atingido','atingido'],
-  daysNoBuy:['dias sem comprar'],
-  phone1:['telefone 1','telefone','fone 1','celular'],
-  phone2:['telefone 2','fone 2'],
-  contact:['responsavel','responsável','contato'],
-  cnpj:['cnpj'],
-  product:['produto','descricao','descrição','item','nome produto'],
-  qty:['quantidade','qtd','qtde'],
-  status:['etapa','status','situacao','situação']
-};
+function renderDashboard(){let start=$("dashInicio").value,end=$("dashFim").value,rep=$("dashRep").value,reg=$("dashRegiao").value,metric=$("dashMetric").value,arr=combinedSales().filter(x=>inPeriod(x.data,start,end)&&(!rep||norm(x.representante)===norm(rep))&&(!reg||region(x.uf||getClient(x.clienteId)?.uf)===reg)&&norm(x.status)!=="CANCELADO");let sem=arr.reduce((s,x)=>s+saleValue(x,"sem"),0),liq=arr.reduce((s,x)=>s+saleValue(x,"liq"),0),tot=arr.reduce((s,x)=>s+saleValue(x,metric),0);animateValue("kSem",sem,true);animateValue("kLiq",liq,true);animateValue("kQtd",arr.length,false);animateValue("kTicket",arr.length?tot/arr.length:0,true);let regs={},rps={},cls={},days={};arr.forEach(x=>{let v=saleValue(x,metric),rg=region(x.uf||getClient(x.clienteId)?.uf),rp=x.representante||"Sem representante",cl=x.cliente||getClient(x.clienteId)?.razao||"Cliente";regs[rg]=(regs[rg]||0)+v;rps[rp]=(rps[rp]||0)+v;cls[cl]=(cls[cl]||0)+v;days[x.data]=(days[x.data]||0)+v});let sr=Object.entries(regs).sort((a,b)=>b[1]-a[1]),sp=Object.entries(rps).sort((a,b)=>b[1]-a[1]),sc=Object.entries(cls).sort((a,b)=>b[1]-a[1]),sd=Object.keys(days).sort();setText("kRegiao",sr[0]?.[0]||"—");setText("kRegiaoVal",money(sr[0]?.[1]||0));setText("kRepLider",sp[0]?.[0]||"—");setText("kRepVal",money(sp[0]?.[1]||0));setText("kCli",Object.keys(cls).length);setText("kAlert",db.alertas.filter(a=>!a.done&&a.data<=today()).length);setText("kFollow",db.followups.filter(f=>!f.done).length);makeChart("chartEvolucao","line",sd.map(brdate),sd.map(k=>days[k]),"Valor");makeChart("chartRegiao","bar",sr.map(x=>x[0]),sr.map(x=>x[1]),"Valor");makeChart("chartRep","bar",sp.slice(0,12).map(x=>x[0]),sp.slice(0,12).map(x=>x[1]),"Valor");makeChart("chartPizza","pie",sr.map(x=>x[0]),sr.map(x=>x[1]),"Valor");setHTML("topClientes",sc.slice(0,10).map((x,i)=>`<div class="rankline"><span>${i+1}. ${esc(x[0])}</span><b>${money(x[1])}</b></div>`).join("")||'<p class="muted">Sem dados no período.</p>');let metas=(db.apuracaoMetas||[]).map(x=>{let m=Number(x.meta||0),v=Number(x.vrAtingido||0);return{...x,pct:m?v/m*100:0,falta:Math.max(m-v,0)}}).sort((a,b)=>b.vrAtingido-a.vrAtingido);setHTML("repRanking",metas.slice(0,10).map((x,i)=>{let nome=x.razaoSocial||x.representante||"—",cod=x.representante&&norm(x.representante)!==norm(nome)?x.representante:"";return`<div class="barrow"><div class="barlabel"><div><b>${i+1}. ${esc(nome)}</b>${cod?`<div class="rep-code">Código ${esc(cod)}</div>`:""}</div><span>${x.pct.toFixed(1)}%</span></div><div class="muted">Vendido ${money(x.vrAtingido)} • Meta ${money(x.meta)} • Falta ${money(x.falta)}</div><div class="bartrack"><div class="barfill" style="width:${Math.min(x.pct,100)}%"></div></div></div>`}).join("")||'<p class="muted">Importe APURAÇÃO DE VENDAS.xls.</p>')
+setText("tickSem",money(sem));
+setText("tickLiq",money(liq));
+setText("tickQtd",arr.length.toLocaleString("pt-BR"));
+setText("tickTicket",money(arr.length?tot/arr.length:0));
+setText("tickRegiao",sr[0]?.[0]||"—");
+setText("tickRep",sp[0]?.[0]||"—");
+setText("tickAlert",db.alertas.filter(a=>!a.done&&a.data<=today()).length);
+setText("tickFollow",db.followups.filter(f=>!f.done).length);
 
-function save(){
-  try{
-    localStorage.setItem('salesflow-crm',JSON.stringify(state));
-    return true;
-  }catch(e){
-    console.error('Falha ao salvar:',e);
-    toast('Não foi possível salvar no navegador. Verifique se o armazenamento está permitido.');
-    return false;
-  }
+
 }
-function toast(msg){ const el=$('#toast'); el.textContent=msg; el.classList.add('show'); setTimeout(()=>el.classList.remove('show'),2600); }
-function valueFrom(obj,key){ return obj?.[key] ?? ''; }
+function renderClientes(){let q=norm($("buscaCliente").value),dias=Number($("filtroDias").value||0),a=db.clientes.filter(c=>(!q||norm([c.codigo,c.razao,c.cnpj,c.cidade,c.uf,c.representante,c.responsavel,c.tel1,c.tel2].join(" ")).includes(q))&&(!dias||Number(c.dias)>=dias));setHTML("clientesList",a.map(c=>`<div class="client"><div class="toprow"><div><h3>${esc(c.codigo)} — ${esc(c.razao)}</h3><span class="muted">${esc(c.cidade)}/${esc(c.uf)} • CNPJ ${esc(c.cnpj||"—")}</span></div><b>${Number(c.dias||0)} dias</b></div><div class="tags"><span class="tag">${esc(c.representante||"Sem representante")}</span></div><div class="muted">Última compra: ${brdate(c.ultima)} • ${money(c.valor)}<br>☎ ${esc(c.tel1||"")} ${c.tel2?" | "+esc(c.tel2):""}</div><div class="actions"><button class="followbtn" onclick="openFollow('${c.id}')">📞 Follow-up</button><button class="alertbtn" onclick="openAlert('${c.id}')">🔔 Alerta</button><button class="whatsbtn" onclick="openWhats('${c.id}')">💬 WhatsApp</button><button onclick="openVenda('${c.id}')">💰 Venda</button><button onclick="openOrcamento('${c.id}')">📝 Orçamento</button></div></div>`).join("")||'<div class="card muted">Nenhum cliente.</div>')}
+function renderVendas(){let q=norm($("buscaVenda").value),s=$("vendaInicio").value,e=$("vendaFim").value,a=db.vendas.filter(v=>inPeriod(v.data,s,e)&&(!q||norm([v.ordem,v.codigoCliente,v.cliente,v.representante,v.origem].join(" ")).includes(q))).sort((a,b)=>(b.data||"").localeCompare(a.data||""));setText("vSem",money(a.reduce((s,x)=>s+saleValue(x,"sem"),0)));setText("vLiq",money(a.reduce((s,x)=>s+saleValue(x,"liq"),0)));setText("vQtd",a.length);setHTML("vendasList",a.map(v=>`<div class="sale"><div class="toprow"><div><h3>${esc(v.codigoCliente||"")} — ${esc(v.cliente||"Cliente")}</h3><span class="muted">${brdate(v.data)} • Pedido ${esc(v.ordem||"—")} • ${esc(v.representante||"")}</span></div><div><b>${money(saleValue(v,"sem"))}</b><br><span class="muted">Líquido ${money(saleValue(v,"liq"))}</span></div></div></div>`).join("")||'<div class="card muted">Nenhuma venda.</div>')}
+function renderPedidos(){let q=norm($("buscaPedido").value),s=$("pedidoInicio").value,e=$("pedidoFim").value,rep=$("repPedido").value,a=db.pedidos.filter(p=>inPeriod(p.data,s,e)&&(!rep||norm(p.representante)===norm(rep))&&(!q||norm([p.ordem,p.codigoCliente,p.cliente,p.representante].join(" ")).includes(q))).sort((a,b)=>(b.data||"").localeCompare(a.data||""));setText("pSem",money(a.reduce((s,x)=>s+saleValue(x,"sem"),0)));setText("pLiq",money(a.reduce((s,x)=>s+saleValue(x,"liq"),0)));setText("pQtd",a.length);setHTML("pedidosList",a.map(p=>`<div class="order"><div class="toprow"><div><h3>Pedido ${esc(p.ordem)} • ${esc(p.codigoCliente||"")} ${esc(p.cliente||"")}</h3><span class="muted">${brdate(p.data)} • ${esc(p.representante||"")} • ${esc(p.cidade||"")}/${esc(p.uf||"")}</span></div><div><b>${money(saleValue(p,"sem"))}</b><br><span class="muted">Líquido ${money(saleValue(p,"liq"))}</span></div></div><div class="tags"><span class="tag">${esc(p.status||"Sem status")}</span>${p.vendaId?'<span class="pill ok">Venda confirmada</span>':""}</div><div class="actions">${p.vendaId?"":`<button class="primary" onclick="confirmarVendaPedido('${p.id}')">💰 Confirmar venda</button>`}<button class="deletebtn" onclick="excluirPedido('${p.id}')">🗑️ Excluir pedido</button></div></div>`).join("")||'<div class="card muted">Nenhum pedido.</div>')}
 
-function parseNumber(v){
-  if(typeof v==='number') return v;
-  let s=String(v??'').replace(/\s/g,'').replace(/R\$/gi,'');
-  if(s.includes(',') && s.includes('.')) s=s.replace(/\./g,'').replace(',','.');
-  else if(s.includes(',')) s=s.replace(',','.');
-  return Number(s.replace(/[^\d.-]/g,''))||0;
-}
-function parseDateValue(v){
-  if(!v) return '';
-  if(v instanceof Date && !isNaN(v)) return v.toISOString().slice(0,10);
-  if(typeof v==='number' && window.XLSX){
-    const o=XLSX.SSF.parse_date_code(v); if(o) return `${o.y}-${String(o.m).padStart(2,'0')}-${String(o.d).padStart(2,'0')}`;
-  }
-  const s=String(v).trim();
-  let m=s.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2,4})$/);
-  if(m){ let y=m[3].length===2?'20'+m[3]:m[3]; return `${y}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`; }
-  const d=new Date(s); return isNaN(d)?'':d.toISOString().slice(0,10);
-}
-function autoMap(headers){
-  const out={};
-  const used=new Set();
 
-  Object.entries(aliases).forEach(([field,list])=>{
-    const found=headers.find(h=>{
-      if(used.has(h)) return false;
-      const nh=norm(h);
-      return list.some(a=>nh===norm(a) || nh.includes(norm(a)));
-    });
+function excluirPedido(id){
+ const p=db.pedidos.find(x=>x.id===id);
+ if(!p)return;
+ const vendasLigadas=db.vendas.filter(v=>v.pedidoId===p.id || String(v.ordem||"")===String(p.ordem||""));
+ let aviso=vendasLigadas.length?`\n\nEste pedido possui ${vendasLigadas.length} venda(s) vinculada(s). Elas também serão excluídas.`:"";
+ if(!confirm(`Excluir o pedido ${p.ordem}?${aviso}`))return;
 
-    if(found){
-      out[field]=found;
-      used.add(found);
-    }
-  });
+ db.vendas=db.vendas.filter(v=>!(v.pedidoId===p.id || String(v.ordem||"")===String(p.ordem||"")));
+ db.pedidos=db.pedidos.filter(x=>x.id!==id);
 
-  return out;
+ if(p.orcamentoId){
+   const o=db.orcamentos.find(x=>x.id===p.orcamentoId);
+   if(o){
+     o.pedidoGerado="";
+     o.vendaId="";
+     if(o.status==="Virou pedido"||o.status==="Venda concluída")o.status="Aprovado";
+   }
+ }
+ save();
 }
-function buildMapping(headers,mapping={}){
-  // Mantido apenas por compatibilidade interna.
-  // A importação agora é totalmente automática e não exibe tela de mapeamento.
-  return mapping;
-}
-function escapeHtml(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));}
 
-async function readFiles(files){
-  if(typeof XLSX==='undefined'){
-    toast('O leitor de Excel não carregou. Atualize a página com internet e tente novamente.');
-    $('#importMessages').insertAdjacentHTML('beforeend','<div class="import-note" style="background:#fff1f1;color:#a33"><b>Leitor de Excel indisponível.</b> Atualize a página e tente novamente.</div>');
-    return;
-  }
-  for(const file of files){
-    currentFilename=file.name;
-    const data=await file.arrayBuffer();
-    let wb;
-    try{
-      wb=XLSX.read(data,{type:'array',cellDates:true});
-    }catch(e){
-      toast('Não consegui ler '+file.name);
-      continue;
-    }
+function excluirOrcamento(id){
+ const o=db.orcamentos.find(x=>x.id===id);
+ if(!o)return;
+ const temLigacao=db.pedidos.some(p=>p.orcamentoId===id)||db.vendas.some(v=>v.orcamentoId===id);
+ let aviso=temLigacao?"\n\nPedidos/vendas já criados serão mantidos; apenas o vínculo com este orçamento será removido.":"";
+ if(!confirm(`Excluir o orçamento ${o.numero}?${aviso}`))return;
 
-    currentWorkbook=wb;
-    currentSheet=wb.SheetNames[0];
-    const ws=wb.Sheets[currentSheet];
-    const rows=XLSX.utils.sheet_to_json(ws,{defval:'',raw:true});
+ db.pedidos.forEach(p=>{
+   if(p.orcamentoId===id){
+     p.orcamentoId="";
+     p.orcamentoNumero="";
+     if(p.origem==="Orçamento")p.origem="Pedido";
+   }
+ });
+ db.vendas.forEach(v=>{
+   if(v.orcamentoId===id){
+     v.orcamentoId="";
+     v.orcamentoNumero="";
+     if(String(v.origem||"").startsWith("Orçamento"))v.origem=`Pedido ${v.ordem||""}`.trim();
+   }
+ });
+ db.orcamentos=db.orcamentos.filter(x=>x.id!==id);
+ save();
+}
 
-    if(!rows.length){
-      toast('Planilha sem linhas reconhecíveis: '+file.name);
-      continue;
-    }
+function openVenda(id){fillSelectors();$("vData").value=today();$("vCodigo").value="";$("vCliente").value="";$("vPedido").value="";$("vValorSem").value="";$("vValorLiq").value="";$("vObs").value="";if(id){let c=getClient(id);$("vCodigo").value=c.codigo;buscarClienteVenda()}$("vendaModal").classList.add("open")}
+function buscarClienteVenda(){let c=findClientCode($("vCodigo").value);$("vClienteId").value=c?.id||"";$("vCliente").value=c?.razao||"";if(c?.representante)$("vRep").value=c.representante}
+function saveVenda(){let c=findClientCode($("vCodigo").value);if(!c)return alert("Cliente não encontrado.");db.vendas.push({id:uid(),clienteId:c.id,codigoCliente:c.codigo,cliente:c.razao,representante:$("vRep").value||c.representante||"",data:$("vData").value,ordem:$("vPedido").value.trim(),valorSemImpostos:Number($("vValorSem").value||0),valorLiquido:Number($("vValorLiq").value||0),cidade:c.cidade,uf:c.uf,origem:"Venda manual",obs:$("vObs").value.trim()});closeModal("vendaModal");save()}
+function confirmarVendaPedido(id){let p=db.pedidos.find(x=>x.id===id);if(!p||p.vendaId)return;let o=p.orcamentoId?db.orcamentos.find(x=>x.id===p.orcamentoId):null,v={id:uid(),pedidoId:p.id,ordem:p.ordem,clienteId:p.clienteId,codigoCliente:p.codigoCliente,cliente:p.cliente,representante:p.representante,data:today(),valorSemImpostos:saleValue(p,"sem"),valorLiquido:saleValue(p,"liq"),cidade:p.cidade,uf:p.uf,origem:o?`Orçamento ${o.numero} → Pedido ${p.ordem}`:`Pedido ${p.ordem}`};db.vendas.push(v);p.vendaId=v.id;p.status="Venda confirmada";if(o){o.status="Venda concluída";o.vendaId=v.id}save();alert("Venda confirmada.")}
 
-    currentRows=rows;
-    currentHeaders=Object.keys(rows[0]);
+function orcNumber(){return"ORC-"+new Date().getFullYear()+"-"+String(Date.now()).slice(-6)}
+function openOrcamento(id){fillSelectors();$("orcCodigo").value="";$("orcCliente").value="";$("orcValidade").value=new Date(Date.now()+7*86400000).toISOString().slice(0,10);$("orcDesconto").value=0;$("orcObs").value="";$("orcItens").innerHTML="";addOrcItem();if(id){let c=getClient(id);$("orcCodigo").value=c.codigo;buscarClienteOrc()}$("orcModal").classList.add("open")}
+function buscarClienteOrc(){let c=findClientCode($("orcCodigo").value);$("orcClienteId").value=c?.id||"";$("orcCliente").value=c?.razao||"";if(c?.representante)$("orcRep").value=c.representante}
+function addOrcItem(desc="",qtd=1,preco=0){let tr=document.createElement("tr");tr.innerHTML=`<td><input class="desc" value="${esc(desc)}"></td><td><input class="qtd" type="number" value="${qtd}" min="0" oninput="recalcOrc()"></td><td><input class="preco" type="number" value="${preco}" min="0" step="0.01" oninput="recalcOrc()"></td><td class="sub">${money(qtd*preco)}</td><td><button class="deletebtn" onclick="this.closest('tr').remove();recalcOrc()">×</button></td>`;$("orcItens").appendChild(tr);recalcOrc()}
+function orcItems(){return[...$("orcItens").querySelectorAll("tr")].map(tr=>({descricao:tr.querySelector(".desc").value.trim(),qtd:Number(tr.querySelector(".qtd").value||0),preco:Number(tr.querySelector(".preco").value||0)})).filter(x=>x.descricao&&x.qtd>0)}
+function recalcOrc(){let bruto=orcItems().reduce((s,x)=>s+x.qtd*x.preco,0),desc=Number($("orcDesconto").value||0);[...$("orcItens").querySelectorAll("tr")].forEach(tr=>tr.querySelector(".sub").textContent=money(Number(tr.querySelector(".qtd").value||0)*Number(tr.querySelector(".preco").value||0)));$("orcTotal").value=money(Math.max(bruto-desc,0))}
+function saveOrcamento(){let c=findClientCode($("orcCodigo").value),it=orcItems();if(!c)return alert("Cliente não encontrado.");if(!it.length)return alert("Adicione itens.");let bruto=it.reduce((s,x)=>s+x.qtd*x.preco,0),desc=Number($("orcDesconto").value||0);db.orcamentos.push({id:uid(),numero:orcNumber(),data:today(),validade:$("orcValidade").value,clienteId:c.id,codigoCliente:c.codigo,cliente:c.razao,representante:$("orcRep").value||c.representante||"",cidade:c.cidade,uf:c.uf,itens:it,bruto,desconto:desc,total:Math.max(bruto-desc,0),observacao:$("orcObs").value.trim(),status:"Em aberto",pedidoGerado:""});closeModal("orcModal");save()}
+function renderOrcamentos(){let q=norm($("buscaOrcamento").value),st=$("statusOrcamento").value,a=db.orcamentos.filter(o=>(!st||o.status===st)&&(!q||norm([o.numero,o.codigoCliente,o.cliente,o.representante].join(" ")).includes(q))).sort((a,b)=>(b.data||"").localeCompare(a.data||""));setText("oQtd",a.length);setText("oAberto",money(db.orcamentos.filter(o=>o.status==="Em aberto").reduce((s,o)=>s+Number(o.total||0),0)));setText("oConv",db.orcamentos.filter(o=>["Virou pedido","Venda concluída"].includes(o.status)).length);setHTML("orcamentosList",a.map(o=>`<div class="quote"><div class="toprow"><div><h3>${esc(o.numero)} • ${esc(o.codigoCliente)} — ${esc(o.cliente)}</h3><span class="muted">${brdate(o.data)} • validade ${brdate(o.validade)} • ${esc(o.representante||"")}</span></div><b>${money(o.total)}</b></div><div class="tags"><span class="tag">${esc(o.status)}</span>${o.pedidoGerado?`<span class="tag">Pedido ${esc(o.pedidoGerado)}</span>`:""}</div><div class="muted">${o.itens.map(i=>`${esc(i.descricao)} • ${i.qtd} × ${money(i.preco)}`).join("<br>")}</div><div class="actions">${["Em aberto","Aprovado"].includes(o.status)?`<button onclick="setOrcStatus('${o.id}','Aprovado')">✅ Aprovar</button><button class="primary" onclick="openConverter('${o.id}')">🧾 Virar pedido</button>`:""}<button onclick="printOrc('${o.id}')">🖨️ Imprimir</button><button class="whatsbtn" onclick="whatsOrc('${o.id}')">💬 WhatsApp</button><button class="deletebtn" onclick="excluirOrcamento('${o.id}')">🗑️ Excluir orçamento</button></div></div>`).join("")||'<div class="card muted">Nenhum orçamento.</div>')}
+function setOrcStatus(id,s){let o=db.orcamentos.find(x=>x.id===id);if(o){o.status=s;save()}}
+function openConverter(id){$("convOrcId").value=id;$("convPedido").value="";$("convData").value=today();$("convModal").classList.add("open")}
+function converterOrcamento(){let o=db.orcamentos.find(x=>x.id===$("convOrcId").value);if(!o)return;let n=$("convPedido").value.trim()||("PED-"+String(Date.now()).slice(-6));if(db.pedidos.some(p=>String(p.ordem)===n))return alert("Pedido já existe.");db.pedidos.push({id:uid(),ordem:n,clienteId:o.clienteId,codigoCliente:o.codigoCliente,cliente:o.cliente,representante:o.representante,data:$("convData").value,valorSemImpostos:o.total,valorLiquido:o.total,cidade:o.cidade,uf:o.uf,status:$("convStatus").value,origem:"Orçamento",orcamentoId:o.id,orcamentoNumero:o.numero,itens:o.itens,vendaId:""});o.status="Virou pedido";o.pedidoGerado=n;closeModal("convModal");save();alert("Pedido criado.")}
+function printOrc(id){let o=db.orcamentos.find(x=>x.id===id);if(!o)return;let w=window.open("","_blank");w.document.write(`<html><body style="font-family:Arial;padding:30px"><h1>Orçamento ${esc(o.numero)}</h1><p>${esc(o.codigoCliente)} — ${esc(o.cliente)}</p><table border="1" cellspacing="0" cellpadding="8" width="100%"><tr><th>Item</th><th>Qtd</th><th>Unitário</th><th>Subtotal</th></tr>${o.itens.map(i=>`<tr><td>${esc(i.descricao)}</td><td>${i.qtd}</td><td>${money(i.preco)}</td><td>${money(i.qtd*i.preco)}</td></tr>`).join("")}</table><h2>Total: ${money(o.total)}</h2></body></html>`);w.document.close();w.print()}
+function cleanPhone(v){let n=String(v||"").replace(/\D/g,"");if(!n)return"";if(n.startsWith("55")&&n.length>=12)return n;if(n.length===10||n.length===11)return"55"+n;return n}
+function whatsOrc(id){let o=db.orcamentos.find(x=>x.id===id),c=getClient(o?.clienteId);if(!o||!c)return;let p=cleanPhone(c.tel1||c.tel2);if(!p)return alert("Cliente sem telefone.");let msg=`Olá! Segue o orçamento ${o.numero}:\n\n${o.itens.map(i=>`• ${i.descricao}: ${i.qtd} x ${money(i.preco)}`).join("\n")}\n\nTotal: ${money(o.total)}`;window.open(`https://wa.me/${p}?text=${encodeURIComponent(msg)}`,"_blank")}
 
-    const mapping=autoMap(currentHeaders);
+function openFollow(id){fillSelectors();if(id)$("fCliente").value=id;$("fData").value=today();$("fTexto").value="";$("followModal").classList.add("open")}
+function saveFollow(){if(!$("fCliente").value||!$("fData").value||!$("fTexto").value.trim())return alert("Preencha os campos.");db.followups.push({id:uid(),clienteId:$("fCliente").value,data:$("fData").value,texto:$("fTexto").value.trim(),done:false});closeModal("followModal");save()}
+function renderFollow(){setHTML("followList",db.followups.slice().sort((a,b)=>a.data.localeCompare(b.data)).map(f=>{let c=getClient(f.clienteId);return`<div class="card"><b>${esc(c?.codigo||"")} ${esc(c?.razao||"Cliente")}</b><div class="muted">${brdate(f.data)} • ${esc(f.texto)}</div><button onclick="toggleFollow('${f.id}')">${f.done?"Reabrir":"Concluir"}</button></div>`}).join("")||'<div class="card muted">Nenhum follow-up.</div>')}
+function toggleFollow(id){let f=db.followups.find(x=>x.id===id);if(f)f.done=!f.done;save()}
+function openAlert(id){let c=getClient(id);$("aClienteId").value=id;$("aClienteNome").textContent=`${c?.codigo||""} — ${c?.razao||""}`;$("aData").value=today();$("aTexto").value="";$("alertModal").classList.add("open")}
+function saveAlert(){db.alertas.push({id:uid(),clienteId:$("aClienteId").value,data:$("aData").value,texto:$("aTexto").value.trim(),prioridade:$("aPrior").value,done:false,notified:false});closeModal("alertModal");save()}
+function renderAlerts(){setHTML("alertList",db.alertas.slice().sort((a,b)=>a.data.localeCompare(b.data)).map(a=>{let c=getClient(a.clienteId);return`<div class="card"><b>🔔 ${esc(c?.codigo||"")} ${esc(c?.razao||"Cliente")}</b><div class="muted">${brdate(a.data)} • ${esc(a.prioridade)} • ${esc(a.texto)}</div><button onclick="toggleAlert('${a.id}')">${a.done?"Reabrir":"Concluir"}</button></div>`}).join("")||'<div class="card muted">Nenhum alerta.</div>')}
+function toggleAlert(id){let a=db.alertas.find(x=>x.id===id);if(a)a.done=!a.done;save()}
+function openWhats(id){let c=getClient(id),ps=[c?.tel1,c?.tel2].filter(Boolean);if(!ps.length)return alert("Cliente sem telefone.");$("wClienteId").value=id;$("wClienteNome").textContent=`${c.codigo} — ${c.razao}`;$("wTelefone").innerHTML=ps.map((p,i)=>`<option value="${cleanPhone(p)}">Telefone ${i+1}: ${esc(p)}</option>`).join("");$("wModelo").value="follow";aplicarModeloWhats();$("whatsModal").classList.add("open")}
+function aplicarModeloWhats(){let m={follow:"Olá! Tudo bem? Estou entrando em contato para dar continuidade ao nosso atendimento comercial. Posso te ajudar em algo hoje?",parado:"Olá! Tudo bem? Percebi que faz um tempo desde a última compra. Posso ajudar com alguma reposição?",catalogo:"Olá! Tudo bem? Temos novidades no catálogo. Posso te enviar?",pedido:"Olá! Tudo bem? Estou acompanhando seu pedido/retorno comercial.",personalizada:""};$("wMsg").value=m[$("wModelo").value]||""}
+function abrirWhatsApp(){window.open(`https://wa.me/${$("wTelefone").value}?text=${encodeURIComponent($("wMsg").value)}`,"_blank")}
+function closeModal(id){$(id)?.classList.remove("open")}
+async function enableNotifications(){if(!("Notification"in window))return alert("Sem suporte.");let p=await Notification.requestPermission();if(p==="granted")alert("Notificações ativadas.")}
+function checkNotifications(){if(!("Notification"in window)||Notification.permission!=="granted")return;let changed=false;db.alertas.filter(a=>!a.done&&!a.notified&&a.data<=today()).forEach(a=>{let c=getClient(a.clienteId);new Notification("Alerta comercial",{body:`${c?.codigo||""} ${c?.razao||"Cliente"} — ${a.texto}`});a.notified=true;changed=true});if(changed)persistDB()}
 
-    if(!mapping.client){
-      $('#importMessages').insertAdjacentHTML(
-        'beforeend',
-        `<div class="import-note" style="background:#fff1f1;color:#a33"><b>${escapeHtml(file.name)}</b>: não encontrei automaticamente uma coluna de cliente. Renomeie a coluna para algo como CLIENTE, NOME CLIENTE, RAZÃO SOCIAL ou CÓDIGO CLIENTE.</div>`
-      );
-      continue;
-    }
 
-    importRowsAutomatically(rows, mapping, file.name, currentSheet);
-  }
-}
-function importRowsAutomatically(rows, map, filename, sheetname){
-  const imported=rows.map((r,i)=>({
-    id:uid(), source:filename, sheet:sheetname, row:i+2,
-    client:String(valueFrom(r,map.client)||valueFrom(r,map.clientCode)||'').trim(),
-    clientCode:String(valueFrom(r,map.clientCode)||'').trim(),
-    date:parseDateValue(valueFrom(r,map.date)),
-    value:parseNumber(valueFrom(r,map.value)),
-    order:String(valueFrom(r,map.order)||'').trim(),
-    city:String(valueFrom(r,map.city)||'').trim(),
-    uf:String(valueFrom(r,map.uf)||'').trim(),
-    seller:String(valueFrom(r,map.seller)||'').trim(),
-    sellerCode:String(valueFrom(r,map.sellerCode)||'').trim(),
-    supervisor:String(valueFrom(r,map.supervisor)||'').trim(),
-    goal:parseNumber(valueFrom(r,map.goal)),
-    achieved:parseNumber(valueFrom(r,map.achieved)),
-    daysNoBuy:parseNumber(valueFrom(r,map.daysNoBuy)),
-    phone1:String(valueFrom(r,map.phone1)||'').trim(),
-    phone2:String(valueFrom(r,map.phone2)||'').trim(),
-    contact:String(valueFrom(r,map.contact)||'').trim(),
-    cnpj:String(valueFrom(r,map.cnpj)||'').trim(),
-    product:String(valueFrom(r,map.product)||'').trim(),
-    qty:parseNumber(valueFrom(r,map.qty)),
-    status:String(valueFrom(r,map.status)||'').trim(),
-    raw:r
-  })).filter(r=>r.client);
+function pipelineDeals(){
+ const inicio=$("pipeInicio")?.value||"",fim=$("pipeFim")?.value||"",rep=$("pipeRep")?.value||"",busca=norm($("pipeBusca")?.value||"");
+ let deals=[];
 
-  state.records=state.records.filter(r=>r.source!==filename).concat(imported);
-  state.mappings[filename]=map;
-  if(!state.importedFiles.includes(filename)) state.importedFiles.push(filename);
-  save(); autoCreateDeals(imported); renderAll();
+ (db.followups||[]).filter(f=>!f.done).forEach(f=>{
+   const c=getClient(f.clienteId); if(!c)return;
+   deals.push({key:"F-"+f.id,stage:"Contato",clienteId:c.id,codigo:c.codigo,cliente:c.razao,representante:c.representante||"",data:f.data||"",valor:Number(c.valor||0),detalhe:f.texto||"Follow-up pendente",origem:"Follow-up"});
+ });
 
-  $('#importMessages').insertAdjacentHTML('beforeend',
-    `<div class="import-note"><b>${escapeHtml(filename)}</b>: ${imported.length} registros integrados automaticamente ao CRM.</div>`);
-  toast(`${imported.length} registros integrados.`);
+ (db.orcamentos||[]).forEach(o=>{
+   let stage=o.status==="Em aberto"?"Orçamento":o.status==="Aprovado"?"Negociação":o.status==="Virou pedido"?"Pedido":o.status==="Venda concluída"?"Venda":null;
+   if(!stage)return;
+   deals.push({key:"O-"+o.id,stage,clienteId:o.clienteId,codigo:o.codigoCliente,cliente:o.cliente,representante:o.representante||"",data:o.data||"",valor:Number(o.total||0),detalhe:o.numero||"Orçamento",origem:"Orçamento",orcamentoId:o.id,pedido:o.pedidoGerado||""});
+ });
+
+ const orcPedidos=new Set((db.orcamentos||[]).map(o=>String(o.pedidoGerado||"")).filter(Boolean));
+ (db.pedidos||[]).forEach(p=>{
+   if(orcPedidos.has(String(p.ordem||"")))return;
+   deals.push({key:"P-"+p.id,stage:p.vendaId?"Venda":"Pedido",clienteId:p.clienteId,codigo:p.codigoCliente,cliente:p.cliente,representante:p.representante||"",data:p.data||"",valor:Number(p.valorSemImpostos||0),detalhe:"Pedido "+(p.ordem||""),origem:"Pedido",pedidoId:p.id});
+ });
+
+ (db.vendas||[]).filter(v=>!v.pedidoId).forEach(v=>{
+   deals.push({key:"V-"+v.id,stage:"Venda",clienteId:v.clienteId,codigo:v.codigoCliente,cliente:v.cliente,representante:v.representante||"",data:v.data||"",valor:Number(v.valorSemImpostos||0),detalhe:v.ordem?("Venda / Pedido "+v.ordem):"Venda manual",origem:"Venda"});
+ });
+
+ const map=new Map(); deals.forEach(d=>map.set(d.key,d));
+ return [...map.values()].filter(d=>
+   (!inicio||!d.data||d.data>=inicio)&&(!fim||!d.data||d.data<=fim)&&
+   (!rep||norm(d.representante)===norm(rep))&&
+   (!busca||norm([d.codigo,d.cliente,d.representante,d.detalhe,d.origem].join(" ")).includes(busca))
+ );
 }
-function autoCreateDeals(rows){
-  const salesRows=rows.filter(r=>r.order || ['EM ANÁLISE','AUTORIZADO','FATURADO'].includes(String(r.status).toUpperCase()));
-  const groups={};
-  salesRows.forEach(r=>{
-    const key=r.client+'|'+(r.order||r.date||r.id);
-    groups[key]??={client:r.client,title:r.order?`Ordem ${r.order}`:'Oportunidade importada',value:0,date:r.date,status:r.status};
-    groups[key].value+=r.value||0;
-  });
-  Object.values(groups).slice(0,1000).forEach(g=>{
-    const ik=g.client+'|'+g.title;
-    const existing=state.deals.find(d=>d.importKey===ik);
-    if(existing){ existing.value=g.value; existing.stage=stageFromStatus(g.status); }
-    else state.deals.push({id:uid(),importKey:ik,client:g.client,title:g.title,value:g.value,stage:stageFromStatus(g.status),followup:'',created:g.date||todayISO()});
-  });
-  save();
-}
-function stageFromStatus(s){
-  const n=norm(s);
-  if(n.includes('fatur')||n.includes('fech')||n.includes('ganh')) return 'Fechado';
-  if(n.includes('autoriz')) return 'Negociação';
-  if(n.includes('analise')) return 'Proposta';
-  if(n.includes('contat')) return 'Contato feito';
-  return 'Qualificado';
-}
-function clientStats(){
-  const m={};
-  state.records.forEach(r=>{
-    const key = r.clientCode ? 'cod:'+r.clientCode : 'name:'+norm(r.client);
-    if(!key)return;
-    m[key]??={name:r.client,clientCode:r.clientCode,city:r.city,uf:r.uf,records:[],total:0,phone1:r.phone1,phone2:r.phone2,contact:r.contact,cnpj:r.cnpj,seller:r.seller,daysNoBuy:r.daysNoBuy};
-    const c=m[key];
-    c.records.push(r);
-    c.total+=r.value||0;
-    ['city','uf','phone1','phone2','contact','cnpj','seller','clientCode'].forEach(k=>{if(r[k])c[k]=r[k]});
-    if(r.daysNoBuy)c.daysNoBuy=r.daysNoBuy;
-  });
-  return Object.values(m).map(c=>{
-    const dates=c.records.map(r=>r.date).filter(Boolean).sort();
-    c.last=dates.at(-1)||''; c.first=dates[0]||''; c.avg=c.total/c.records.length;
-    const uniq=[...new Set(dates)];
-    let gaps=[];for(let i=1;i<uniq.length;i++)gaps.push(Math.max(1,diffDays(uniq[i-1],uniq[i])));
-    c.cycle=gaps.length?Math.round(gaps.reduce((a,b)=>a+b,0)/gaps.length):30;
-    c.next=c.last?addDays(c.last,c.cycle):'';
-    return c;
-  });
-}
-function reorderClients(){
-  const lead=Number($('#reorderLeadDays')?.value||7), today=todayISO();
-  return clientStats().filter(c=>c.next && diffDays(today,c.next)<=lead).sort((a,b)=>a.next.localeCompare(b.next));
-}
-function pendingTasks(){
-  const tasks=state.activities.filter(a=>!a.done).map(a=>({...a,kind:'activity'}));
-  state.deals.filter(d=>d.followup).forEach(d=>tasks.push({id:'deal-'+d.id,client:d.client,type:'Follow-up',date:d.followup,time:'09:00',note:d.title,done:false,kind:'deal'}));
-  return tasks.sort((a,b)=>(a.date+a.time).localeCompare(b.date+b.time));
-}
-function renderAll(){
-  renderKPIs();renderDashboard();renderPipeline();renderClients();renderFollowups();renderReorder();renderCalendar();
-}
-function renderKPIs(){
-  const revenue=state.records.reduce((a,r)=>a+(r.value||0),0), clients=clientStats(), tasks=pendingTasks(), reorder=reorderClients();
-  $('#kpiRevenue').textContent=fmtBRL(revenue);$('#kpiOrders').textContent=`${state.records.length} registros`;
-  $('#kpiClients').textContent=clients.length;$('#kpiFollowups').textContent=tasks.filter(t=>!t.done).length;$('#kpiReorder').textContent=reorder.length;
-  $('#followupBadge').textContent=tasks.filter(t=>!t.done).length;$('#reorderBadge').textContent=reorder.length;
-}
-function renderDashboard(){
-  const tasks=pendingTasks().slice(0,6), stats=clientStats();
-  $('#upcomingList').innerHTML=tasks.length?tasks.map(t=>`<div class="activity"><div class="datebox">${fmtDate(t.date).slice(0,5)}</div><div><strong>${escapeHtml(t.client)} • ${escapeHtml(t.type)}</strong><small>${escapeHtml(t.note||'Sem observação')}</small></div></div>`).join(''):'<p class="muted">Nenhuma atividade agendada.</p>';
-  const attention=[...stats].sort((a,b)=>(a.next||'9999').localeCompare(b.next||'9999')).slice(0,8);
-  $('#attentionTable').innerHTML=attention.map(c=>{
-    const days=c.next?diffDays(todayISO(),c.next):999, cls=days<0?'red':days<=7?'orange':'green', txt=days<0?'Reposição atrasada':days<=7?'Reposição próxima':'Em dia';
-    return `<tr><td><b>${escapeHtml(c.name)}</b><br><small>${escapeHtml([c.city,c.uf].filter(Boolean).join('/'))}</small></td><td>${fmtDate(c.last)}</td><td>${fmtBRL(c.total)}</td><td><span class="pill ${cls}">${txt}</span></td><td><button class="mini-btn" onclick="scheduleFor('${encodeURIComponent(c.name)}','Reposição')">Agendar</button></td></tr>`;
-  }).join('');
-  const stages=['Qualificado','Contato feito','Proposta','Negociação','Fechado'];
-  const counts=stages.map(s=>state.deals.filter(d=>d.stage===s).length);
-  if(chart && typeof chart.destroy==='function') chart.destroy();
-  const ctx=$('#funnelChart');
-  if(ctx && typeof Chart!=='undefined'){
-    chart=new Chart(ctx,{
-      type:'bar',
-      data:{labels:stages,datasets:[{label:'Negócios',data:counts,backgroundColor:['#7f67b3','#6e54a9','#5e439f','#4c328f','#1fa86a'],borderRadius:7}]},
-      options:{plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,ticks:{precision:0}},x:{grid:{display:false}}}}
-    });
-  }else if(ctx){
-    const parent=ctx.parentElement;
-    ctx.style.display='none';
-    let fallback=parent.querySelector('.chart-fallback');
-    if(!fallback){ fallback=document.createElement('div'); fallback.className='chart-fallback'; parent.appendChild(fallback); }
-    fallback.innerHTML=stages.map((s,i)=>`<div class="fallback-bar"><span>${s}</span><b>${counts[i]}</b><i style="width:${Math.max(8,counts[i]*12)}px"></i></div>`).join('');
-  }
+function pipeCard(d){
+ const c=d.clienteId?getClient(d.clienteId):null;
+ const whats=c&&(c.tel1||c.tel2)?`<button class="pipe-icon whatsbtn" onclick="openWhats('${c.id}')" title="WhatsApp">💬</button>`:"";
+ const orc=d.orcamentoId&&d.stage!=="Venda"?`<button class="pipe-icon" onclick="openConverter('${d.orcamentoId}')" title="Virar pedido">🧾</button>`:"";
+ const ped=d.pedidoId&&d.stage!=="Venda"?`<button class="pipe-icon" onclick="confirmarVendaPedido('${d.pedidoId}')" title="Confirmar venda">💰</button>`:"";
+ return `<div class="pipe-card"><div class="pipe-card-top"><b>${esc(d.codigo||"")} ${d.codigo?"—":""} ${esc(d.cliente||"Cliente")}</b><span>${money(d.valor)}</span></div><div class="pipe-meta">${esc(d.representante||"Sem representante")}</div><div class="pipe-detail">${esc(d.detalhe||d.origem||"")}</div><div class="pipe-bottom"><small>${d.data?brdate(d.data):"Sem data"}</small><div>${whats}${orc}${ped}</div></div></div>`;
 }
 function renderPipeline(){
-  const stages=['Qualificado','Contato feito','Proposta','Negociação','Fechado'];
-  $('#kanban').innerHTML=stages.map(stage=>{
-    const ds=state.deals.filter(d=>d.stage===stage), total=ds.reduce((a,d)=>a+(d.value||0),0);
-    return `<div class="kanban-col" data-stage="${stage}"><div class="kanban-head"><span>${stage}<br><small>${fmtBRL(total)}</small></span><b>${ds.length}</b></div>${ds.map(dealCard).join('')}</div>`;
-  }).join('');
-  $('#pipelineSummary').textContent=`${state.deals.length} negócios • ${fmtBRL(state.deals.reduce((a,d)=>a+(d.value||0),0))}`;
-  $('#pipelineTable').innerHTML=state.deals.map(d=>`<tr><td>${escapeHtml(d.client)}</td><td>${escapeHtml(d.title)}</td><td>${fmtBRL(d.value)}</td><td>${escapeHtml(d.stage)}</td><td>${fmtDate(d.followup)}</td></tr>`).join('');
-  $$('.deal-card').forEach(card=>{
-    card.draggable=true;card.ondragstart=e=>e.dataTransfer.setData('text/plain',card.dataset.id);
-  });
-  $$('.kanban-col').forEach(col=>{
-    col.ondragover=e=>e.preventDefault();
-    col.ondrop=e=>{e.preventDefault();const id=e.dataTransfer.getData('text/plain');const d=state.deals.find(x=>x.id===id);if(d){d.stage=col.dataset.stage;save();renderAll();}};
-  });
+ const deals=pipelineDeals(),stages={Contato:[],Orçamento:[],Negociação:[],Pedido:[],Venda:[]};
+ deals.forEach(d=>stages[d.stage]?.push(d));
+ Object.values(stages).forEach(a=>a.sort((x,y)=>Number(y.valor||0)-Number(x.valor||0)));
+ setHTML("pipeContato",stages.Contato.map(pipeCard).join("")||'<div class="pipe-empty">Sem negócios</div>');
+ setHTML("pipeOrcamento",stages.Orçamento.map(pipeCard).join("")||'<div class="pipe-empty">Sem negócios</div>');
+ setHTML("pipeNegociacao",stages.Negociação.map(pipeCard).join("")||'<div class="pipe-empty">Sem negócios</div>');
+ setHTML("pipePedido",stages.Pedido.map(pipeCard).join("")||'<div class="pipe-empty">Sem negócios</div>');
+ setHTML("pipeVenda",stages.Venda.map(pipeCard).join("")||'<div class="pipe-empty">Sem negócios</div>');
+ setText("countContato",stages.Contato.length);setText("countOrcamento",stages.Orçamento.length);setText("countNegociacao",stages.Negociação.length);setText("countPedido",stages.Pedido.length);setText("countVenda",stages.Venda.length);
+ const em=[...stages.Contato,...stages.Orçamento,...stages.Negociação,...stages.Pedido];
+ setText("pipeQtd",em.length);setText("pipeValor",money(em.reduce((s,d)=>s+Number(d.valor||0),0)));setText("pipePedidos",stages.Pedido.length);setText("pipeVendas",stages.Venda.length);
 }
-function dealCard(d){return `<div class="deal-card" data-id="${d.id}"><h4>${escapeHtml(d.title||'Negócio')}</h4><p>${escapeHtml(d.client)}</p><strong>${fmtBRL(d.value)}</strong><div class="card-foot"><span class="pill ${d.stage==='Fechado'?'green':''}">${fmtDate(d.followup)||'—'}</span><button class="mini-btn" onclick="scheduleFor('${encodeURIComponent(d.client)}','Follow-up')">+ ação</button></div></div>`}
-function renderClients(){
-  const q=norm($('#globalSearch').value), rows=clientStats().filter(c=>!q||norm(c.name+' '+c.city+' '+c.uf).includes(q)).sort((a,b)=>b.total-a.total);
-  $('#clientsTable').innerHTML=rows.map(c=>`<tr><td><b>${escapeHtml(c.name)}</b></td><td>${escapeHtml([c.city,c.uf].filter(Boolean).join('/'))}</td><td>${fmtDate(c.last)}</td><td>${c.records.length}</td><td>${fmtBRL(c.total)}</td><td>${fmtBRL(c.avg)}</td><td><button class="mini-btn" onclick="scheduleFor('${encodeURIComponent(c.name)}','Follow-up')">Follow-up</button></td></tr>`).join('');
-}
-function renderFollowups(){
-  const tasks=pendingTasks();
-  $('#followupsList').innerHTML=tasks.length?tasks.map(t=>`<div class="task ${t.done?'done':''}"><input type="checkbox" ${t.done?'checked':''} onchange="toggleTask('${t.id}',this.checked)"><div><strong>${escapeHtml(t.client)} • ${escapeHtml(t.type)}</strong><div class="muted">${fmtDate(t.date)} ${t.time||''} — ${escapeHtml(t.note||'')}</div></div><span class="pill ${t.date<todayISO()?'red':t.date===todayISO()?'orange':'green'}">${t.date<todayISO()?'Atrasado':t.date===todayISO()?'Hoje':'Agendado'}</span></div>`).join(''):'<p class="muted">Nenhum follow-up pendente.</p>';
-}
-window.toggleTask=(id,done)=>{ if(id.startsWith('deal-')){const d=state.deals.find(x=>'deal-'+x.id===id);if(d&&done)d.followup='';}else{const a=state.activities.find(x=>x.id===id);if(a)a.done=done;}save();renderAll(); };
-function renderReorder(){
-  const rows=reorderClients(), today=todayISO();
-  $('#reorderTable').innerHTML=rows.map(c=>{const days=diffDays(today,c.next),p=days<0?'Atrasado':days<=3?'Alta':days<=7?'Média':'Planejada',cls=days<0?'red':days<=7?'orange':'green';return `<tr><td><b>${escapeHtml(c.name)}</b></td><td>${fmtDate(c.last)}</td><td>${c.cycle} dias</td><td>${fmtDate(c.next)}</td><td><span class="pill ${cls}">${p}</span></td><td><button class="mini-btn" onclick="scheduleFor('${encodeURIComponent(c.name)}','Reposição','${c.next}')">Agendar contato</button></td></tr>`}).join('');
-}
-function renderCalendar(){
-  const el=$('#calendar'); if(!el)return;
-  const events=pendingTasks().map(t=>({id:t.id,title:`${t.type}: ${t.client}`,start:t.date+(t.time?`T${t.time}`:''),allDay:!t.time}));
 
-  if(typeof FullCalendar==='undefined'){
-    el.innerHTML=`<div class="calendar-fallback"><h3>Agenda comercial</h3>${
-      events.length ? events.map(e=>`<div class="fallback-event"><b>${fmtDate(e.start.slice(0,10))}</b><span>${escapeHtml(e.title)}</span></div>`).join('')
-      : '<p class="muted">Nenhuma atividade agendada.</p>'
-    }</div>`;
-    return;
-  }
+function renderApuracao(){let q=norm($("buscaApuracao").value),sup=$("filtroSupervisor").value,at=$("filtroAtingido").value,fonte=db.apuracaoLinhas||[],arr=fonte.map(x=>{let m=Number(x.meta||0),v=Number(x.vrAtingido||0);return{...x,pct:m?v/m*100:0,falta:Math.max(m-v,0)}}).filter(x=>(!q||norm([x.representante,x.razaoSocial,x.supervisor].join(" ")).includes(q))&&(!sup||x.supervisor===sup)&&(!at||x.atingido===at));let resumo=db.apuracaoMetas||[],mt=resumo.reduce((s,x)=>s+Number(x.meta||0),0),va=resumo.reduce((s,x)=>s+Number(x.vrAtingido||0),0),qtd=resumo.filter(x=>Number(x.meta)>0&&Number(x.vrAtingido)>=Number(x.meta)).length;setText("aMetaTotal",money(mt));setText("aAtingidoTotal",money(va));setText("aFaltaTotal",money(Math.max(mt-va,0)));setText("aQtdMeta",qtd);setText("aPctMeta",(resumo.length?qtd/resumo.length*100:0).toFixed(1)+"% da equipe");let sm=new Map();resumo.forEach(x=>{let n=(x.supervisor||"Sem supervisor").trim()||"Sem supervisor";if(!sm.has(n))sm.set(n,{supervisor:n,reps:0,meta:0,atingido:0});let s=sm.get(n);s.reps++;s.meta+=Number(x.meta||0);s.atingido+=Number(x.vrAtingido||0)});let sups=[...sm.values()].map(s=>({...s,falta:Math.max(s.meta-s.atingido,0),pct:s.meta?s.atingido/s.meta*100:0})).filter(s=>!sup||s.supervisor===sup).sort((a,b)=>b.pct-a.pct);setHTML("supervisorBody",sups.map(s=>`<tr><td><b>${esc(s.supervisor)}</b></td><td>${s.reps}</td><td>${money(s.meta)}</td><td>${money(s.atingido)}</td><td>${money(s.falta)}</td><td><b>${s.pct.toFixed(1)}%</b></td><td><span class="pill ${s.pct>=100?"ok":s.pct>=80?"near":"no"}">${s.pct>=100?"Meta atingida":s.pct>=80?"Próximo da meta":"Abaixo da meta"}</span></td></tr>`).join("")||'<tr><td colspan="7">Sem dados.</td></tr>');let tm=sups.reduce((s,x)=>s+x.meta,0),ta=sups.reduce((s,x)=>s+x.atingido,0),tr=sups.reduce((s,x)=>s+x.reps,0);setHTML("supervisorFoot",`<tr><td>TOTAL</td><td>${tr}</td><td>${money(tm)}</td><td>${money(ta)}</td><td>${money(Math.max(tm-ta,0))}</td><td>${(tm?ta/tm*100:0).toFixed(1)}%</td><td></td></tr>`);setHTML("apuracaoBody",arr.map(x=>`<tr><td class="${x.atingido==="Sim"?"status-ok":"status-no"}">${esc(x.atingido)}</td><td><b>${esc(x.razaoSocial||x.representante||"—")}</b></td><td>${esc(x.representante||"—")}</td><td>${money(x.meta)}</td><td>${money(x.vrAtingido)}</td><td>${money(x.falta)}</td><td>${x.pct.toFixed(1)}%</td><td>${esc(x.supervisor||"—")}</td></tr>`).join("")||'<tr><td colspan="8">Importe APURAÇÃO DE VENDAS.xls.</td></tr>')}
+function refreshSup(){let e=$("filtroSupervisor"),cur=e.value,s=[...new Set((db.apuracaoLinhas||[]).map(x=>x.supervisor).filter(Boolean))].sort();e.innerHTML='<option value="">Todos os supervisores</option>'+s.map(x=>`<option>${esc(x)}</option>`).join("");e.value=cur}
 
-  if(calendar && typeof calendar.removeAllEvents==='function'){
-    calendar.removeAllEvents();
-    events.forEach(e=>calendar.addEvent(e));
-    return;
-  }
-
-  calendar=new FullCalendar.Calendar(el,{
-    initialView:'dayGridMonth',
-    locale:'pt-br',
-    height:'auto',
-    buttonText:{today:'Hoje'},
-    events,
-    dateClick:info=>{showView('calendario');$('#activityDate').value=info.dateStr;}
-  });
-  calendar.render();
-}
-window.scheduleFor=(name,type,date='')=>{showView('calendario');$('#activityClient').value=decodeURIComponent(name);$('#activityType').value=type;$('#activityDate').value=date||todayISO();setTimeout(()=>$('#activityNote').focus(),50);}
-function showView(name){
-  $$('.view').forEach(v=>v.classList.remove('active')); $(`#view-${name}`).classList.add('active');
-  $$('.nav-btn').forEach(b=>b.classList.toggle('active',b.dataset.view===name));
-  const titles={dashboard:['Dashboard Comercial','Visão geral das vendas, clientes e próximos passos.'],pipeline:['Funil de Vendas','Acompanhe oportunidades e avance os negócios pelo processo comercial.'],clientes:['Clientes','Histórico de compra, potencial e próxima ação.'],calendario:['Calendário Comercial','Centralize compromissos, follow-ups e pontos de reposição.'],followups:['Follow-ups','Nada de cliente esquecido: veja os contatos que precisam acontecer.'],reposicao:['Ponto de Reposição','Antecipe a próxima compra com base no ciclo de cada cliente.'],importar:['Importar Planilhas','Arraste sua planilha e transforme os dados em um CRM navegável.']};
-  $('#pageTitle').textContent=titles[name][0];$('#pageSubtitle').textContent=titles[name][1];
-  if(name==='calendario')setTimeout(()=>{ if(calendar&&typeof calendar.updateSize==='function') calendar.updateSize(); },80);
-}
-$$('.nav-btn').forEach(b=>b.onclick=()=>showView(b.dataset.view));
-$$('[data-go]').forEach(b=>b.onclick=()=>showView(b.dataset.go));
-$('#selectFileBtn').onclick=()=>$('#fileInput').click();
-$('#fileInput').onchange=e=>readFiles(e.target.files);
-const dz=$('#dropzone'); dz.onclick=e=>{if(e.target.id!=='selectFileBtn')$('#fileInput').click()};dz.ondragover=e=>{e.preventDefault();dz.classList.add('drag')};dz.ondragleave=()=>dz.classList.remove('drag');dz.ondrop=e=>{e.preventDefault();dz.classList.remove('drag');readFiles(e.dataTransfer.files)};
-$('#activityForm').onsubmit=e=>{
-  e.preventDefault();
-  const client=$('#activityClient').value.trim();
-  const date=$('#activityDate').value;
-  if(!client || !date){ toast('Informe cliente e data.'); return; }
-
-  state.activities.push({
-    id:uid(),client,type:$('#activityType').value,date,
-    time:$('#activityTime').value,note:$('#activityNote').value.trim(),done:false
-  });
-
-  if(!save()) return;
-
-  e.target.reset();
-  $('#activityDate').value=todayISO();
-  $('#activityTime').value='09:00';
-  renderAll();
-  showView('followups');
-  toast('Atividade salva com sucesso.');
-};
-$('#reorderLeadDays').oninput=()=>renderAll();
-$('#globalSearch').oninput=()=>renderClients();
-$('#newDealBtn').onclick=()=>{$('#dealDialog').showModal();$('#dealClient').focus()};
-$('#saveDealBtn').onclick=e=>{
-  e.preventDefault();
-  const client=$('#dealClient').value.trim();
-  if(!client){ toast('Informe o cliente.'); return; }
-
-  state.deals.push({
-    id:uid(),client,
-    title:$('#dealTitle').value.trim()||'Nova oportunidade',
-    value:Number($('#dealValue').value||0),
-    stage:$('#dealStage').value,
-    followup:$('#dealFollowup').value,
-    created:todayISO()
-  });
-
-  if(!save()) return;
-
-  $('#dealDialog').close();
-  $('#dealForm').reset();
-  renderAll();
-  showView('pipeline');
-  toast('Negócio salvo com sucesso.');
-};
-$('#pipelineListToggle').onclick=()=>{$('#kanban').classList.toggle('hidden');$('#pipelineTableWrap').classList.toggle('hidden');$('#pipelineListToggle').classList.toggle('active')};
-$('#notifyBtn').onclick=async()=>{if(!('Notification'in window)){toast('Seu navegador não suporta notificações.');return;}const p=await Notification.requestPermission();toast(p==='granted'?'Alertas do navegador ativados.':'Permissão de alerta não concedida.');};
-$('#exportClientsBtn').onclick=()=>{const rows=clientStats();const csv=['Cliente,Cidade,UF,Ultima compra,Compras,Total,Ticket medio',...rows.map(c=>[c.name,c.city,c.uf,c.last,c.records.length,c.total,c.avg].map(v=>`"${String(v).replaceAll('"','""')}"`).join(','))].join('\n');const blob=new Blob(["\ufeff"+csv],{type:'text/csv;charset=utf-8'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='clientes_crm.csv';a.click();URL.revokeObjectURL(a.href);};
-function notifyDue(){
-  if(Notification.permission!=='granted')return;
-  const due=pendingTasks().filter(t=>t.date<=todayISO()).slice(0,5);
-  if(due.length)new Notification('SalesFlow CRM',{body:`Você tem ${due.length} follow-up(s) pendente(s) ou vencendo hoje.`});
-}
-function initializeApp(){
-  $('#activityDate').value=todayISO();
-  try{
-    renderAll();
-  }catch(err){
-    console.error('Falha de renderização:',err);
-    toast('O CRM abriu em modo seguro. As funções de navegação e salvamento continuam disponíveis.');
-  }
-  setTimeout(notifyDue,1200);
-}
-initializeApp();
+async function importClientes(){let f=$("clientesFile").files[0];if(!f)return alert("Selecione TODOS OS CLIENTES.xls.");let r=new FileReader();r.onload=async e=>{try{let wb=XLSX.read(e.target.result,{type:"array",cellDates:true,raw:true}),map=new Map(),lidos=0;for(const sn of wb.SheetNames){let raw=XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,defval:"",raw:true}),h=localizarCabecalho(raw,[["CODIGO CLIENTE"],["RAZAO CLIENTE"]]);if(h<0)continue;let hd=raw[h].map(v=>String(v??"").trim()),cCod=findCol(hd,["CODIGO CLIENTE","CÓDIGO CLIENTE"]),cRaz=findCol(hd,["RAZAO CLIENTE","RAZÃO CLIENTE"]),cCnpj=findCol(hd,["CNPJ"]),cRep=findCol(hd,["REPRESENTANTE"]),cCid=findCol(hd,["CIDADE"]),cUf=findCol(hd,["UF"]),cUlt=findCol(hd,["ULTIMA COMPRA","ÚLTIMA COMPRA"]),cDias=findCol(hd,["DIAS SEM COMPRAR"]),cVal=findCol(hd,["VALOR ULTIMA COMPRA","VALOR ÚLTIMA COMPRA"]),cResp=findCol(hd,["RESPONSAVEL","RESPONSÁVEL"]),cTel1=findCol(hd,["TELEFONE 1"]),cTel2=findCol(hd,["TELEFONE 2"]);for(let i=h+1;i<raw.length;i++){let row=raw[i],codigo=cCod>=0?row[cCod]:"",razao=cRaz>=0?row[cRaz]:"";if(String(codigo).trim()===""||String(razao).trim()==="")continue;map.set(String(codigo).trim(),{id:uid(),codigo:String(codigo).trim(),razao:String(razao).trim(),cnpj:cCnpj>=0?String(row[cCnpj]??"").trim():"",representante:cRep>=0?String(row[cRep]??"").trim():"",cidade:cCid>=0?String(row[cCid]??"").trim():"",uf:cUf>=0?String(row[cUf]??"").trim():"",ultima:cUlt>=0?excelDate(row[cUlt]):"",dias:cDias>=0?numBR(row[cDias]):0,valor:cVal>=0?numBR(row[cVal]):0,responsavel:cResp>=0?String(row[cResp]??"").trim():"",tel1:cTel1>=0?String(row[cTel1]??"").trim():"",tel2:cTel2>=0?String(row[cTel2]??"").trim():""});lidos++}}db.clientes=[...map.values()];await persistDB();render();setHTML("clientesMsg",`✅ <b>${lidos}</b> linhas lidas • <b>${db.clientes.length}</b> clientes.`)}catch(err){console.error(err);alert("Erro ao importar clientes: "+err.message)}};r.readAsArrayBuffer(f)}
+async function importPedidos(){let f=$("pedidosFile").files[0];if(!f)return alert("Selecione DIGITAÇÃO DE ORDEM.xls.");let r=new FileReader();r.onload=async e=>{try{let wb=XLSX.read(e.target.result,{type:"array",cellDates:true,raw:true}),map=new Map(),count=0;for(const sn of wb.SheetNames){let raw=XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,defval:"",raw:true}),h=localizarCabecalho(raw,[["ORDEM"],["RAZAO SOCIAL"],["VR TOTAL (S/IMPOSTOS)"]]);if(h<0)continue;let hd=raw[h].map(v=>String(v??"").trim()),cStatus=findCol(hd,["Status"]),cEtapa=findCol(hd,["Etapa"]),cOrdem=findCol(hd,["Ordem"]),cRaz=findCol(hd,["Razão Social","Razao Social"]),cDig=findCol(hd,["Digitação","Digitacao"]),cFat=findCol(hd,["Faturamento"]),cLib=findCol(hd,["Data Liberação/Crédito"]),cSem=findCol(hd,["Vr Total (s/impostos)"]),cLiq=findCol(hd,["Vr Total (Liquido)","Vr Total (Líquido)"]),cRep=findCol(hd,["Representante"]),cUf=findCol(hd,["UF"]);for(let i=h+1;i<raw.length;i++){let row=raw[i],ord=cOrdem>=0?row[cOrdem]:"",razao=cRaz>=0?String(row[cRaz]??"").trim():"";if(String(ord).trim()===""||razao==="")continue;let cli=findClientRazao(razao);map.set(String(ord).trim(),{id:uid(),ordem:String(ord).trim(),clienteId:cli?.id||"",codigoCliente:cli?.codigo||"",cliente:razao,data:cDig>=0?excelDate(row[cDig]):"",faturamento:cFat>=0?excelDate(row[cFat]):"",liberacao:cLib>=0?excelDate(row[cLib]):"",representante:(cRep>=0?String(row[cRep]??"").trim():"")||cli?.representante||"",valorSemImpostos:cSem>=0?numBR(row[cSem]):0,valorLiquido:cLiq>=0?numBR(row[cLiq]):0,cidade:cli?.cidade||"",uf:(cUf>=0?String(row[cUf]??"").trim():"")||cli?.uf||"",status:(cEtapa>=0?String(row[cEtapa]??"").trim():"")||(cStatus>=0?String(row[cStatus]??"").trim():""),origem:"DIGITAÇÃO DE ORDEM",vendaId:""});count++}}db.pedidos=[...map.values()];await persistDB();render();let sem=db.pedidos.reduce((s,p)=>s+saleValue(p,"sem"),0),liq=db.pedidos.reduce((s,p)=>s+saleValue(p,"liq"),0);setHTML("pedidosMsg",`✅ <b>${count}</b> linhas • <b>${db.pedidos.length}</b> pedidos únicos.<br>Sem impostos: <b>${money(sem)}</b> • Líquido: <b>${money(liq)}</b>`)}catch(err){console.error(err);alert("Erro ao importar pedidos: "+err.message)}};r.readAsArrayBuffer(f)}
+async function importApuracao(){let f=$("apuracaoFile").files[0];if(!f)return alert("Selecione APURAÇÃO DE VENDAS.xls.");let r=new FileReader();r.onload=async e=>{try{let wb=XLSX.read(e.target.result,{type:"array",raw:true}),linhas=[];for(const sn of wb.SheetNames){let raw=XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,defval:"",raw:true}),h=localizarCabecalho(raw,[["ATINGIDO"],["REPRESENTANTE"],["RAZAO SOCIAL"],["META"],["VR ATINGIDO"],["NOME DO SUPERVISOR"]]);if(h<0)continue;let hd=raw[h].map(v=>String(v??"").trim()),cAt=findCol(hd,["Atingido"]),cRep=findCol(hd,["Representante"]),cRaz=findCol(hd,["Razão Social","Razao Social"]),cMeta=findCol(hd,["Meta"]),cVr=findCol(hd,["Vr Atingido"]),cSup=findCol(hd,["Nome do Supervisor"]);for(let i=h+1;i<raw.length;i++){let row=raw[i],rep=cRep>=0?String(row[cRep]??"").trim():"",raz=cRaz>=0?String(row[cRaz]??"").trim():"";if(!rep&&!raz)continue;let meta=cMeta>=0?numBR(row[cMeta]):0,vr=cVr>=0?numBR(row[cVr]):0,atRaw=cAt>=0?String(row[cAt]??"").trim():"";linhas.push({atingido:/^SIM$/i.test(atRaw)||(meta>0&&vr>=meta)?"Sim":"Não",representante:rep,razaoSocial:raz,meta,vrAtingido:vr,supervisor:cSup>=0?String(row[cSup]??"").trim():""})}}db.apuracaoLinhas=linhas;let mapa=new Map();linhas.forEach(x=>{let k=norm(x.representante||x.razaoSocial);if(!k)return;if(!mapa.has(k))mapa.set(k,{...x});else{let a=mapa.get(k);a.meta=Math.max(Number(a.meta||0),Number(x.meta||0));a.vrAtingido=Math.max(Number(a.vrAtingido||0),Number(x.vrAtingido||0));if(!a.razaoSocial)a.razaoSocial=x.razaoSocial;if(!a.supervisor)a.supervisor=x.supervisor;a.atingido=a.meta>0&&a.vrAtingido>=a.meta?"Sim":"Não"}});db.apuracaoMetas=[...mapa.values()];await persistDB();render();setHTML("apuracaoMsg",`✅ <b>${linhas.length}</b> linhas • <b>${db.apuracaoMetas.length}</b> representantes.`)}catch(err){console.error(err);alert("Erro ao importar apuração: "+err.message)}};r.readAsArrayBuffer(f)}
+function backupDados(){let blob=new Blob([JSON.stringify({versao:"V12",data:new Date().toISOString(),dados:db},null,2)],{type:"application/json"}),a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=`Backup_Gestor_Comercial_${today()}.json`;a.click()}
+async function restaurarBackup(e){let f=e.target.files[0];if(!f)return;if(!confirm("Substituir os dados atuais pelo backup?"))return;let r=new FileReader();r.onload=async x=>{try{let p=JSON.parse(x.target.result);db=p.dados||p;normalizeDB();await persistDB();render();alert("Backup restaurado.")}catch(err){alert("Backup inválido: "+err.message)}};r.readAsText(f)}
+function exportExcel(){let wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(db.clientes),"Clientes");XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(db.pedidos),"Pedidos");XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(db.vendas),"Vendas");XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(db.orcamentos.map(o=>({...o,itens:JSON.stringify(o.itens)}))),"Orçamentos");XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(db.apuracaoLinhas),"Apuração");XLSX.writeFile(wb,"Gestor_Comercial_Panamby.xlsx")}
+async function limparTudo(){if(!confirm("Apagar todos os dados desta versão?"))return;await clearDB();db={clientes:[],pedidos:[],vendas:[],orcamentos:[],followups:[],alertas:[],apuracaoLinhas:[],apuracaoMetas:[]};render();alert("Sistema zerado.")}
+function bind(id,event,fn){let e=$(id);if(e)e[event]=fn}
+["buscaCliente","filtroDias"].forEach(id=>bind(id,"oninput",renderClientes));
+["buscaVenda","vendaInicio","vendaFim"].forEach(id=>bind(id,"oninput",renderVendas));
+["buscaPedido","pedidoInicio","pedidoFim","repPedido"].forEach(id=>bind(id,"oninput",renderPedidos));
+["buscaOrcamento","statusOrcamento"].forEach(id=>bind(id,"oninput",renderOrcamentos));
+["buscaApuracao","filtroSupervisor","filtroAtingido"].forEach(id=>bind(id,"oninput",renderApuracao));
+["dashInicio","dashFim","dashRep","dashRegiao","dashMetric"].forEach(id=>bind(id,"onchange",renderDashboard));
+["pipeInicio","pipeFim","pipeRep"].forEach(id=>bind(id,"onchange",renderPipeline));
+bind("pipeBusca","oninput",renderPipeline);
+function render(){fillSelectors();refreshSup();renderClientes();renderVendas();renderPedidos();renderOrcamentos();renderFollow();renderAlerts();renderApuracao();renderPipeline();renderDashboard();checkNotifications()}
+async function iniciarApp(){try{let saved=await loadDB();if(saved){db=saved;normalizeDB()}let d=new Date(),first=new Date(d.getFullYear(),d.getMonth(),1).toISOString().slice(0,10);$("dashInicio").value=first;$("dashFim").value=today();$("vendaInicio").value=first;$("vendaFim").value=today();$("pedidoInicio").value=first;$("pedidoFim").value=today();$("pipeInicio").value=first;$("pipeFim").value=today();render();setInterval(checkNotifications,60000)}catch(err){console.error(err);alert("Erro ao iniciar: "+err.message);render()}}
+iniciarApp();

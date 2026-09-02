@@ -12,3 +12,26 @@
 @media(prefers-reduced-motion:reduce){.ticker-track,.live-badge{animation:none!important}}
 
 @media(max-width:760px){.funnel-1,.funnel-2,.funnel-3,}@media(prefers-reduced-motion:reduce){}
+
+.pipeline-toolbar{display:grid;grid-template-columns:150px 150px 220px 1fr auto;gap:10px;align-items:end;margin-bottom:12px}
+.pipeline-toolbar label{display:block;font-size:11px;font-weight:700;margin-bottom:5px}
+.pipeline-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:12px}
+.mini-kpi strong{display:block;font-size:20px;margin-top:5px}
+.pipeline-board{display:grid;grid-template-columns:repeat(5,minmax(260px,1fr));gap:10px;overflow-x:auto;padding:2px 2px 14px}
+.pipe-column{background:#edf1f6;border:1px solid #dce4ee;border-radius:12px;min-height:560px;overflow:hidden}
+.pipe-head{display:flex;justify-content:space-between;align-items:center;padding:12px;background:#fff;border-bottom:1px solid #dfe6ef;font-size:13px;font-weight:800;position:sticky;top:0;z-index:2}
+.pipe-head b{display:inline-flex;min-width:24px;height:24px;align-items:center;justify-content:center;background:#eef2ff;color:#3159cf;border-radius:999px;font-size:11px}
+.pipe-cards{padding:9px}
+.pipe-card{background:#fff;border:1px solid #dfe6ef;border-radius:10px;padding:11px;margin-bottom:8px;box-shadow:0 3px 10px #14213d0c;transition:.18s}
+.pipe-card:hover{transform:translateY(-2px);box-shadow:0 8px 18px #14213d16}
+.pipe-card-top{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}
+.pipe-card-top b{font-size:12px;line-height:1.35}
+.pipe-card-top span{font-size:12px;font-weight:800;white-space:nowrap;color:#243b7d}
+.pipe-meta{font-size:10px;color:#718096;margin-top:5px}
+.pipe-detail{font-size:11px;color:#445268;margin-top:7px;padding-top:7px;border-top:1px solid #edf1f5}
+.pipe-bottom{display:flex;justify-content:space-between;align-items:center;margin-top:8px}
+.pipe-bottom small{color:#8a96a8;font-size:10px}
+.pipe-icon{padding:5px 7px;font-size:11px;margin-left:3px}
+.pipe-empty{padding:20px 8px;text-align:center;color:#8b98aa;font-size:11px}
+@media(max-width:1100px){.pipeline-toolbar{grid-template-columns:1fr 1fr}.pipeline-kpis{grid-template-columns:1fr 1fr}}
+@media(max-width:650px){.pipeline-toolbar,.pipeline-kpis{grid-template-columns:1fr}}

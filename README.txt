@@ -74,3 +74,10 @@ V15 SEM FUNIL + EXCLUSÃO
 - Botão Excluir orçamento em cada orçamento.
 - Ao excluir orçamento, pedidos/vendas existentes são preservados e apenas o vínculo é removido.
 - Todas as exclusões exigem confirmação.
+
+V16 PIPELINE KANBAN
+- Nova área Pipeline Comercial estilo Pipedrive.
+- Etapas: Contato, Orçamento, Negociação, Pedido e Venda concluída.
+- Cartões com cliente, código, valor, representante, data e origem.
+- Filtros por período, representante e pesquisa.
+- Botões rápidos para WhatsApp, virar pedido e confirmar venda quando aplicável.

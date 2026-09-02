@@ -48,3 +48,8 @@ Esta versão foi ajustada para os três relatórios usados no projeto:
 3. **APURAÇÃO** — metas por representante: representante, razão social, meta, valor atingido e supervisor.
 
 As três podem ser selecionadas juntas. O CRM consolida as informações sem exibir mapeamento manual.
+
+
+## Revisão de estabilidade
+
+Esta versão corrige o problema em que o CRM podia parar de responder quando uma biblioteca externa (gráfico/calendário) não carregava. A navegação e o salvamento agora continuam funcionando em modo seguro. Ao salvar uma atividade, o sistema abre Follow-ups; ao salvar um negócio, abre o Funil.

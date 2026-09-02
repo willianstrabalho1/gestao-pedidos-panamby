@@ -8,9 +8,17 @@ const diffDays=(a,b)=>Math.round((new Date(b+'T12:00:00')-new Date(a+'T12:00:00'
 const norm=s=>String(s??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
 const uid=()=>Math.random().toString(36).slice(2)+Date.now().toString(36);
 
-const state = JSON.parse(localStorage.getItem('salesflow-crm')||'null') || {
-  records:[], deals:[], activities:[], mappings:{}, importedFiles:[]
-};
+function loadState(){
+  try{
+    const raw=localStorage.getItem('salesflow-crm');
+    const parsed=raw ? JSON.parse(raw) : null;
+    return parsed && typeof parsed==='object' ? parsed : {records:[],deals:[],activities:[],mappings:{},importedFiles:[]};
+  }catch(e){
+    console.warn('Falha ao carregar dados locais:',e);
+    return {records:[],deals:[],activities:[],mappings:{},importedFiles:[]};
+  }
+}
+const state = loadState();
 let currentWorkbook=null, currentHeaders=[], currentRows=[], currentFilename='', currentSheet='';
 let chart, calendar;
 
@@ -37,7 +45,16 @@ const aliases = {
   status:['etapa','status','situacao','situação']
 };
 
-function save(){ localStorage.setItem('salesflow-crm',JSON.stringify(state)); }
+function save(){
+  try{
+    localStorage.setItem('salesflow-crm',JSON.stringify(state));
+    return true;
+  }catch(e){
+    console.error('Falha ao salvar:',e);
+    toast('Não foi possível salvar no navegador. Verifique se o armazenamento está permitido.');
+    return false;
+  }
+}
 function toast(msg){ const el=$('#toast'); el.textContent=msg; el.classList.add('show'); setTimeout(()=>el.classList.remove('show'),2600); }
 function valueFrom(obj,key){ return obj?.[key] ?? ''; }
 
@@ -86,6 +103,11 @@ function buildMapping(headers,mapping={}){
 function escapeHtml(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));}
 
 async function readFiles(files){
+  if(typeof XLSX==='undefined'){
+    toast('O leitor de Excel não carregou. Atualize a página com internet e tente novamente.');
+    $('#importMessages').insertAdjacentHTML('beforeend','<div class="import-note" style="background:#fff1f1;color:#a33"><b>Leitor de Excel indisponível.</b> Atualize a página e tente novamente.</div>');
+    return;
+  }
   for(const file of files){
     currentFilename=file.name;
     const data=await file.arrayBuffer();
@@ -232,9 +254,21 @@ function renderDashboard(){
   }).join('');
   const stages=['Qualificado','Contato feito','Proposta','Negociação','Fechado'];
   const counts=stages.map(s=>state.deals.filter(d=>d.stage===s).length);
-  if(chart) chart.destroy();
+  if(chart && typeof chart.destroy==='function') chart.destroy();
   const ctx=$('#funnelChart');
-  chart=new Chart(ctx,{type:'bar',data:{labels:stages,datasets:[{label:'Negócios',data:counts,backgroundColor:['#7f67b3','#6e54a9','#5e439f','#4c328f','#1fa86a'],borderRadius:7}]},options:{plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,ticks:{precision:0}},x:{grid:{display:false}}}}});
+  if(ctx && typeof Chart!=='undefined'){
+    chart=new Chart(ctx,{
+      type:'bar',
+      data:{labels:stages,datasets:[{label:'Negócios',data:counts,backgroundColor:['#7f67b3','#6e54a9','#5e439f','#4c328f','#1fa86a'],borderRadius:7}]},
+      options:{plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,ticks:{precision:0}},x:{grid:{display:false}}}}
+    });
+  }else if(ctx){
+    const parent=ctx.parentElement;
+    ctx.style.display='none';
+    let fallback=parent.querySelector('.chart-fallback');
+    if(!fallback){ fallback=document.createElement('div'); fallback.className='chart-fallback'; parent.appendChild(fallback); }
+    fallback.innerHTML=stages.map((s,i)=>`<div class="fallback-bar"><span>${s}</span><b>${counts[i]}</b><i style="width:${Math.max(8,counts[i]*12)}px"></i></div>`).join('');
+  }
 }
 function renderPipeline(){
   const stages=['Qualificado','Contato feito','Proposta','Negociação','Fechado'];
@@ -269,8 +303,29 @@ function renderReorder(){
 function renderCalendar(){
   const el=$('#calendar'); if(!el)return;
   const events=pendingTasks().map(t=>({id:t.id,title:`${t.type}: ${t.client}`,start:t.date+(t.time?`T${t.time}`:''),allDay:!t.time}));
-  if(calendar){calendar.removeAllEvents();events.forEach(e=>calendar.addEvent(e));return;}
-  calendar=new FullCalendar.Calendar(el,{initialView:'dayGridMonth',locale:'pt-br',height:'auto',buttonText:{today:'Hoje'},events,dateClick:info=>{showView('calendario');$('#activityDate').value=info.dateStr;}});
+
+  if(typeof FullCalendar==='undefined'){
+    el.innerHTML=`<div class="calendar-fallback"><h3>Agenda comercial</h3>${
+      events.length ? events.map(e=>`<div class="fallback-event"><b>${fmtDate(e.start.slice(0,10))}</b><span>${escapeHtml(e.title)}</span></div>`).join('')
+      : '<p class="muted">Nenhuma atividade agendada.</p>'
+    }</div>`;
+    return;
+  }
+
+  if(calendar && typeof calendar.removeAllEvents==='function'){
+    calendar.removeAllEvents();
+    events.forEach(e=>calendar.addEvent(e));
+    return;
+  }
+
+  calendar=new FullCalendar.Calendar(el,{
+    initialView:'dayGridMonth',
+    locale:'pt-br',
+    height:'auto',
+    buttonText:{today:'Hoje'},
+    events,
+    dateClick:info=>{showView('calendario');$('#activityDate').value=info.dateStr;}
+  });
   calendar.render();
 }
 window.scheduleFor=(name,type,date='')=>{showView('calendario');$('#activityClient').value=decodeURIComponent(name);$('#activityType').value=type;$('#activityDate').value=date||todayISO();setTimeout(()=>$('#activityNote').focus(),50);}
@@ -279,18 +334,58 @@ function showView(name){
   $$('.nav-btn').forEach(b=>b.classList.toggle('active',b.dataset.view===name));
   const titles={dashboard:['Dashboard Comercial','Visão geral das vendas, clientes e próximos passos.'],pipeline:['Funil de Vendas','Acompanhe oportunidades e avance os negócios pelo processo comercial.'],clientes:['Clientes','Histórico de compra, potencial e próxima ação.'],calendario:['Calendário Comercial','Centralize compromissos, follow-ups e pontos de reposição.'],followups:['Follow-ups','Nada de cliente esquecido: veja os contatos que precisam acontecer.'],reposicao:['Ponto de Reposição','Antecipe a próxima compra com base no ciclo de cada cliente.'],importar:['Importar Planilhas','Arraste sua planilha e transforme os dados em um CRM navegável.']};
   $('#pageTitle').textContent=titles[name][0];$('#pageSubtitle').textContent=titles[name][1];
-  if(name==='calendario')setTimeout(()=>calendar?.updateSize(),80);
+  if(name==='calendario')setTimeout(()=>{ if(calendar&&typeof calendar.updateSize==='function') calendar.updateSize(); },80);
 }
 $$('.nav-btn').forEach(b=>b.onclick=()=>showView(b.dataset.view));
 $$('[data-go]').forEach(b=>b.onclick=()=>showView(b.dataset.go));
 $('#selectFileBtn').onclick=()=>$('#fileInput').click();
 $('#fileInput').onchange=e=>readFiles(e.target.files);
 const dz=$('#dropzone'); dz.onclick=e=>{if(e.target.id!=='selectFileBtn')$('#fileInput').click()};dz.ondragover=e=>{e.preventDefault();dz.classList.add('drag')};dz.ondragleave=()=>dz.classList.remove('drag');dz.ondrop=e=>{e.preventDefault();dz.classList.remove('drag');readFiles(e.dataTransfer.files)};
-$('#activityForm').onsubmit=e=>{e.preventDefault();state.activities.push({id:uid(),client:$('#activityClient').value.trim(),type:$('#activityType').value,date:$('#activityDate').value,time:$('#activityTime').value,note:$('#activityNote').value.trim(),done:false});save();e.target.reset();$('#activityDate').value=todayISO();$('#activityTime').value='09:00';renderAll();toast('Atividade adicionada ao calendário.');};
+$('#activityForm').onsubmit=e=>{
+  e.preventDefault();
+  const client=$('#activityClient').value.trim();
+  const date=$('#activityDate').value;
+  if(!client || !date){ toast('Informe cliente e data.'); return; }
+
+  state.activities.push({
+    id:uid(),client,type:$('#activityType').value,date,
+    time:$('#activityTime').value,note:$('#activityNote').value.trim(),done:false
+  });
+
+  if(!save()) return;
+
+  e.target.reset();
+  $('#activityDate').value=todayISO();
+  $('#activityTime').value='09:00';
+  renderAll();
+  showView('followups');
+  toast('Atividade salva com sucesso.');
+};
 $('#reorderLeadDays').oninput=()=>renderAll();
 $('#globalSearch').oninput=()=>renderClients();
 $('#newDealBtn').onclick=()=>{$('#dealDialog').showModal();$('#dealClient').focus()};
-$('#saveDealBtn').onclick=e=>{e.preventDefault();if(!$('#dealClient').value.trim()){toast('Informe o cliente.');return;}state.deals.push({id:uid(),client:$('#dealClient').value.trim(),title:$('#dealTitle').value.trim()||'Nova oportunidade',value:Number($('#dealValue').value||0),stage:$('#dealStage').value,followup:$('#dealFollowup').value,created:todayISO()});save();$('#dealDialog').close();$('#dealForm').reset();renderAll();toast('Negócio criado.');};
+$('#saveDealBtn').onclick=e=>{
+  e.preventDefault();
+  const client=$('#dealClient').value.trim();
+  if(!client){ toast('Informe o cliente.'); return; }
+
+  state.deals.push({
+    id:uid(),client,
+    title:$('#dealTitle').value.trim()||'Nova oportunidade',
+    value:Number($('#dealValue').value||0),
+    stage:$('#dealStage').value,
+    followup:$('#dealFollowup').value,
+    created:todayISO()
+  });
+
+  if(!save()) return;
+
+  $('#dealDialog').close();
+  $('#dealForm').reset();
+  renderAll();
+  showView('pipeline');
+  toast('Negócio salvo com sucesso.');
+};
 $('#pipelineListToggle').onclick=()=>{$('#kanban').classList.toggle('hidden');$('#pipelineTableWrap').classList.toggle('hidden');$('#pipelineListToggle').classList.toggle('active')};
 $('#notifyBtn').onclick=async()=>{if(!('Notification'in window)){toast('Seu navegador não suporta notificações.');return;}const p=await Notification.requestPermission();toast(p==='granted'?'Alertas do navegador ativados.':'Permissão de alerta não concedida.');};
 $('#exportClientsBtn').onclick=()=>{const rows=clientStats();const csv=['Cliente,Cidade,UF,Ultima compra,Compras,Total,Ticket medio',...rows.map(c=>[c.name,c.city,c.uf,c.last,c.records.length,c.total,c.avg].map(v=>`"${String(v).replaceAll('"','""')}"`).join(','))].join('\n');const blob=new Blob(["\ufeff"+csv],{type:'text/csv;charset=utf-8'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='clientes_crm.csv';a.click();URL.revokeObjectURL(a.href);};
@@ -299,4 +394,14 @@ function notifyDue(){
   const due=pendingTasks().filter(t=>t.date<=todayISO()).slice(0,5);
   if(due.length)new Notification('SalesFlow CRM',{body:`Você tem ${due.length} follow-up(s) pendente(s) ou vencendo hoje.`});
 }
-$('#activityDate').value=todayISO(); renderAll(); setTimeout(notifyDue,1200);
+function initializeApp(){
+  $('#activityDate').value=todayISO();
+  try{
+    renderAll();
+  }catch(err){
+    console.error('Falha de renderização:',err);
+    toast('O CRM abriu em modo seguro. As funções de navegação e salvamento continuam disponíveis.');
+  }
+  setTimeout(notifyDue,1200);
+}
+initializeApp();

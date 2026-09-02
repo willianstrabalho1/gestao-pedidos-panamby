@@ -24,3 +24,10 @@ dialog{border:0;border-radius:16px;padding:0;box-shadow:0 25px 70px rgba(0,0,0,.
 @media(max-width:700px){#app{grid-template-columns:1fr}.sidebar{width:64px}.sidebar:hover{width:64px}.brand-text,.nav-btn span,.sidebar-footer span{display:none}main{grid-column:1;padding:16px 12px 30px;margin-left:64px}.kpis{grid-template-columns:1fr}.top-actions{align-items:stretch;flex-direction:column}.search{width:100%}.form-grid{grid-template-columns:1fr}.span-2{grid-column:auto}}
 
 .import-layout.single{grid-template-columns:1fr;max-width:900px;margin:0 auto}
+
+.chart-fallback{display:flex;flex-direction:column;gap:12px;padding:12px 4px}
+.fallback-bar{display:grid;grid-template-columns:110px 35px 1fr;align-items:center;gap:10px;font-size:12px}
+.fallback-bar i{display:block;height:12px;background:#6d43c0;border-radius:999px;max-width:100%}
+.calendar-fallback{padding:8px}
+.fallback-event{display:flex;gap:14px;align-items:center;padding:11px;border-bottom:1px solid var(--line);font-size:13px}
+.fallback-event b{min-width:86px;color:var(--purple)}

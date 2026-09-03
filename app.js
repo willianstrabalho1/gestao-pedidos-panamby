@@ -1,4 +1,4 @@
-console.info("Gestor Comercial Panamby V34 CORREÇÃO VALORES NEGOCIAÇÃO");
+console.info("Gestor Comercial Panamby V36 DASHBOARD + PIPELINE SEPARADOS");
 const DB_NAME="gestor_comercial_panamby_v33",STORE="app",DB_KEY="principal";
 let db={clientes:[],vendas:[],followups:[],apuracaoLinhas:[],apuracaoMetas:[],pipelineStages:[]};
 
@@ -102,13 +102,46 @@ function setStage(id,stage){
 }
 function pipelineBase(){
  if(pipelineCache&&pipelineCacheVersion===pipelineVersion)return pipelineCache;
+
  const sm=stageMap(),lastSale=new Map();
- for(const v of db.vendas){const old=lastSale.get(v.clienteId);if(!old||String(v.data||"")>String(old.data||""))lastSale.set(v.clienteId,v)}
+
+ for(const v of db.vendas){
+   const key=v.clienteId || String(v.codigoCliente||"");
+   const old=lastSale.get(key);
+   if(!old||String(v.data||"")>String(old.data||""))lastSale.set(key,v);
+ }
+
  pipelineCache=db.clientes.map(c=>{
-  const s=sm.get(c.id)||"Contato",v=lastSale.get(c.id),n=getNegotiation(c.id),f=nextFollowForClient(c.id);
-  return {...c,stage:s,valorPipeline:s==="Venda"?Number(v?.valorSemImpostos||c.valor||0):s==="Negociação"?Number(n.valorNegociado||0):Number(c.valor||0),neg:n,nextFollow:f,search:norm([c.codigo,c.razao,c.representante,c.cidade,c.uf,c.tel1,c.tel2,n.ordemCompra,n.statusNegociacao,n.observacaoNegociacao,f?.texto].join(" "))};
+   const s=sm.get(c.id)||"Contato";
+   const v=lastSale.get(c.id)||lastSale.get(String(c.codigo||""));
+   const n=getNegotiation(c.id);
+   const f=nextFollowForClient(c.id);
+
+   let valorPipeline=Number(c.valor||0);
+
+   if(s==="Negociação"){
+     valorPipeline=Number(n.valorNegociado||0);
+   }else if(s==="Venda"){
+     const valorVenda=Number(v?.valorSemImpostos||0);
+     const valorNegociado=Number(n.valorNegociado||0);
+     valorPipeline=valorVenda>0?valorVenda:(valorNegociado>0?valorNegociado:Number(c.valor||0));
+   }
+
+   return {
+     ...c,
+     stage:s,
+     valorPipeline,
+     neg:n,
+     nextFollow:f,
+     search:norm([
+       c.codigo,c.razao,c.representante,c.cidade,c.uf,c.tel1,c.tel2,
+       n.ordemCompra,n.statusNegociacao,n.observacaoNegociacao,f?.texto
+     ].join(" "))
+   };
  });
- pipelineCacheVersion=pipelineVersion;return pipelineCache;
+
+ pipelineCacheVersion=pipelineVersion;
+ return pipelineCache;
 }
 function pipelineFiltered(){
  const rep=$("pipeRep").value,q=norm($("pipeBusca").value||""),sort=$("pipeSort").value;
@@ -131,46 +164,113 @@ function saveNegotiation(){
  closeModal("negModal");save();
 }
 function pipeCard(c){
- const followHtml=c.stage==="Follow-up"&&c.nextFollow?`<div class="pipe-stage-box follow-box"><div><b>🔔 Próximo alerta / retorno</b></div><div>${brdate(c.nextFollow.data)} às ${esc(c.nextFollow.hora||"09:00")}</div><div class="pipe-small">${esc(c.nextFollow.tipo||"Ligação")} • ${esc(c.nextFollow.texto||"")}</div></div>`:"";
- const negHtml=c.stage==="Negociação"?`<div class="pipe-stage-box neg-box">
-<div class="pipe-neg-row"><span>💰 Valor negociado</span><b>${money(c.neg?.valorNegociado||0)}</b></div>
-<div class="pipe-neg-row"><span>📄 Ordem de compra</span><b>${esc(c.neg?.ordemCompra||"—")}</b></div>
-<div class="pipe-neg-row"><span>📅 Previsão</span><b>${brdate(c.neg?.previsaoFechamento)}</b></div>
-<div class="pipe-neg-row"><span>📌 Status</span><b>${esc(c.neg?.statusNegociacao||"Em negociação")}</b></div>
-${c.neg?.observacaoNegociacao?`<div class="pipe-neg-obs">📝 ${esc(c.neg.observacaoNegociacao)}</div>`:""}
-</div>`:"";
- return `<div class="pipe-card" data-cliente-id="${c.id}"><div class="pipe-card-top"><div class="pipe-title"><b>${esc(c.razao)}</b><small>${esc(c.codigo)}</small></div><span class="pipe-value">${money(c.valorPipeline)}</span></div><div class="pipe-meta"><span>👔 ${esc(c.representante||"Sem representante")}</span><span>📍 ${esc(c.cidade||"")}/${esc(c.uf||"")}</span></div><div class="pipe-highlight"><span class="${Number(c.dias)>=90?"late":Number(c.dias)>=30?"warn":""}">⏳ ${Number(c.dias||0)} dias</span><span>🛒 ${brdate(c.ultima)}</span></div>${followHtml}${negHtml}<div class="pipe-bottom"><button class="details-btn" onclick="togglePipeDetails(this)">Ver detalhes</button><div class="pipe-actions">${c.tel1||c.tel2?`<button class="pipe-icon whatsbtn" onclick="openWhats('${c.id}')" title="WhatsApp">💬</button>`:""}<button class="pipe-icon" onclick="openFollow('${c.id}')" title="Follow-up / retorno">📞</button>${c.stage==="Negociação"?`<button class="pipe-icon negbtn" onclick="openNegotiation('${c.id}')" title="Editar negociação">✏️</button>`:""}</div></div><div class="pipe-extra">Última compra: ${money(c.valor)}<br>Telefone: ${esc(c.tel1||c.tel2||"—")}<br>Etapa: ${esc(c.stage)}</div></div>`;
+ const followHtml=c.stage==="Follow-up"&&c.nextFollow
+   ?`<div class="pipe-stage-box follow-box">
+       <div><b>🔔 Próximo alerta / retorno</b></div>
+       <div>${brdate(c.nextFollow.data)} às ${esc(c.nextFollow.hora||"09:00")}</div>
+       <div class="pipe-small">${esc(c.nextFollow.tipo||"Ligação")} • ${esc(c.nextFollow.texto||"")}</div>
+     </div>`
+   :"";
+
+ const negHtml=c.stage==="Negociação"
+   ?`<div class="pipe-stage-box neg-box">
+       <div class="pipe-neg-row"><span>💰 Valor negociado</span><b>${money(c.neg?.valorNegociado||0)}</b></div>
+       <div class="pipe-neg-row"><span>📄 Ordem de compra</span><b>${esc(c.neg?.ordemCompra||"—")}</b></div>
+       <div class="pipe-neg-row"><span>📅 Previsão</span><b>${brdate(c.neg?.previsaoFechamento)}</b></div>
+       <div class="pipe-neg-row"><span>📌 Status</span><b>${esc(c.neg?.statusNegociacao||"Em negociação")}</b></div>
+       ${c.neg?.observacaoNegociacao?`<div class="pipe-neg-obs">📝 ${esc(c.neg.observacaoNegociacao)}</div>`:""}
+     </div>`
+   :"";
+
+ const saleValue=c.stage==="Venda"?getPipelineSaleValue(c):0;
+ const saleHtml=c.stage==="Venda"
+   ?`<div class="pipe-stage-box sale-box">
+       <div class="pipe-neg-row"><span>💰 Valor fechado</span><b>${money(saleValue)}</b></div>
+       <div class="pipe-neg-row"><span>📄 Ordem de compra</span><b>${esc(c.neg?.ordemCompra||"—")}</b></div>
+       <div class="pipe-neg-row"><span>✅ Situação</span><b>Venda concluída</b></div>
+     </div>`
+   :"";
+
+ return `<div class="pipe-card" data-cliente-id="${c.id}">
+   <div class="pipe-card-top">
+     <div class="pipe-title">
+       <b>${esc(c.razao)}</b>
+       <small>${esc(c.codigo)}</small>
+     </div>
+     <span class="pipe-value">${money(c.stage==="Venda"?saleValue:c.valorPipeline)}</span>
+   </div>
+
+   <div class="pipe-meta">
+     <span>👔 ${esc(c.representante||"Sem representante")}</span>
+     <span>📍 ${esc(c.cidade||"")}/${esc(c.uf||"")}</span>
+   </div>
+
+   <div class="pipe-highlight">
+     <span class="${Number(c.dias)>=90?"late":Number(c.dias)>=30?"warn":""}">⏳ ${Number(c.dias||0)} dias</span>
+     <span>🛒 ${brdate(c.ultima)}</span>
+   </div>
+
+   ${followHtml}${negHtml}${saleHtml}
+
+   <div class="pipe-bottom">
+     <button class="details-btn" onclick="togglePipeDetails(this)">Ver detalhes</button>
+     <div class="pipe-actions">
+       ${c.tel1||c.tel2?`<button class="pipe-icon whatsbtn" onclick="openWhats('${c.id}')" title="WhatsApp">💬</button>`:""}
+       <button class="pipe-icon" onclick="openFollow('${c.id}')" title="Follow-up / retorno">📞</button>
+       ${c.stage==="Negociação"?`<button class="pipe-icon negbtn" onclick="openNegotiation('${c.id}')" title="Editar negociação">✏️</button>`:""}
+       ${c.stage==="Venda"&&Number(c.neg?.valorNegociado||0)>0?`<button class="pipe-icon negbtn" onclick="openNegotiation('${c.id}')" title="Ver negociação">📄</button>`:""}
+     </div>
+   </div>
+
+   <div class="pipe-extra">
+     Última compra: ${money(c.valor)}<br>
+     Telefone: ${esc(c.tel1||c.tel2||"—")}<br>
+     Etapa: ${esc(c.stage)}
+   </div>
+ </div>`;
 }
 function togglePipeDetails(btn){const c=btn.closest(".pipe-card");c.classList.toggle("show-extra");btn.textContent=c.classList.contains("show-extra")?"Ocultar":"Ver detalhes"}
 
+
+function getPipelineSaleValue(cliente){
+ if(!cliente)return 0;
+ const negotiated=Number(getNegotiation(cliente.id)?.valorNegociado||0);
+ if(negotiated>0)return negotiated;
+ return Number(cliente.valorPipeline||cliente.valor||0);
+}
+
+function renderPipelineSalesSummary(groups){
+ const follows=Array.isArray(groups?.["Follow-up"])?groups["Follow-up"]:[];
+ const negs=Array.isArray(groups?.Negociação)?groups.Negociação:[];
+ const vendas=Array.isArray(groups?.Venda)?groups.Venda:[];
+ const total=vendas.reduce((sum,c)=>sum+getPipelineSaleValue(c),0);
+ const trabalhados=follows.length+negs.length+vendas.length;
+ const conversao=trabalhados?(vendas.length/trabalhados)*100:0;
+ setText("pipelineSalesValue",money(total));
+ setText("pipelineSalesCount",`${vendas.length} venda(s) concluída(s)`);
+ setText("pipelineConversion",`${conversao.toLocaleString("pt-BR",{minimumFractionDigits:1,maximumFractionDigits:1})}%`);
+}
+
 function renderNegotiationSummary(groups){
  const negs=Array.isArray(groups?.Negociação)?groups.Negociação:[];
-
- const total=negs.reduce((s,c)=>s+Number(getNegotiation(c.id).valorNegociado||0),0);
- const qtd=negs.length;
- const ticket=qtd?total/qtd:0;
-
- const porRep={};
+ const vendasPipe=Array.isArray(groups?.Venda)?groups.Venda:[];
+ const total=negs.reduce((sum,c)=>sum+Number(getNegotiation(c.id).valorNegociado||0),0);
+ const qtd=negs.length, ticket=qtd?total/qtd:0;
+ const porRepNeg={};
  negs.forEach(c=>{
    const rep=c.representante||"Sem representante";
-   porRep[rep]=(porRep[rep]||0)+Number(getNegotiation(c.id).valorNegociado||0);
+   porRepNeg[rep]=(porRepNeg[rep]||0)+Number(getNegotiation(c.id).valorNegociado||0);
  });
- const repNeg=Object.entries(porRep).sort((a,b)=>b[1]-a[1])[0];
-
- const vendaPorRep={};
- (db.vendas||[]).forEach(v=>{
-   const rep=v.representante||"Sem representante";
-   vendaPorRep[rep]=(vendaPorRep[rep]||0)+Number(v.valorSemImpostos||0);
+ const repNeg=Object.entries(porRepNeg).sort((a,b)=>b[1]-a[1])[0];
+ const porRepVendaPipe={};
+ vendasPipe.forEach(c=>{
+   const rep=c.representante||"Sem representante";
+   porRepVendaPipe[rep]=(porRepVendaPipe[rep]||0)+getPipelineSaleValue(c);
  });
- const repVenda=Object.entries(vendaPorRep).sort((a,b)=>b[1]-a[1])[0];
-
- setText("negTotalValor",money(total));
- setText("negTotalQtd",qtd);
- setText("negTicketMedio",money(ticket));
- setText("negRepLider",repNeg?.[0]||"—");
- setText("negRepLiderValor",money(repNeg?.[1]||0));
- setText("vendaRepLiderPipe",repVenda?.[0]||"Sem vendas importadas");
- setText("vendaRepLiderPipeValor",money(repVenda?.[1]||0));
+ const repVendaPipe=Object.entries(porRepVendaPipe).sort((a,b)=>b[1]-a[1])[0];
+ setText("negTotalValor",money(total)); setText("negTotalQtd",qtd); setText("negTicketMedio",money(ticket));
+ setText("negRepLider",repNeg?.[0]||"—"); setText("negRepLiderValor",money(repNeg?.[1]||0));
+ setText("vendaRepLiderPipe",repVendaPipe?.[0]||"—"); setText("vendaRepLiderPipeValor",money(repVendaPipe?.[1]||0));
 }
 
 function renderPipeline(){
@@ -185,6 +285,7 @@ function renderPipeline(){
  setText("countContato",groups.Contato.length);setText("countFollow",groups["Follow-up"].length);setText("countNegociacao",groups.Negociação.length);setText("countVenda",groups.Venda.length);
  setText("pipeQtd",arr.length);setText("pipeFollowQtd",groups["Follow-up"].length);setText("pipeNegQtd",groups.Negociação.length);setText("pipeVendaQtd",groups.Venda.length);setText("pipePageInfo",`Página ${pipePage+1} de ${max} • ${groups.Contato.length.toLocaleString("pt-BR")} em Contato`);
  renderNegotiationSummary(groups);
+ renderPipelineSalesSummary(groups);
  initPipelineDrag();
 }
 function prevPipelinePage(){if(pipePage>0){pipePage--;renderPipeline()}}
@@ -196,7 +297,7 @@ function initPipelineDrag(){
  const board=document.querySelector(".pipeline-board");if(!board||board.dataset.ready==="1")return;board.dataset.ready="1";
  board.addEventListener("pointerdown",e=>{if(e.target.closest("button,input,select,textarea,a"))return;const card=e.target.closest(".pipe-card");if(!card)return;drag={id:card.dataset.clienteId,card,pointerId:e.pointerId,x:e.clientX,y:e.clientY,active:false,ghost:null,target:null};card.setPointerCapture?.(e.pointerId)});
  board.addEventListener("pointermove",e=>{if(!drag||drag.pointerId!==e.pointerId)return;const dx=e.clientX-drag.x,dy=e.clientY-drag.y;if(!drag.active&&Math.hypot(dx,dy)<7)return;if(!drag.active){drag.active=true;drag.card.classList.add("dragging-real");const g=drag.card.cloneNode(true);g.classList.add("pipe-ghost");g.style.width=drag.card.getBoundingClientRect().width+"px";document.body.appendChild(g);drag.ghost=g}e.preventDefault();drag.ghost.style.left=e.clientX+12+"px";drag.ghost.style.top=e.clientY+12+"px";drag.ghost.style.display="none";const el=document.elementFromPoint(e.clientX,e.clientY);drag.ghost.style.display="block";const col=el?.closest?.(".pipe-column");document.querySelectorAll(".pipe-column").forEach(x=>x.classList.remove("drag-over"));if(col){col.classList.add("drag-over");drag.target=col}else drag.target=null});
- const finish=e=>{if(!drag)return;const d=drag;drag=null;d.card?.classList.remove("dragging-real");d.ghost?.remove();document.querySelectorAll(".pipe-column").forEach(x=>x.classList.remove("drag-over"));if(!d.active||!d.target)return;const stage=d.target.dataset.stage;if(stage==="Venda"){setStage(d.id,"Venda");save();return}if(stage==="Negociação"){setStage(d.id,"Negociação");save();openNegotiation(d.id);return}setStage(d.id,stage);if(stage==="Follow-up")openFollow(d.id);save()};
+ const finish=e=>{if(!drag)return;const d=drag;drag=null;d.card?.classList.remove("dragging-real");d.ghost?.remove();document.querySelectorAll(".pipe-column").forEach(x=>x.classList.remove("drag-over"));if(!d.active||!d.target)return;const stage=d.target.dataset.stage;if(stage==="Venda"){updateStageRecord(d.id,{stage:"Venda",dataFechamento:today()});save();return}if(stage==="Negociação"){setStage(d.id,"Negociação");save();openNegotiation(d.id);return}setStage(d.id,stage);if(stage==="Follow-up")openFollow(d.id);save()};
  board.addEventListener("pointerup",finish);board.addEventListener("pointercancel",finish);
 }
 
@@ -361,7 +462,11 @@ function pipelineStageClass(stage){
  return stage==="Venda"?"sale":stage==="Negociação"?"neg":stage==="Follow-up"?"follow":"contact";
 }
 function changeActivityStage(clienteId,stage){
- setStage(clienteId,stage);
+ if(stage==="Venda"){
+   updateStageRecord(clienteId,{stage:"Venda",dataFechamento:today()});
+ }else{
+   setStage(clienteId,stage);
+ }
  save();
 }
 

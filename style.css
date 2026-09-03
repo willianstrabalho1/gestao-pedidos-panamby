@@ -135,3 +135,38 @@ button{border:0;padding:10px 13px;border-radius:9px;cursor:pointer;font-weight:6
 .pipe-neg-obs{margin-top:5px;padding-top:5px;border-top:1px solid #eddab7;color:#695a3d;font-size:8px;line-height:1.4}
 @media(max-width:1250px){.neg-summary{grid-template-columns:repeat(3,1fr)}}
 @media(max-width:760px){.neg-summary{grid-template-columns:1fr}}
+
+/* V35 vendas feitas no Pipeline */
+.neg-summary{
+  grid-template-columns:repeat(6,minmax(0,1fr));
+}
+.pipeline-sales-kpi{
+  background:#f2fbf5;
+  border-color:#cfe9d7;
+}
+.pipeline-sales-kpi strong{
+  color:#157446;
+}
+.sale-box{
+  background:#edf9f1;
+  border:1px solid #cce8d6;
+  color:#185f35;
+}
+.sale-box .pipe-neg-row{
+  border-bottom:1px solid #dcefe3;
+}
+.sale-box .pipe-neg-row:last-child{
+  border-bottom:0;
+}
+@media(max-width:1400px){
+  .neg-summary{grid-template-columns:repeat(3,1fr)}
+}
+@media(max-width:760px){
+  .neg-summary{grid-template-columns:1fr}
+}
+
+/* V36 */
+.neg-summary{grid-template-columns:repeat(7,minmax(0,1fr))}
+@media(max-width:1500px){.neg-summary{grid-template-columns:repeat(4,minmax(0,1fr))}}
+@media(max-width:1000px){.neg-summary{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:620px){.neg-summary{grid-template-columns:1fr}}

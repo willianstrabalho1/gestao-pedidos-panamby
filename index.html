@@ -27,7 +27,7 @@
   <div>
     <h2 id="pageTitle">Dashboard</h2>
     <small id="todayLabel"></small><br>
-    <small class="version">V32 ASSUNTOS PRONTOS • 2026.09.03</small>
+    <small class="version">V33 RESUMO DE NEGOCIAÇÃO • 2026.09.03</small>
   </div>
   <button class="primary" onclick="enableNotifications()">🔔 Ativar alertas e som</button>
 </header>
@@ -109,7 +109,15 @@
     <div class="card mini-kpi"><small>Venda concluída</small><strong id="pipeVendaQtd">0</strong></div>
   </div>
 
-  <div class="pipeline-help">💡 Segure o cartão e arraste entre as etapas. Todos os clientes importados começam em Contato.</div>
+  
+<div class="neg-summary">
+  <div class="card neg-kpi"><small>🤝 Total negociado</small><strong id="negTotalValor">R$ 0,00</strong><span>soma das negociações</span></div>
+  <div class="card neg-kpi"><small>📋 Negociações</small><strong id="negTotalQtd">0</strong><span>clientes em negociação</span></div>
+  <div class="card neg-kpi"><small>🎯 Ticket médio negociado</small><strong id="negTicketMedio">R$ 0,00</strong><span>média por negociação</span></div>
+  <div class="card neg-kpi"><small>👔 Líder em negociação</small><strong id="negRepLider">—</strong><span id="negRepLiderValor">R$ 0,00</span></div>
+  <div class="card neg-kpi"><small>🏆 Líder em vendas</small><strong id="vendaRepLiderPipe">—</strong><span id="vendaRepLiderPipeValor">R$ 0,00</span></div>
+</div>
+<div class="pipeline-help">💡 Segure o cartão e arraste entre as etapas. Todos os clientes importados começam em Contato.</div>
   <div class="pipeline-fastbar">
     <button onclick="prevPipelinePage()">◀ Anterior</button>
     <span id="pipePageInfo">Página 1</span>

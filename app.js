@@ -1,5 +1,5 @@
-console.info("Gestor Comercial Panamby V32 ASSUNTOS PRONTOS");
-const DB_NAME="gestor_comercial_panamby_v32",STORE="app",DB_KEY="principal";
+console.info("Gestor Comercial Panamby V33 RESUMO DE NEGOCIAÇÃO");
+const DB_NAME="gestor_comercial_panamby_v33",STORE="app",DB_KEY="principal";
 let db={clientes:[],vendas:[],followups:[],apuracaoLinhas:[],apuracaoMetas:[],pipelineStages:[]};
 
 const $=id=>document.getElementById(id);
@@ -132,10 +132,46 @@ function saveNegotiation(){
 }
 function pipeCard(c){
  const followHtml=c.stage==="Follow-up"&&c.nextFollow?`<div class="pipe-stage-box follow-box"><div><b>🔔 Próximo alerta / retorno</b></div><div>${brdate(c.nextFollow.data)} às ${esc(c.nextFollow.hora||"09:00")}</div><div class="pipe-small">${esc(c.nextFollow.tipo||"Ligação")} • ${esc(c.nextFollow.texto||"")}</div></div>`:"";
- const negHtml=c.stage==="Negociação"?`<div class="pipe-stage-box neg-box"><div class="pipe-neg-row"><span>Valor negociado</span><b>${money(c.neg?.valorNegociado||0)}</b></div><div class="pipe-neg-row"><span>Ordem de compra</span><b>${esc(c.neg?.ordemCompra||"—")}</b></div><div class="pipe-neg-row"><span>Previsão</span><b>${brdate(c.neg?.previsaoFechamento)}</b></div><div class="pipe-small">${esc(c.neg?.statusNegociacao||"Em negociação")}</div></div>`:"";
+ const negHtml=c.stage==="Negociação"?`<div class="pipe-stage-box neg-box">
+<div class="pipe-neg-row"><span>💰 Valor negociado</span><b>${money(c.neg?.valorNegociado||0)}</b></div>
+<div class="pipe-neg-row"><span>📄 Ordem de compra</span><b>${esc(c.neg?.ordemCompra||"—")}</b></div>
+<div class="pipe-neg-row"><span>📅 Previsão</span><b>${brdate(c.neg?.previsaoFechamento)}</b></div>
+<div class="pipe-neg-row"><span>📌 Status</span><b>${esc(c.neg?.statusNegociacao||"Em negociação")}</b></div>
+${c.neg?.observacaoNegociacao?`<div class="pipe-neg-obs">📝 ${esc(c.neg.observacaoNegociacao)}</div>`:""}
+</div>`:"";
  return `<div class="pipe-card" data-cliente-id="${c.id}"><div class="pipe-card-top"><div class="pipe-title"><b>${esc(c.razao)}</b><small>${esc(c.codigo)}</small></div><span class="pipe-value">${money(c.valorPipeline)}</span></div><div class="pipe-meta"><span>👔 ${esc(c.representante||"Sem representante")}</span><span>📍 ${esc(c.cidade||"")}/${esc(c.uf||"")}</span></div><div class="pipe-highlight"><span class="${Number(c.dias)>=90?"late":Number(c.dias)>=30?"warn":""}">⏳ ${Number(c.dias||0)} dias</span><span>🛒 ${brdate(c.ultima)}</span></div>${followHtml}${negHtml}<div class="pipe-bottom"><button class="details-btn" onclick="togglePipeDetails(this)">Ver detalhes</button><div class="pipe-actions">${c.tel1||c.tel2?`<button class="pipe-icon whatsbtn" onclick="openWhats('${c.id}')" title="WhatsApp">💬</button>`:""}<button class="pipe-icon" onclick="openFollow('${c.id}')" title="Follow-up / retorno">📞</button>${c.stage==="Negociação"?`<button class="pipe-icon negbtn" onclick="openNegotiation('${c.id}')" title="Editar negociação">✏️</button>`:""}</div></div><div class="pipe-extra">Última compra: ${money(c.valor)}<br>Telefone: ${esc(c.tel1||c.tel2||"—")}<br>Etapa: ${esc(c.stage)}</div></div>`;
 }
 function togglePipeDetails(btn){const c=btn.closest(".pipe-card");c.classList.toggle("show-extra");btn.textContent=c.classList.contains("show-extra")?"Ocultar":"Ver detalhes"}
+
+function renderNegotiationSummary(groups){
+ const negs=(groups?.Negociação||[]);
+ const total=negs.reduce((s,c)=>s+Number(c.neg?.valorNegociado||0),0);
+ const qtd=negs.length;
+ const ticket=qtd?total/qtd:0;
+
+ const porRep={};
+ negs.forEach(c=>{
+   const rep=c.representante||"Sem representante";
+   porRep[rep]=(porRep[rep]||0)+Number(c.neg?.valorNegociado||0);
+ });
+ const repNeg=Object.entries(porRep).sort((a,b)=>b[1]-a[1])[0];
+
+ const vendaPorRep={};
+ (db.vendas||[]).forEach(v=>{
+   const rep=v.representante||"Sem representante";
+   vendaPorRep[rep]=(vendaPorRep[rep]||0)+Number(v.valorSemImpostos||0);
+ });
+ const repVenda=Object.entries(vendaPorRep).sort((a,b)=>b[1]-a[1])[0];
+
+ setText("negTotalValor",money(total));
+ setText("negTotalQtd",qtd);
+ setText("negTicketMedio",money(ticket));
+ setText("negRepLider",repNeg?.[0]||"—");
+ setText("negRepLiderValor",money(repNeg?.[1]||0));
+ setText("vendaRepLiderPipe",repVenda?.[0]||"—");
+ setText("vendaRepLiderPipeValor",money(repVenda?.[1]||0));
+}
+
 function renderPipeline(){
  const arr=pipelineFiltered(),groups={Contato:[], "Follow-up":[],Negociação:[],Venda:[]};
  arr.forEach(c=>groups[c.stage]?.push(c));

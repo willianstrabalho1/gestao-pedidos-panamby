@@ -128,3 +128,10 @@ button{border:0;padding:10px 13px;border-radius:9px;cursor:pointer;font-weight:6
 .hidden-custom.show-custom{display:block!important}
 #fAssunto optgroup{font-weight:700}
 #fAssunto option{font-weight:400}
+
+.neg-summary{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin:12px 0}
+.neg-kpi strong{display:block;font-size:19px;margin:6px 0 3px;line-height:1.15;overflow-wrap:anywhere}
+.neg-kpi span{display:block;font-size:10px;color:#75839a}
+.pipe-neg-obs{margin-top:5px;padding-top:5px;border-top:1px solid #eddab7;color:#695a3d;font-size:8px;line-height:1.4}
+@media(max-width:1250px){.neg-summary{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:760px){.neg-summary{grid-template-columns:1fr}}

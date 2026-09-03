@@ -1,55 +1,20 @@
-GESTOR COMERCIAL PANAMBY — V32
-ASSUNTOS PRONTOS
-Data: 2026.09.03
+GESTOR COMERCIAL PANAMBY — V33
+RESUMO DE NEGOCIAÇÃO
 
-MELHORIA NO FOLLOW-UP
-O campo Assunto / Atividade agora é uma lista pronta para evitar digitação.
+NOVIDADES NO PIPELINE
+- Total negociado
+- Quantidade de negociações
+- Ticket médio negociado
+- Representante líder em negociação
+- Representante líder em vendas
 
-GRUPOS DE ASSUNTOS
-- Contato e retorno
-- Catálogo e produtos
-- Preços e condições
-- Pedido e compra
-- Negociação
-- Financeiro
-- Pós-venda
-- Clientes inativos
-- Outros
+LÍDER EM NEGOCIAÇÃO
+Calculado pela soma dos valores negociados na etapa Negociação.
 
-EXEMPLOS
-- Ligar para o cliente
-- Retornar ligação
-- Cobrar retorno do cliente
-- Enviar catálogo
-- Apresentar lançamentos
-- Enviar tabela de preços
-- Negociar desconto
-- Negociar condição de pagamento
-- Confirmar pedido
-- Verificar reposição
-- Confirmar ordem de compra
-- Cobrar ordem de compra
-- Acompanhar negociação
-- Enviar proposta comercial
-- Confirmar pagamento
-- Realizar pós-venda
-- Reativar cliente
-- Enviar WhatsApp
-- Enviar e-mail
+LÍDER EM VENDAS
+Calculado pelas vendas importadas de DIGITAÇÃO DE ORDEM.xls usando o valor sem impostos.
 
-OUTRO / PERSONALIZADO
-Só aparece um campo para digitação se escolher:
-Outro / Personalizado
-
-CONVERSA E ALERTA
-- Data do início da conversa
-- Data do alerta / próximo retorno
-- Horário do alerta
-- Aviso na tela
-- Som
-- Notificação do navegador
-
-NEGOCIAÇÃO
+CARTÃO DE NEGOCIAÇÃO
 - Valor negociado
 - Ordem de compra
 - Previsão de fechamento
@@ -57,12 +22,4 @@ NEGOCIAÇÃO
 - Observação
 
 BANCO
-- IndexedDB
-- gestor_comercial_panamby_v32
-
-GITHUB
-Substitua:
-- index.html
-- app.js
-- style.css
-- README.txt
+IndexedDB: gestor_comercial_panamby_v33

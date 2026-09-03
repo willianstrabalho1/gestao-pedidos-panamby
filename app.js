@@ -1,5 +1,5 @@
-console.info("Gestor Comercial Panamby V28 PIPELINE INTEGRADO AO FOLLOW-UP");
-const DB_NAME="gestor_comercial_panamby_v28",STORE="app",DB_KEY="principal";
+console.info("Gestor Comercial Panamby V29 CORREÇÃO FOLLOW-UP / ALARME");
+const DB_NAME="gestor_comercial_panamby_v29",STORE="app",DB_KEY="principal";
 let db={clientes:[],vendas:[],followups:[],apuracaoLinhas:[],apuracaoMetas:[],pipelineStages:[]};
 
 const $=id=>document.getElementById(id);
@@ -179,6 +179,19 @@ function changeActivityStage(clienteId,stage){
  setStage(clienteId,stage);
  save();
 }
+
+function followDue(f){
+ if(!f || f.done)return false;
+ if(!f.data)return false;
+
+ const hora=f.hora||"09:00";
+ const dt=new Date(`${f.data}T${hora}:00`);
+
+ if(isNaN(dt.getTime()))return false;
+
+ return dt<=new Date();
+}
+
 function activityFiltered(){
  const rep=$("followRep")?.value||"",
        q=norm($("followClienteBusca")?.value||""),

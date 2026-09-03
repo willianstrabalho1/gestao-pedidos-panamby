@@ -54,3 +54,12 @@ Substitua:
 
 Depois:
 Commit changes -> aguarde GitHub Pages -> Ctrl + F5.
+
+
+V29 CORREÇÃO FOLLOW-UP / ALARME
+- Corrigido erro: "followDue is not defined".
+- A função followDue agora verifica corretamente data + horário da atividade.
+- Atividades concluídas nunca são consideradas vencidas.
+- Atividades sem data válida não quebram a inicialização do sistema.
+- Pipeline integrado ao Follow-up foi mantido.
+- Dashboard foi mantido.

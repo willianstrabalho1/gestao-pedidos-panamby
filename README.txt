@@ -109,3 +109,30 @@ V19 TOTAL CLIENTES EM CONTATO
 - Ao reimportar a planilha Total, o Pipeline é reiniciado e todos os clientes voltam para Contato.
 - IDs dos clientes são preservados por código sempre que possível.
 - Contato é ordenado por dias sem comprar, do maior para o menor.
+
+V20 PIPELINE SEM TRAVAR
+- Corrige travamento ao carregar milhares de clientes.
+- Todos os clientes continuam no Pipeline.
+- A contagem continua mostrando a base inteira.
+- São renderizados inicialmente até 80 cartões por coluna.
+- Botão "Carregar mais" adiciona mais 80 por vez.
+- Busca e representante filtram a base completa, não apenas os cartões visíveis.
+- Arrastar continua funcionando nos cartões carregados.
+- content-visibility e contain foram adicionados para reduzir o custo de renderização.
+
+V21 PIPELINE ORGANIZADO
+- Cartões compactos, com informações principais em destaque.
+- Botão Ver detalhes para informações secundárias.
+- Ordenação por dias sem comprar, maior valor, nome ou última compra.
+- Follow-up agora tem área própria, separada de vendas/pedidos.
+- Importação exclusiva de Follow-up em planilha própria.
+- Importação de Vendas/Pedidos identificada como área independente.
+- KPIs e filtros exclusivos para Follow-ups.
+
+V22 PIPELINE OTIMIZADO
+- Pipeline preparado para bases com cerca de 9 mil clientes ou mais.
+- Paginação real: apenas 60 cartões da coluna Contato são montados por vez.
+- Botões Anterior e Próxima navegam pela base sem carregar milhares de elementos.
+- Cache interno de clientes/pedidos/orçamentos/vendas elimina filtros repetidos para cada cliente.
+- Busca tem debounce de 250 ms.
+- Filtros e pesquisa continuam atuando sobre a base completa.

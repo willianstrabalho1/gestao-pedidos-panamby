@@ -25,7 +25,7 @@
 <button class="nav" data-tab="excel">📗 Excel / Backup</button>
 </aside>
 <main>
-<header><div><h2 id="pageTitle">Dashboard</h2><small id="todayLabel"></small><br><small class="version">V19 TOTAL CLIENTES EM CONTATO • 2026.09.02</small></div><button class="primary" onclick="enableNotifications()">🔔 Ativar notificações</button></header>
+<header><div><h2 id="pageTitle">Dashboard</h2><small id="todayLabel"></small><br><small class="version">V22 PIPELINE OTIMIZADO • 2026.09.03</small></div><button class="primary" onclick="enableNotifications()">🔔 Ativar notificações</button></header>
 
 <section id="dashboard" class="tab active">
 <div class="card filters">
@@ -104,6 +104,16 @@
 <div><label>Data final</label><input type="date" id="pipeFim"></div>
 <div><label>Representante</label><select id="pipeRep"><option value="">Todos</option></select></div>
 <div><label>Pesquisar</label><input id="pipeBusca" placeholder="Cliente, código, pedido ou orçamento..."></div>
+
+<div>
+  <label>Ordenar cartões</label>
+  <select id="pipeSort">
+    <option value="dias">Mais dias sem comprar</option>
+    <option value="valor">Maior valor</option>
+    <option value="nome">Nome do cliente</option>
+    <option value="ultima">Última compra mais recente</option>
+  </select>
+</div>
 <button class="primary" onclick="renderPipeline()">Atualizar pipeline</button>
 </div>
 <div class="pipeline-kpis">
@@ -112,7 +122,12 @@
 <div class="card mini-kpi"><small>Pedidos</small><strong id="pipePedidos">0</strong></div>
 <div class="card mini-kpi"><small>Vendas concluídas</small><strong id="pipeVendas">0</strong></div>
 </div>
-<div class="pipeline-help">💡 Arraste os cartões entre as etapas. O sistema atualiza o processo comercial conforme a movimentação.</div><div class="pipeline-board">
+<div class="pipeline-help">💡 Arraste os cartões entre as etapas. O sistema atualiza o processo comercial conforme a movimentação.</div><div class="pipeline-perf" id="pipelinePerf">Carregando clientes...</div><div class="pipeline-fastbar">
+<button onclick="prevPipelinePage('Contato')">◀ Anterior</button>
+<span id="pipePageContato">Página 1</span>
+<button onclick="nextPipelinePage('Contato')">Próxima ▶</button>
+<span class="muted">60 clientes por página para manter o Pipeline rápido.</span>
+</div><div class="pipeline-board">
 <div class="pipe-column" data-stage="Contato" ondragover="pipelineDragOver(event)" ondrop="pipelineDrop(event,'Contato')"><div class="pipe-head"><span>📞 Contato</span><b id="countContato">0</b></div><div class="pipe-cards" id="pipeContato"></div></div>
 <div class="pipe-column" data-stage="Orçamento" ondragover="pipelineDragOver(event)" ondrop="pipelineDrop(event,'Orçamento')"><div class="pipe-head"><span>📝 Orçamento</span><b id="countOrcamento">0</b></div><div class="pipe-cards" id="pipeOrcamento"></div></div>
 <div class="pipe-column" data-stage="Negociação" ondragover="pipelineDragOver(event)" ondrop="pipelineDrop(event,'Negociação')"><div class="pipe-head"><span>🤝 Negociação</span><b id="countNegociacao">0</b></div><div class="pipe-cards" id="pipeNegociacao"></div></div>
@@ -121,7 +136,50 @@
 </div>
 </section>
 
-<section id="followups" class="tab"><div class="toolbar"><button class="primary" onclick="openFollow()">+ Novo follow-up</button></div><div id="followList"></div></section>
+
+<section id="followups" class="tab">
+  <div class="follow-grid">
+    <div class="card follow-main">
+      <div class="section-head">
+        <div>
+          <h3>📞 Follow-ups</h3>
+          <p class="muted">Acompanhamentos comerciais separados das vendas e pedidos.</p>
+        </div>
+        <button class="primary" onclick="openFollow()">+ Novo follow-up</button>
+      </div>
+
+      <div class="toolbar follow-filters">
+        <input id="buscaFollow" placeholder="Cliente, código ou assunto...">
+        <select id="statusFollow">
+          <option value="">Todos</option>
+          <option value="pendente">Pendentes</option>
+          <option value="concluido">Concluídos</option>
+        </select>
+      </div>
+
+      <div class="kpis three">
+        <div class="card kpi"><small>Total</small><strong id="fQtdTotal">0</strong></div>
+        <div class="card kpi"><small>Pendentes</small><strong id="fQtdPend">0</strong></div>
+        <div class="card kpi"><small>Concluídos</small><strong id="fQtdConcl">0</strong></div>
+      </div>
+
+      <div id="followList"></div>
+    </div>
+
+    <div class="card follow-import">
+      <h3>📥 Importar Follow-up</h3>
+      <p class="muted">Importação independente de vendas/pedidos.</p>
+      <input type="file" id="followFile" accept=".xls,.xlsx">
+      <button class="primary" onclick="importFollowups()">Importar follow-ups</button>
+      <div id="followMsg" class="msg"></div>
+      <div class="help-box">
+        <b>Colunas aceitas:</b><br>
+        Código Cliente / Cliente / Data / Assunto / Status
+      </div>
+    </div>
+  </div>
+</section>
+
 <section id="alertas" class="tab"><div class="card intro"><h3>🔔 Alertas</h3><p class="muted">Lembretes de clientes com data e prioridade.</p></div><div id="alertList"></div></section>
 
 <section id="apuracao" class="tab">
@@ -135,7 +193,13 @@
 <div class="card intro storage-ok"><b>💾 IndexedDB ativo.</b> Suporta bases grandes sem o limite pequeno do localStorage.</div>
 <div class="grid2">
 <div class="card"><h3>👥 TODOS OS CLIENTES.xls</h3><input type="file" id="clientesFile" accept=".xls,.xlsx"><button class="primary" onclick="importClientes()">Importar clientes</button><div id="clientesMsg" class="msg"></div></div>
-<div class="card"><h3>🧾 DIGITAÇÃO DE ORDEM.xls</h3><input type="file" id="pedidosFile" accept=".xls,.xlsx"><button class="primary" onclick="importPedidos()">Importar pedidos</button><div id="pedidosMsg" class="msg"></div></div>
+<div class="card import-card vendas-import-card">
+<h3>💰 Importação de Vendas / Pedidos</h3>
+<p class="muted">Área exclusiva para DIGITAÇÃO DE ORDEM.xls. Não interfere nos Follow-ups.</p>
+<input type="file" id="pedidosFile" accept=".xls,.xlsx">
+<button class="primary" onclick="importPedidos()">Importar vendas/pedidos</button>
+<div id="pedidosMsg" class="msg"></div>
+</div>
 </div>
 <div class="card intro"><h3>📋 APURAÇÃO DE VENDAS.xls</h3><input type="file" id="apuracaoFile" accept=".xls,.xlsx"><button class="primary" onclick="importApuracao()">Importar apuração</button><div id="apuracaoMsg" class="msg"></div></div>
 <div class="card intro"><h3>💾 Backup e exportação</h3><button class="primary" onclick="backupDados()">💾 Fazer backup</button><button onclick="$('restoreFile').click()">♻️ Restaurar backup</button><input type="file" id="restoreFile" accept=".json" style="display:none" onchange="restaurarBackup(event)"><button onclick="exportExcel()">📗 Exportar Excel</button><button class="deletebtn" onclick="limparTudo()">🗑️ Limpar tudo</button></div>

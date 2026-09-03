@@ -71,3 +71,59 @@
 /* V19: coluna Contato é a base total de clientes */
 .pipe-column[data-stage="Contato"] .pipe-head{background:#f0fff5}
 .pipe-column[data-stage="Contato"]{border-color:#cdebd7}
+
+/* V20 desempenho do pipeline */
+.pipe-more{
+ display:block;
+ width:calc(100% - 18px);
+ margin:0 9px 10px;
+ padding:9px;
+ border:1px solid #d7e0ec;
+ background:#fff;
+ color:#3159cf;
+ font-size:11px;
+ border-radius:8px;
+}
+.pipe-more:hover{background:#eef2ff}
+.pipeline-perf{
+ font-size:10px;
+ color:#6f7f95;
+ margin:-5px 0 10px;
+ padding-left:4px;
+}
+.pipe-cards{contain:content}
+.pipe-card{content-visibility:auto;contain-intrinsic-size:120px}
+
+/* V21 Pipeline organizado */
+.pipeline-toolbar{grid-template-columns:140px 140px 190px 1fr 190px auto}
+.pipe-card.compact{padding:10px}
+.pipe-title{min-width:0}
+.pipe-title b{display:block;font-size:11px;line-height:1.25}
+.pipe-title small{display:block;color:#8a96a8;font-size:9px;margin-top:2px}
+.pipe-value{font-size:11px!important}
+.pipe-meta{display:flex;flex-wrap:wrap;gap:4px 10px;font-size:9px}
+.pipe-highlight{display:flex;justify-content:space-between;gap:8px;margin-top:7px;padding:6px 7px;border-radius:7px;background:#f7f9fc;font-size:9px;color:#65748b}
+.pipe-highlight .warn{color:#9a6a00;font-weight:700}
+.pipe-highlight .late{color:#b63131;font-weight:800}
+.pipe-detail-line{font-size:9px;color:#536176;margin-top:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pipe-extra{display:none;margin-top:7px;padding:7px;border-top:1px solid #edf1f5;font-size:9px;color:#65748b;line-height:1.6}
+.pipe-card.show-extra .pipe-extra{display:block}
+.details-btn{background:transparent;color:#3159cf;padding:3px 0;font-size:9px}
+.pipe-actions .pipe-icon{padding:4px 6px}
+.follow-grid{display:grid;grid-template-columns:minmax(0,2fr) minmax(280px,1fr);gap:14px}
+.section-head{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+.section-head h3{margin:0 0 4px}
+.follow-filters{margin-top:12px}
+.follow-card{background:#fff;border:1px solid #dfe6ef;border-radius:12px;padding:12px;margin-bottom:8px}
+.follow-card.done{opacity:.72}
+.follow-import{align-self:start;position:sticky;top:16px}
+.help-box{margin-top:12px;background:#f7f9fc;border-radius:8px;padding:10px;font-size:10px;color:#65748b;line-height:1.5}
+.import-card{min-height:180px}
+@media(max-width:1100px){.pipeline-toolbar{grid-template-columns:1fr 1fr 1fr}.follow-grid{grid-template-columns:1fr}.follow-import{position:static}}
+
+/* V22 Pipeline leve */
+.pipeline-fastbar{display:flex;align-items:center;gap:8px;margin:0 0 10px;padding:8px 10px;background:#fff;border:1px solid #dfe6ef;border-radius:9px;font-size:10px}
+.pipeline-fastbar button{padding:6px 9px;background:#eef2ff;color:#3159cf}
+.pipeline-fastbar #pipePageContato{font-weight:800;color:#273653;min-width:180px;text-align:center}
+.pipe-cards{contain:layout paint style}
+.pipe-card{contain:layout paint style;content-visibility:auto;contain-intrinsic-size:145px}

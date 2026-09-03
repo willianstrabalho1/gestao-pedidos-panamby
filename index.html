@@ -18,8 +18,7 @@
   <button class="nav" data-tab="clientes">👥 Clientes</button>
   <button class="nav" data-tab="vendas">💰 Vendas</button>
   <button class="nav" data-tab="pipeline">🗂️ Pipeline Comercial</button>
-  <button class="nav" data-tab="followups">📞 Follow-ups</button>
-  <button class="nav" data-tab="alertas">🔔 Alertas</button>
+  <button class="nav" data-tab="followups">📞 Follow-ups / Alarmes</button>
   <button class="nav" data-tab="apuracao">📋 Apuração de Metas</button>
   <button class="nav" data-tab="excel">📗 Excel / Backup</button>
 </aside>
@@ -29,7 +28,7 @@
   <div>
     <h2 id="pageTitle">Dashboard</h2>
     <small id="todayLabel"></small><br>
-    <small class="version">V24 DO ZERO • SEM PEDIDOS E ORÇAMENTOS • 2026.09.03</small>
+    <small class="version">V26 ATIVIDADES COMPLETAS • 2026.09.03</small>
   </div>
   <button class="primary" onclick="enableNotifications()">🔔 Ativar notificações</button>
 </header>
@@ -54,7 +53,7 @@
         <span>🎯 Ticket: <b id="tickTicket">R$ 0,00</b></span>
         <span>🗺️ Região líder: <b id="tickRegiao">—</b></span>
         <span>👔 Representante líder: <b id="tickRep">—</b></span>
-        <span>📞 Follow-ups: <b id="tickFollow">0</b></span>
+        <span>⏰ Follow-ups/Alarmes: <b id="tickFollow">0</b></span>
       </div>
     </div>
   </div>
@@ -70,7 +69,7 @@
     <div class="card kpi"><small>Região líder</small><strong id="kRegiao">—</strong><span id="kRegiaoVal">R$ 0,00</span></div>
     <div class="card kpi"><small>Representante líder</small><strong id="kRepLider">—</strong><span id="kRepVal">R$ 0,00</span></div>
     <div class="card kpi"><small>Clientes compradores</small><strong id="kCli">0</strong></div>
-    <div class="card kpi"><small>Follow-ups pendentes</small><strong id="kFollow">0</strong></div>
+    <div class="card kpi"><small>Follow-ups / alarmes pendentes</small><strong id="kFollow">0</strong></div>
   </div>
 
   <div class="chart-grid">
@@ -158,45 +157,45 @@
 </section>
 
 <section id="followups" class="tab">
-  <div class="card">
-    <h3>📞 Follow-up por Representante</h3>
-    <p class="muted">Os clientes vêm diretamente da importação de TODOS OS CLIENTES.xls.</p>
-
-    <div class="follow-search-grid">
-      <div><label>Representante</label><select id="followRep"><option value="">Todos os representantes</option></select></div>
-      <div><label>Buscar cliente</label><input id="followClienteBusca" placeholder="Código, razão social, cidade ou telefone..."></div>
-      <div><label>Status</label><select id="statusFollow"><option value="">Todos</option><option value="sem">Sem follow-up</option><option value="pendente">Com pendência</option><option value="concluido">Concluído</option></select></div>
-    </div>
-  </div>
-
-  <div class="follow-kpis">
-    <div class="card kpi"><small>Clientes encontrados</small><strong id="fClientesQtd">0</strong></div>
-    <div class="card kpi"><small>Pendentes</small><strong id="fQtdPend">0</strong></div>
-    <div class="card kpi"><small>Concluídos</small><strong id="fQtdConcl">0</strong></div>
-    <div class="card kpi"><small>Total de follow-ups</small><strong id="fQtdTotal">0</strong></div>
-  </div>
-
-  <div class="follow-layout">
-    <div class="card follow-client-panel">
-      <h3>👥 Clientes do representante</h3>
-      <div id="followClientesList"></div>
-      <div class="follow-pagination">
-        <button onclick="prevFollowPage()">◀ Anterior</button>
-        <span id="followPageInfo">Página 1</span>
-        <button onclick="nextFollowPage()">Próxima ▶</button>
-      </div>
-    </div>
-
-    <div class="card follow-history-panel">
-      <h3>🗂️ Histórico</h3>
-      <div id="followList"></div>
-    </div>
-  </div>
-</section>
-
-<section id="alertas" class="tab">
-  <div class="card intro"><h3>🔔 Alertas</h3><p class="muted">Lembretes e compromissos comerciais.</p></div>
-  <div id="alertList"></div>
+<div class="card activity-top">
+<div class="activity-title-row"><div><h3>📞 Atividades / Follow-ups / Alarmes</h3><p class="muted">Gestão completa das atividades comerciais dos clientes importados.</p></div><button class="primary" onclick="openActivityNew()">+ Nova atividade</button></div>
+<div class="activity-type-tabs">
+<button class="act-type active" onclick="setActivityTypeFilter(this,'')">Tudo</button>
+<button class="act-type" onclick="setActivityTypeFilter(this,'Ligação')">📞 Ligação</button>
+<button class="act-type" onclick="setActivityTypeFilter(this,'WhatsApp')">💬 WhatsApp</button>
+<button class="act-type" onclick="setActivityTypeFilter(this,'E-mail')">📧 E-mail</button>
+<button class="act-type" onclick="setActivityTypeFilter(this,'Reunião')">🤝 Reunião</button>
+<button class="act-type" onclick="setActivityTypeFilter(this,'Tarefa')">📋 Tarefa</button>
+</div>
+<div class="activity-period-tabs">
+<button class="period-tab active" onclick="setActivityPeriod(this,'open')">Para fazer</button>
+<button class="period-tab" onclick="setActivityPeriod(this,'overdue')">Vencido</button>
+<button class="period-tab" onclick="setActivityPeriod(this,'today')">Hoje</button>
+<button class="period-tab" onclick="setActivityPeriod(this,'tomorrow')">Amanhã</button>
+<button class="period-tab" onclick="setActivityPeriod(this,'week')">Esta semana</button>
+<button class="period-tab" onclick="setActivityPeriod(this,'nextweek')">Próxima semana</button>
+<button class="period-tab" onclick="setActivityPeriod(this,'all')">Tudo</button>
+</div>
+<div class="activity-filters">
+<div><label>Representante</label><select id="followRep"><option value="">Todos os representantes</option></select></div>
+<div><label>Buscar</label><input id="followClienteBusca" placeholder="Cliente, código, assunto, telefone, cidade..."></div>
+<div><label>Prioridade</label><select id="activityPriority"><option value="">Todas</option><option>Normal</option><option>Importante</option><option>Urgente</option></select></div>
+<div><label>Status</label><select id="statusFollow"><option value="">Todos</option><option value="pendente">Pendente</option><option value="concluido">Concluído</option></select></div>
+</div>
+</div>
+<div class="activity-kpis">
+<div class="card kpi"><small>Para fazer</small><strong id="fQtdPend">0</strong></div>
+<div class="card kpi"><small>Vencidos</small><strong id="fQtdVenc">0</strong></div>
+<div class="card kpi"><small>Hoje</small><strong id="fQtdHoje">0</strong></div>
+<div class="card kpi"><small>Concluídos</small><strong id="fQtdConcl">0</strong></div>
+<div class="card kpi"><small>Clientes encontrados</small><strong id="fClientesQtd">0</strong></div>
+</div>
+<div class="card activity-table-card">
+<div class="activity-table-scroll"><table class="activity-table"><thead><tr>
+<th>Concluído</th><th>Tipo</th><th>Assunto</th><th>Cliente</th><th>Representante</th><th>Prioridade</th><th>Resultado</th><th>Telefone</th><th>Cidade/UF</th><th>Data</th><th>Hora</th><th>Status</th><th>Ações</th>
+</tr></thead><tbody id="activityBody"></tbody></table></div>
+<div class="follow-pagination"><button onclick="prevFollowPage()">◀ Anterior</button><span id="followPageInfo">Página 1</span><button onclick="nextFollowPage()">Próxima ▶</button></div>
+</div>
 </section>
 
 <section id="apuracao" class="tab">
@@ -279,26 +278,23 @@
 <button class="primary" onclick="saveVenda()">Salvar venda</button>
 </div></div>
 
-<div class="modal" id="followModal"><div class="modalbox">
+<div class="modal" id="followModal"><div class="modalbox wide-modal">
 <button class="x" onclick="closeModal('followModal')">×</button>
-<h3>📞 Novo Follow-up</h3>
-<input type="hidden" id="fClienteId">
+<h3 id="followModalTitle">📞 Nova atividade</h3>
+<input type="hidden" id="fId"><input type="hidden" id="fClienteId">
 <div id="fClienteResumo" class="selected-box"></div>
-<label>Data do próximo contato<input id="fData" type="date"></label>
-<label>Assunto / observação<textarea id="fTexto" placeholder="Ex.: enviar catálogo, retornar ligação, confirmar negociação..."></textarea></label>
+<div class="formgrid">
+<label>Tipo de atividade<select id="fTipo"><option>Ligação</option><option>WhatsApp</option><option>E-mail</option><option>Reunião</option><option>Tarefa</option></select></label>
+<label>Prioridade<select id="fPrioridade"><option>Normal</option><option>Importante</option><option>Urgente</option></select></label>
+</div>
+<div class="formgrid"><label>Data<input id="fData" type="date"></label><label>Horário<input id="fHora" type="time" value="09:00"></label></div>
+<label>Assunto / atividade<textarea id="fTexto" placeholder="Ex.: ligar sobre reposição, enviar catálogo, confirmar negociação..."></textarea></label>
+<div class="formgrid">
+<label>Resultado<select id="fResultado"><option value="">Sem resultado</option><option>Cliente não atendeu</option><option>Contato realizado</option><option>Catálogo enviado</option><option>Aguardando retorno</option><option>Negociação aberta</option><option>Venda realizada</option><option>Sem interesse</option></select></label>
 <label>Status<select id="fStatusNovo"><option value="pendente">Pendente</option><option value="concluido">Concluído</option></select></label>
-<button class="primary" onclick="saveFollow()">Salvar follow-up</button>
-</div></div>
-
-<div class="modal" id="alertModal"><div class="modalbox">
-<button class="x" onclick="closeModal('alertModal')">×</button>
-<h3>🔔 Alerta</h3>
-<input type="hidden" id="aClienteId">
-<div id="aClienteNome" class="selected-box"></div>
-<label>Data<input id="aData" type="date"></label>
-<label>Motivo<textarea id="aTexto"></textarea></label>
-<label>Prioridade<select id="aPrior"><option>Normal</option><option>Importante</option><option>Urgente</option></select></label>
-<button class="primary" onclick="saveAlert()">Salvar alerta</button>
+</div>
+<div class="alarm-info">⏰ Toda atividade pendente funciona como alarme. Ao concluir, o alarme é encerrado.</div>
+<button class="primary" onclick="saveFollow()">Salvar atividade</button>
 </div></div>
 
 <div class="modal" id="whatsModal"><div class="modalbox">

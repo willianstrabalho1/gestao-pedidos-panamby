@@ -16,7 +16,6 @@
 
   <button class="nav active" data-tab="dashboard">📊 Dashboard</button>
   <button class="nav" data-tab="clientes">👥 Clientes</button>
-  <button class="nav" data-tab="vendas">💰 Vendas</button>
   <button class="nav" data-tab="pipeline">🗂️ Pipeline Comercial</button>
   <button class="nav" data-tab="followups">📞 Follow-ups / Alarmes</button>
   <button class="nav" data-tab="apuracao">📋 Apuração de Metas</button>
@@ -28,7 +27,7 @@
   <div>
     <h2 id="pageTitle">Dashboard</h2>
     <small id="todayLabel"></small><br>
-    <small class="version">V26 ATIVIDADES COMPLETAS • 2026.09.03</small>
+    <small class="version">V27 SEM TELA VENDAS + DASHBOARD • 2026.09.03</small>
   </div>
   <button class="primary" onclick="enableNotifications()">🔔 Ativar notificações</button>
 </header>
@@ -93,22 +92,7 @@
   <div id="clientesList"></div>
 </section>
 
-<section id="vendas" class="tab">
-  <div class="toolbar">
-    <button class="primary" onclick="openVenda()">+ Registrar venda</button>
-    <input id="buscaVenda" placeholder="Documento, código, cliente ou representante...">
-    <input type="date" id="vendaInicio">
-    <input type="date" id="vendaFim">
-  </div>
 
-  <div class="kpis three">
-    <div class="card kpi"><small>Sem impostos</small><strong id="vSem">R$ 0,00</strong></div>
-    <div class="card kpi"><small>Valor líquido</small><strong id="vLiq">R$ 0,00</strong></div>
-    <div class="card kpi"><small>Quantidade</small><strong id="vQtd">0</strong></div>
-  </div>
-
-  <div id="vendasList"></div>
-</section>
 
 <section id="pipeline" class="tab">
   <div class="card pipeline-toolbar">
@@ -262,21 +246,6 @@
 </section>
 </main>
 </div>
-
-<div class="modal" id="vendaModal"><div class="modalbox">
-<button class="x" onclick="closeModal('vendaModal')">×</button>
-<h3>💰 Registrar venda</h3>
-<label>Código do cliente<input id="vCodigo" oninput="buscarClienteVenda()"></label>
-<label>Cliente<input id="vCliente" readonly></label>
-<input type="hidden" id="vClienteId">
-<label>Representante<select id="vRep"></select></label>
-<label>Data<input id="vData" type="date"></label>
-<label>Documento / referência<input id="vDocumento"></label>
-<label>Valor sem impostos<input id="vValorSem" type="number" step="0.01"></label>
-<label>Valor líquido<input id="vValorLiq" type="number" step="0.01"></label>
-<label>Observação<textarea id="vObs"></textarea></label>
-<button class="primary" onclick="saveVenda()">Salvar venda</button>
-</div></div>
 
 <div class="modal" id="followModal"><div class="modalbox wide-modal">
 <button class="x" onclick="closeModal('followModal')">×</button>

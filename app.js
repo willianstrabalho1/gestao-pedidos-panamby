@@ -1,5 +1,5 @@
-console.info("Gestor Comercial Panamby V26 ATIVIDADES COMPLETAS");
-const DB_NAME="gestor_comercial_panamby_v26",STORE="app",DB_KEY="principal";
+console.info("Gestor Comercial Panamby V27 SEM TELA VENDAS + DASHBOARD");
+const DB_NAME="gestor_comercial_panamby_v27",STORE="app",DB_KEY="principal";
 let db={clientes:[],vendas:[],followups:[],apuracaoLinhas:[],apuracaoMetas:[],pipelineStages:[]};
 
 const $=id=>document.getElementById(id);
@@ -37,7 +37,7 @@ function fillSelectors(){
  const r=reps(),opts='<option value="">Todos</option>'+r.map(x=>`<option>${esc(x)}</option>`).join("");
  for(const id of ["dashRep","pipeRep"]){const e=$(id);if(e){const cur=e.value;e.innerHTML=opts;e.value=cur}}
  if($("followRep")){const cur=$("followRep").value;$("followRep").innerHTML='<option value="">Todos os representantes</option>'+r.map(x=>`<option>${esc(x)}</option>`).join("");$("followRep").value=cur}
- if($("vRep"))$("vRep").innerHTML=r.map(x=>`<option>${esc(x)}</option>`).join("");
+
 }
 
 let charts={};
@@ -66,27 +66,14 @@ function renderDashboard(){
 function renderClientes(){
  const q=norm($("buscaCliente").value),dias=Number($("filtroDias").value||0);
  const arr=db.clientes.filter(c=>(!q||norm([c.codigo,c.razao,c.cnpj,c.cidade,c.uf,c.representante,c.tel1,c.tel2].join(" ")).includes(q))&&(!dias||Number(c.dias)>=dias)).slice(0,500);
- setHTML("clientesList",arr.map(c=>`<div class="client"><div class="toprow"><div><h3>${esc(c.codigo)} — ${esc(c.razao)}</h3><div class="muted">${esc(c.cidade)}/${esc(c.uf)} • ${esc(c.representante||"Sem representante")}</div></div><b>${Number(c.dias||0)} dias</b></div><div class="muted">Última compra: ${brdate(c.ultima)} • ${money(c.valor)}<br>☎ ${esc(c.tel1||"")} ${c.tel2?" | "+esc(c.tel2):""}</div><div class="actions"><button onclick="openFollow('${c.id}')">📞 Follow-up</button>${c.tel1||c.tel2?`<button class="whatsbtn" onclick="openWhats('${c.id}')">💬 WhatsApp</button>`:""}<button class="primary" onclick="openVenda('${c.id}')">💰 Venda</button></div></div>`).join("")||'<div class="card muted">Nenhum cliente.</div>');
+ setHTML("clientesList",arr.map(c=>`<div class="client"><div class="toprow"><div><h3>${esc(c.codigo)} — ${esc(c.razao)}</h3><div class="muted">${esc(c.cidade)}/${esc(c.uf)} • ${esc(c.representante||"Sem representante")}</div></div><b>${Number(c.dias||0)} dias</b></div><div class="muted">Última compra: ${brdate(c.ultima)} • ${money(c.valor)}<br>☎ ${esc(c.tel1||"")} ${c.tel2?" | "+esc(c.tel2):""}</div><div class="actions"><button onclick="openFollow('${c.id}')">📞 Follow-up</button>${c.tel1||c.tel2?`<button class="whatsbtn" onclick="openWhats('${c.id}')">💬 WhatsApp</button>`:""}</div></div>`).join("")||'<div class="card muted">Nenhum cliente.</div>');
 }
 
-function openVenda(id){
- fillSelectors();$("vData").value=today();$("vCodigo").value="";$("vCliente").value="";$("vClienteId").value="";$("vDocumento").value="";$("vValorSem").value="";$("vValorLiq").value="";$("vObs").value="";
- if(id){const c=getClient(id);if(c){$("vCodigo").value=c.codigo;buscarClienteVenda()}}
- $("vendaModal").classList.add("open");
-}
-function buscarClienteVenda(){const c=findClientCode($("vCodigo").value);$("vClienteId").value=c?.id||"";$("vCliente").value=c?.razao||"";if(c?.representante)$("vRep").value=c.representante}
-function saveVenda(){
- const c=findClientCode($("vCodigo").value);if(!c)return alert("Cliente não encontrado.");
- db.vendas.push({id:uid(),clienteId:c.id,codigoCliente:c.codigo,cliente:c.razao,representante:$("vRep").value||c.representante||"",data:$("vData").value,documento:$("vDocumento").value.trim(),valorSemImpostos:Number($("vValorSem").value||0),valorLiquido:Number($("vValorLiq").value||0),cidade:c.cidade,uf:c.uf,origem:"Manual",obs:$("vObs").value.trim()});
- setStage(c.id,"Venda");closeModal("vendaModal");save();
-}
-function renderVendas(){
- const q=norm($("buscaVenda").value),s=$("vendaInicio").value,e=$("vendaFim").value;
- const a=db.vendas.filter(v=>inPeriod(v.data,s,e)&&(!q||norm([v.documento,v.codigoCliente,v.cliente,v.representante].join(" ")).includes(q))).sort((a,b)=>(b.data||"").localeCompare(a.data||""));
- setText("vSem",money(a.reduce((s,x)=>s+Number(x.valorSemImpostos||0),0)));setText("vLiq",money(a.reduce((s,x)=>s+Number(x.valorLiquido||0),0)));setText("vQtd",a.length);
- setHTML("vendasList",a.map(v=>`<div class="sale"><div class="toprow"><div><h3>${esc(v.codigoCliente||"")} — ${esc(v.cliente||"Cliente")}</h3><div class="muted">${brdate(v.data)} • ${esc(v.representante||"")} ${v.documento?"• Ref. "+esc(v.documento):""}</div></div><div><b>${money(v.valorSemImpostos)}</b><br><span class="muted">Líquido ${money(v.valorLiquido)}</span></div></div><div class="actions"><button class="deletebtn" onclick="deleteVenda('${v.id}')">🗑️ Excluir venda</button></div></div>`).join("")||'<div class="card muted">Nenhuma venda.</div>');
-}
-function deleteVenda(id){const v=db.vendas.find(x=>x.id===id);if(!v||!confirm("Excluir esta venda?"))return;db.vendas=db.vendas.filter(x=>x.id!==id);save()}
+
+
+
+
+
 
 let pipelineCache=null,pipelineVersion=0,pipelineCacheVersion=-1,pipePage=0,pipeSearchTimer=null;
 const PIPE_PAGE_SIZE=60;
@@ -107,7 +94,7 @@ function pipelineFiltered(){
  const sorter=(a,b)=>sort==="valor"?b.valorPipeline-a.valorPipeline:sort==="nome"?String(a.razao).localeCompare(String(b.razao),"pt-BR"):sort==="ultima"?String(b.ultima||"").localeCompare(String(a.ultima||"")):Number(b.dias||0)-Number(a.dias||0);
  return arr.sort(sorter);
 }
-function pipeCard(c){return `<div class="pipe-card" data-cliente-id="${c.id}"><div class="pipe-card-top"><div class="pipe-title"><b>${esc(c.razao)}</b><small>${esc(c.codigo)}</small></div><span class="pipe-value">${money(c.valorPipeline)}</span></div><div class="pipe-meta"><span>👔 ${esc(c.representante||"Sem representante")}</span><span>📍 ${esc(c.cidade||"")}/${esc(c.uf||"")}</span></div><div class="pipe-highlight"><span class="${Number(c.dias)>=90?"late":Number(c.dias)>=30?"warn":""}">⏳ ${Number(c.dias||0)} dias</span><span>🛒 ${brdate(c.ultima)}</span></div><div class="pipe-bottom"><button class="details-btn" onclick="togglePipeDetails(this)">Ver detalhes</button><div class="pipe-actions">${c.tel1||c.tel2?`<button class="pipe-icon whatsbtn" onclick="openWhats('${c.id}')">💬</button>`:""}<button class="pipe-icon" onclick="openFollow('${c.id}')">📞</button><button class="pipe-icon primary" onclick="openVenda('${c.id}')">💰</button></div></div><div class="pipe-extra">Última compra: ${money(c.valor)}<br>Telefone: ${esc(c.tel1||c.tel2||"—")}<br>Etapa: ${esc(c.stage)}</div></div>`}
+function pipeCard(c){return `<div class="pipe-card" data-cliente-id="${c.id}"><div class="pipe-card-top"><div class="pipe-title"><b>${esc(c.razao)}</b><small>${esc(c.codigo)}</small></div><span class="pipe-value">${money(c.valorPipeline)}</span></div><div class="pipe-meta"><span>👔 ${esc(c.representante||"Sem representante")}</span><span>📍 ${esc(c.cidade||"")}/${esc(c.uf||"")}</span></div><div class="pipe-highlight"><span class="${Number(c.dias)>=90?"late":Number(c.dias)>=30?"warn":""}">⏳ ${Number(c.dias||0)} dias</span><span>🛒 ${brdate(c.ultima)}</span></div><div class="pipe-bottom"><button class="details-btn" onclick="togglePipeDetails(this)">Ver detalhes</button><div class="pipe-actions">${c.tel1||c.tel2?`<button class="pipe-icon whatsbtn" onclick="openWhats('${c.id}')">💬</button>`:""}<button class="pipe-icon" onclick="openFollow('${c.id}')">📞</button></div></div><div class="pipe-extra">Última compra: ${money(c.valor)}<br>Telefone: ${esc(c.tel1||c.tel2||"—")}<br>Etapa: ${esc(c.stage)}</div></div>`}
 function togglePipeDetails(btn){const c=btn.closest(".pipe-card");c.classList.toggle("show-extra");btn.textContent=c.classList.contains("show-extra")?"Ocultar":"Ver detalhes"}
 function renderPipeline(){
  const arr=pipelineFiltered(),groups={Contato:[], "Follow-up":[],Negociação:[],Venda:[]};
@@ -131,7 +118,7 @@ function initPipelineDrag(){
  const board=document.querySelector(".pipeline-board");if(!board||board.dataset.ready==="1")return;board.dataset.ready="1";
  board.addEventListener("pointerdown",e=>{if(e.target.closest("button,input,select,textarea,a"))return;const card=e.target.closest(".pipe-card");if(!card)return;drag={id:card.dataset.clienteId,card,pointerId:e.pointerId,x:e.clientX,y:e.clientY,active:false,ghost:null,target:null};card.setPointerCapture?.(e.pointerId)});
  board.addEventListener("pointermove",e=>{if(!drag||drag.pointerId!==e.pointerId)return;const dx=e.clientX-drag.x,dy=e.clientY-drag.y;if(!drag.active&&Math.hypot(dx,dy)<7)return;if(!drag.active){drag.active=true;drag.card.classList.add("dragging-real");const g=drag.card.cloneNode(true);g.classList.add("pipe-ghost");g.style.width=drag.card.getBoundingClientRect().width+"px";document.body.appendChild(g);drag.ghost=g}e.preventDefault();drag.ghost.style.left=e.clientX+12+"px";drag.ghost.style.top=e.clientY+12+"px";drag.ghost.style.display="none";const el=document.elementFromPoint(e.clientX,e.clientY);drag.ghost.style.display="block";const col=el?.closest?.(".pipe-column");document.querySelectorAll(".pipe-column").forEach(x=>x.classList.remove("drag-over"));if(col){col.classList.add("drag-over");drag.target=col}else drag.target=null});
- const finish=e=>{if(!drag)return;const d=drag;drag=null;d.card?.classList.remove("dragging-real");d.ghost?.remove();document.querySelectorAll(".pipe-column").forEach(x=>x.classList.remove("drag-over"));if(!d.active||!d.target)return;const stage=d.target.dataset.stage;if(stage==="Venda"){openVenda(d.id);return}setStage(d.id,stage);if(stage==="Follow-up")openFollow(d.id);save()};
+ const finish=e=>{if(!drag)return;const d=drag;drag=null;d.card?.classList.remove("dragging-real");d.ghost?.remove();document.querySelectorAll(".pipe-column").forEach(x=>x.classList.remove("drag-over"));if(!d.active||!d.target)return;const stage=d.target.dataset.stage;if(stage==="Venda"){setStage(d.id,"Venda");save();return}setStage(d.id,stage);if(stage==="Follow-up")openFollow(d.id);save()};
  board.addEventListener("pointerup",finish);board.addEventListener("pointercancel",finish);
 }
 
@@ -271,14 +258,13 @@ function closeModal(id){$(id)?.classList.remove("open")}
 
 function bind(id,event,fn){const e=$(id);if(e)e[event]=fn}
 ["buscaCliente","filtroDias"].forEach(id=>bind(id,"oninput",renderClientes));
-["buscaVenda","vendaInicio","vendaFim"].forEach(id=>bind(id,"oninput",renderVendas));
 ["dashInicio","dashFim","dashRep","dashRegiao","dashMetric"].forEach(id=>bind(id,"onchange",renderDashboard));
 bind("pipeRep","onchange",()=>{pipePage=0;renderPipeline()});bind("pipeSort","onchange",()=>{pipePage=0;renderPipeline()});bind("pipeBusca","oninput",schedulePipeline);
 ["followClienteBusca","statusFollow","activityPriority"].forEach(id=>bind(id,"oninput",()=>{followPage=0;renderFollow()}));bind("followRep","onchange",()=>{followPage=0;renderFollow()});
 ["buscaApuracao","filtroSupervisor","filtroAtingido"].forEach(id=>bind(id,"oninput",renderApuracao));
 
-function render(){fillSelectors();refreshSup();renderClientes();renderVendas();renderPipeline();renderFollow();renderApuracao();renderDashboard();checkNotifications()}
-async function iniciarApp(){try{const saved=await loadDB();if(saved){db=saved;normalizeDB()}const d=new Date(),first=new Date(d.getFullYear(),d.getMonth(),1).toISOString().slice(0,10);$("dashInicio").value=first;$("dashFim").value=today();$("vendaInicio").value=first;$("vendaFim").value=today();render();setInterval(checkNotifications,60000)}catch(e){console.error(e);alert("Erro ao iniciar: "+e.message)}}
+function render(){fillSelectors();refreshSup();renderClientes();renderPipeline();renderFollow();renderApuracao();renderDashboard();checkNotifications()}
+async function iniciarApp(){try{const saved=await loadDB();if(saved){db=saved;normalizeDB()}const d=new Date(),first=new Date(d.getFullYear(),d.getMonth(),1).toISOString().slice(0,10);$("dashInicio").value=first;$("dashFim").value=today();render();setInterval(checkNotifications,60000)}catch(e){console.error(e);alert("Erro ao iniciar: "+e.message)}}
 iniciarApp();
 
 function openFollow(id,activityId=""){return openFollowV26(id,activityId)}

@@ -1,25 +1,15 @@
-GESTOR COMERCIAL PANAMBY — V33
-RESUMO DE NEGOCIAÇÃO
+GESTOR COMERCIAL PANAMBY — V34
+CORREÇÃO VALORES DA NEGOCIAÇÃO
 
-NOVIDADES NO PIPELINE
-- Total negociado
-- Quantidade de negociações
-- Ticket médio negociado
-- Representante líder em negociação
-- Representante líder em vendas
+CORRIGIDO
+- Total negociado agora soma os valores exibidos nos cartões da coluna Negociação.
+- Quantidade de negociações agora acompanha a coluna Negociação.
+- Ticket médio negociado agora é calculado corretamente.
+- Líder em negociação agora usa os valores negociados por representante.
+- Líder em vendas agora usa os valores de vendas importados de DIGITAÇÃO DE ORDEM.xls.
 
-LÍDER EM NEGOCIAÇÃO
-Calculado pela soma dos valores negociados na etapa Negociação.
+IMPORTANTE
+O banco IndexedDB continua como gestor_comercial_panamby_v33 para preservar os dados atuais.
+Não precisa reimportar tudo ao atualizar da V33 para V34.
 
-LÍDER EM VENDAS
-Calculado pelas vendas importadas de DIGITAÇÃO DE ORDEM.xls usando o valor sem impostos.
-
-CARTÃO DE NEGOCIAÇÃO
-- Valor negociado
-- Ordem de compra
-- Previsão de fechamento
-- Status
-- Observação
-
-BANCO
-IndexedDB: gestor_comercial_panamby_v33
+Se aparecer "Sem vendas importadas" em Líder em vendas, importe DIGITAÇÃO DE ORDEM.xls em Excel / Backup.

@@ -1,4 +1,4 @@
-console.info("Gestor Comercial Panamby V33 RESUMO DE NEGOCIAÇÃO");
+console.info("Gestor Comercial Panamby V34 CORREÇÃO VALORES NEGOCIAÇÃO");
 const DB_NAME="gestor_comercial_panamby_v33",STORE="app",DB_KEY="principal";
 let db={clientes:[],vendas:[],followups:[],apuracaoLinhas:[],apuracaoMetas:[],pipelineStages:[]};
 
@@ -144,15 +144,16 @@ ${c.neg?.observacaoNegociacao?`<div class="pipe-neg-obs">📝 ${esc(c.neg.observ
 function togglePipeDetails(btn){const c=btn.closest(".pipe-card");c.classList.toggle("show-extra");btn.textContent=c.classList.contains("show-extra")?"Ocultar":"Ver detalhes"}
 
 function renderNegotiationSummary(groups){
- const negs=(groups?.Negociação||[]);
- const total=negs.reduce((s,c)=>s+Number(c.neg?.valorNegociado||0),0);
+ const negs=Array.isArray(groups?.Negociação)?groups.Negociação:[];
+
+ const total=negs.reduce((s,c)=>s+Number(getNegotiation(c.id).valorNegociado||0),0);
  const qtd=negs.length;
  const ticket=qtd?total/qtd:0;
 
  const porRep={};
  negs.forEach(c=>{
    const rep=c.representante||"Sem representante";
-   porRep[rep]=(porRep[rep]||0)+Number(c.neg?.valorNegociado||0);
+   porRep[rep]=(porRep[rep]||0)+Number(getNegotiation(c.id).valorNegociado||0);
  });
  const repNeg=Object.entries(porRep).sort((a,b)=>b[1]-a[1])[0];
 
@@ -168,7 +169,7 @@ function renderNegotiationSummary(groups){
  setText("negTicketMedio",money(ticket));
  setText("negRepLider",repNeg?.[0]||"—");
  setText("negRepLiderValor",money(repNeg?.[1]||0));
- setText("vendaRepLiderPipe",repVenda?.[0]||"—");
+ setText("vendaRepLiderPipe",repVenda?.[0]||"Sem vendas importadas");
  setText("vendaRepLiderPipeValor",money(repVenda?.[1]||0));
 }
 
@@ -183,6 +184,7 @@ function renderPipeline(){
  setHTML("pipeVenda",groups.Venda.slice(0,60).map(pipeCard).join("")||'<div class="muted">Sem clientes</div>');
  setText("countContato",groups.Contato.length);setText("countFollow",groups["Follow-up"].length);setText("countNegociacao",groups.Negociação.length);setText("countVenda",groups.Venda.length);
  setText("pipeQtd",arr.length);setText("pipeFollowQtd",groups["Follow-up"].length);setText("pipeNegQtd",groups.Negociação.length);setText("pipeVendaQtd",groups.Venda.length);setText("pipePageInfo",`Página ${pipePage+1} de ${max} • ${groups.Contato.length.toLocaleString("pt-BR")} em Contato`);
+ renderNegotiationSummary(groups);
  initPipelineDrag();
 }
 function prevPipelinePage(){if(pipePage>0){pipePage--;renderPipeline()}}

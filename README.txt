@@ -1,65 +1,56 @@
-GESTOR COMERCIAL PANAMBY — V27
-SEM TELA DE VENDAS + DASHBOARD MANTIDO
+GESTOR COMERCIAL PANAMBY — V28
+PIPELINE INTEGRADO AO FOLLOW-UP
 Data: 2026.09.03
 
-MÓDULOS VISÍVEIS
-- Dashboard
-- Clientes
-- Pipeline Comercial
-- Follow-ups / Alarmes / Atividades
-- Apuração de Metas
-- Excel / Backup
+NOVIDADE PRINCIPAL
+As informações do Pipeline agora aparecem diretamente na área de Atividades / Follow-ups / Alarmes.
 
-REMOVIDO DA INTERFACE
-- Menu Vendas
-- Tela Vendas
-- Cadastro manual de venda
-- Botões de venda nos cartões
+INTEGRAÇÃO
+- Cada atividade mostra a etapa atual do cliente:
+  - Contato
+  - Follow-up
+  - Negociação
+  - Venda concluída
+- A etapa pode ser alterada diretamente na tabela de Follow-ups.
+- Ao mudar a etapa na tabela, o Pipeline é atualizado automaticamente.
+- Ao arrastar no Pipeline, a nova etapa também aparece automaticamente no Follow-up.
+- Ao criar um novo Follow-up, o cliente entra na etapa Follow-up.
 
-IMPORTANTE
-Os dados de vendas continuam existindo internamente porque alimentam o Dashboard.
+NOVOS FILTROS
+- Representante
+- Etapa do Pipeline
+- Busca
+- Prioridade
+- Status
+- Tipo de atividade
+- Período
 
-A importação:
-DIGITAÇÃO DE ORDEM.xls -> Vendas
+NOVOS INDICADORES
+- Para fazer
+- Vencidos
+- Hoje
+- Em Follow-up
+- Em negociação
+- Concluídos
 
-CONTINUA ATIVA no Excel / Backup.
+DASHBOARD
+- Mantido.
+- Continua usando DIGITAÇÃO DE ORDEM.xls como fonte de vendas.
 
-ESSA IMPORTAÇÃO ALIMENTA:
-- Vendas sem impostos
-- Valor líquido
-- Quantidade de vendas
-- Ticket médio
-- Região líder
-- Representante líder
-- Clientes compradores
-- Evolução das vendas
-- Faturamento por região
-- Faturamento por representante
-- Participação por região
-- Top clientes
-
-PIPELINE
-- Contato
-- Follow-up
-- Negociação
-- Venda concluída
-- Venda concluída agora é uma etapa do Pipeline.
-- Não existe mais tela separada de Vendas.
+SEM TELA DE VENDAS
+- O menu Vendas continua removido.
+- Os dados de vendas permanecem internos para alimentar o Dashboard.
 
 BANCO
 - IndexedDB
-- gestor_comercial_panamby_v27
+- gestor_comercial_panamby_v28
 
-ARQUIVOS PARA O GITHUB
+GITHUB
+Substitua:
 - index.html
 - app.js
 - style.css
 - README.txt
 
-ATUALIZAÇÃO
-1. Substitua os 4 arquivos.
-2. Commit changes.
-3. Aguarde GitHub Pages.
-4. Ctrl + F5.
-5. Confirme no topo:
-V27 SEM TELA VENDAS + DASHBOARD • 2026.09.03
+Depois:
+Commit changes -> aguarde GitHub Pages -> Ctrl + F5.

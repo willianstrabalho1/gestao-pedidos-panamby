@@ -27,7 +27,7 @@
   <div>
     <h2 id="pageTitle">Dashboard</h2>
     <small id="todayLabel"></small><br>
-    <small class="version">V27 SEM TELA VENDAS + DASHBOARD • 2026.09.03</small>
+    <small class="version">V28 PIPELINE INTEGRADO AO FOLLOW-UP • 2026.09.03</small>
   </div>
   <button class="primary" onclick="enableNotifications()">🔔 Ativar notificações</button>
 </header>
@@ -160,23 +160,25 @@
 <button class="period-tab" onclick="setActivityPeriod(this,'nextweek')">Próxima semana</button>
 <button class="period-tab" onclick="setActivityPeriod(this,'all')">Tudo</button>
 </div>
-<div class="activity-filters">
+<div class="activity-filters integrated">
 <div><label>Representante</label><select id="followRep"><option value="">Todos os representantes</option></select></div>
+<div><label>Etapa do Pipeline</label><select id="activityStage"><option value="">Todas as etapas</option><option>Contato</option><option>Follow-up</option><option>Negociação</option><option value="Venda">Venda concluída</option></select></div>
 <div><label>Buscar</label><input id="followClienteBusca" placeholder="Cliente, código, assunto, telefone, cidade..."></div>
 <div><label>Prioridade</label><select id="activityPriority"><option value="">Todas</option><option>Normal</option><option>Importante</option><option>Urgente</option></select></div>
 <div><label>Status</label><select id="statusFollow"><option value="">Todos</option><option value="pendente">Pendente</option><option value="concluido">Concluído</option></select></div>
 </div>
 </div>
-<div class="activity-kpis">
+<div class="activity-kpis six">
 <div class="card kpi"><small>Para fazer</small><strong id="fQtdPend">0</strong></div>
 <div class="card kpi"><small>Vencidos</small><strong id="fQtdVenc">0</strong></div>
 <div class="card kpi"><small>Hoje</small><strong id="fQtdHoje">0</strong></div>
+<div class="card kpi"><small>Em Follow-up</small><strong id="fQtdStageFollow">0</strong></div>
+<div class="card kpi"><small>Em negociação</small><strong id="fQtdStageNeg">0</strong></div>
 <div class="card kpi"><small>Concluídos</small><strong id="fQtdConcl">0</strong></div>
-<div class="card kpi"><small>Clientes encontrados</small><strong id="fClientesQtd">0</strong></div>
 </div>
 <div class="card activity-table-card">
 <div class="activity-table-scroll"><table class="activity-table"><thead><tr>
-<th>Concluído</th><th>Tipo</th><th>Assunto</th><th>Cliente</th><th>Representante</th><th>Prioridade</th><th>Resultado</th><th>Telefone</th><th>Cidade/UF</th><th>Data</th><th>Hora</th><th>Status</th><th>Ações</th>
+<th>Concluído</th><th>Tipo</th><th>Assunto</th><th>Cliente</th><th>Representante</th><th>Pipeline</th><th>Prioridade</th><th>Resultado</th><th>Telefone</th><th>Cidade/UF</th><th>Data</th><th>Hora</th><th>Status</th><th>Ações</th>
 </tr></thead><tbody id="activityBody"></tbody></table></div>
 <div class="follow-pagination"><button onclick="prevFollowPage()">◀ Anterior</button><span id="followPageInfo">Página 1</span><button onclick="nextFollowPage()">Próxima ▶</button></div>
 </div>

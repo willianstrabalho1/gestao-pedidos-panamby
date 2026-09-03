@@ -66,3 +66,30 @@ button{border:0;padding:10px 13px;border-radius:9px;cursor:pointer;font-weight:6
 .activity-check{width:16px;height:16px}.activity-type-pill{display:inline-block;white-space:nowrap;background:#f3f6fb;border-radius:999px;padding:5px 7px}.priority{display:inline-block;border-radius:999px;padding:4px 7px;font-size:10px;font-weight:700}.priority.normal{background:#eef2f7;color:#536176}.priority.important{background:#fff2ce;color:#8c6400}.priority.urgent{background:#ffe4e4;color:#b63131}
 .table-main{font-weight:700}.table-sub{font-size:9px;color:#8a96a8;margin-top:2px}.row-actions{display:flex;gap:4px}.mini-btn{padding:5px 7px;font-size:10px}.empty-row{text-align:center;color:#8a96a8;padding:28px!important}.wide-modal{width:min(700px,96vw)}
 @media(max-width:1150px){.activity-filters{grid-template-columns:1fr 1fr}.activity-kpis{grid-template-columns:repeat(2,1fr)}}@media(max-width:650px){.activity-filters,.activity-kpis{grid-template-columns:1fr}.activity-title-row{display:block}.activity-title-row .primary{margin-top:10px}}
+
+/* V28 Pipeline integrado ao Follow-up */
+.activity-filters.integrated{
+  grid-template-columns:220px 200px 1fr 170px 170px;
+}
+.activity-kpis.six{
+  grid-template-columns:repeat(6,1fr);
+}
+.stage-select{
+  min-width:130px;
+  padding:6px 8px;
+  border-radius:999px;
+  font-size:10px;
+  font-weight:700;
+  border:1px solid transparent;
+}
+.stage-contact{background:#eef2f7;color:#536176;border-color:#dce3eb}
+.stage-follow{background:#edf1ff;color:#3159cf;border-color:#d7defd}
+.stage-neg{background:#fff3d8;color:#865e00;border-color:#f0dfaa}
+.stage-sale{background:#e7f8ee;color:#157446;border-color:#ccebd8}
+@media(max-width:1250px){
+  .activity-filters.integrated{grid-template-columns:1fr 1fr 1fr}
+  .activity-kpis.six{grid-template-columns:repeat(3,1fr)}
+}
+@media(max-width:700px){
+  .activity-filters.integrated,.activity-kpis.six{grid-template-columns:1fr}
+}

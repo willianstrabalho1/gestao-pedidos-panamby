@@ -1,5 +1,5 @@
-console.info("Gestor Comercial Panamby V27 SEM TELA VENDAS + DASHBOARD");
-const DB_NAME="gestor_comercial_panamby_v27",STORE="app",DB_KEY="principal";
+console.info("Gestor Comercial Panamby V28 PIPELINE INTEGRADO AO FOLLOW-UP");
+const DB_NAME="gestor_comercial_panamby_v28",STORE="app",DB_KEY="principal";
 let db={clientes:[],vendas:[],followups:[],apuracaoLinhas:[],apuracaoMetas:[],pipelineStages:[]};
 
 const $=id=>document.getElementById(id);
@@ -168,19 +168,101 @@ function followFilteredClients(){
  const rep=$("followRep")?.value||"",q=norm($("followClienteBusca")?.value||"");
  return db.clientes.filter(c=>(!rep||norm(c.representante)===norm(rep))&&(!q||norm([c.codigo,c.razao,c.cidade,c.uf,c.tel1,c.tel2].join(" ")).includes(q)));
 }
+
+function pipelineStageLabel(stage){
+ return stage==="Venda"?"Venda concluída":stage||"Contato";
+}
+function pipelineStageClass(stage){
+ return stage==="Venda"?"sale":stage==="Negociação"?"neg":stage==="Follow-up"?"follow":"contact";
+}
+function changeActivityStage(clienteId,stage){
+ setStage(clienteId,stage);
+ save();
+}
 function activityFiltered(){
- const rep=$("followRep")?.value||"",q=norm($("followClienteBusca")?.value||""),priority=$("activityPriority")?.value||"",status=$("statusFollow")?.value||"";
- return db.followups.filter(f=>{const c=getClient(f.clienteId);if(!c)return false;if(rep&&norm(c.representante)!==norm(rep))return false;
- if(q&&!norm([c.codigo,c.razao,c.cidade,c.uf,c.tel1,c.tel2,f.texto,f.tipo,f.resultado].join(" ")).includes(q))return false;
- if(activityTypeFilter&&f.tipo!==activityTypeFilter)return false;if(priority&&f.prioridade!==priority)return false;if(status==="pendente"&&f.done)return false;if(status==="concluido"&&!f.done)return false;if(!inActivityPeriod(f,activityPeriodFilter))return false;return true});
+ const rep=$("followRep")?.value||"",
+       q=norm($("followClienteBusca")?.value||""),
+       priority=$("activityPriority")?.value||"",
+       status=$("statusFollow")?.value||"",
+       stageFilter=$("activityStage")?.value||"";
+
+ return db.followups.filter(f=>{
+   const c=getClient(f.clienteId);
+   if(!c)return false;
+
+   const stage=getStage(c.id);
+
+   if(rep&&norm(c.representante)!==norm(rep))return false;
+   if(stageFilter&&stage!==stageFilter)return false;
+   if(q&&!norm([c.codigo,c.razao,c.cidade,c.uf,c.tel1,c.tel2,f.texto,f.tipo,f.resultado,pipelineStageLabel(stage)].join(" ")).includes(q))return false;
+   if(activityTypeFilter&&f.tipo!==activityTypeFilter)return false;
+   if(priority&&f.prioridade!==priority)return false;
+   if(status==="pendente"&&f.done)return false;
+   if(status==="concluido"&&!f.done)return false;
+   if(!inActivityPeriod(f,activityPeriodFilter))return false;
+   return true;
+ });
 }
 function renderFollow(){
- const clientes=followFilteredClients(),acts=activityFiltered().sort((a,b)=>a.done!==b.done?(a.done?1:-1):`${a.data} ${a.hora||"09:00"}`.localeCompare(`${b.data} ${b.hora||"09:00"}`));
- const pages=Math.max(1,Math.ceil(acts.length/FOLLOW_PAGE_SIZE));if(followPage>=pages)followPage=pages-1;if(followPage<0)followPage=0;
- const pg=acts.slice(followPage*FOLLOW_PAGE_SIZE,(followPage+1)*FOLLOW_PAGE_SIZE),now=startOfDay(new Date()),todayStr=dateOnlyStr(now);
- setText("fClientesQtd",clientes.length);setText("fQtdPend",db.followups.filter(f=>!f.done).length);setText("fQtdVenc",db.followups.filter(f=>!f.done&&startOfDay(activityDateTime(f))<now).length);setText("fQtdHoje",db.followups.filter(f=>f.data===todayStr&&!f.done).length);setText("fQtdConcl",db.followups.filter(f=>f.done).length);setText("followPageInfo",`Página ${followPage+1} de ${pages} • ${acts.length} atividade(s)`);
- setHTML("activityBody",pg.map(f=>{const c=getClient(f.clienteId),due=followDue(f),status=f.done?"Concluído":due?"Vencido":"Agendado",sc=f.done?"ok":due?"no":"near",icon=f.tipo==="WhatsApp"?"💬":f.tipo==="E-mail"?"📧":f.tipo==="Reunião"?"🤝":f.tipo==="Tarefa"?"📋":"📞";
- return `<tr class="${due&&!f.done?"activity-overdue":""}"><td><input class="activity-check" type="checkbox" ${f.done?"checked":""} onchange="toggleFollow('${f.id}')"></td><td><span class="activity-type-pill">${icon} ${esc(f.tipo||"Ligação")}</span></td><td><b>${esc(f.texto)}</b></td><td><div class="table-main">${esc(c?.razao||"Cliente")}</div><div class="table-sub">${esc(c?.codigo||"")}</div></td><td>${esc(c?.representante||"—")}</td><td><span class="priority ${norm(f.prioridade)==="URGENTE"?"urgent":norm(f.prioridade)==="IMPORTANTE"?"important":"normal"}">${esc(f.prioridade||"Normal")}</span></td><td>${esc(f.resultado||"—")}</td><td>${esc(c?.tel1||c?.tel2||"—")}</td><td>${esc(c?.cidade||"")}${c?.uf?"/"+esc(c.uf):""}</td><td>${brdate(f.data)}</td><td>${esc(f.hora||"09:00")}</td><td><span class="pill ${sc}">${status}</span></td><td><div class="row-actions">${c&&(c.tel1||c.tel2)?`<button class="mini-btn whatsbtn" onclick="openWhats('${c.id}')">💬</button>`:""}<button class="mini-btn" onclick="openFollowV26('${f.clienteId}','${f.id}')">✏️</button><button class="mini-btn deletebtn" onclick="deleteFollow('${f.id}')">🗑️</button></div></td></tr>`}).join("")||'<tr><td colspan="13" class="empty-row">Nenhuma atividade encontrada.</td></tr>');
+ const clientes=followFilteredClients();
+ const acts=activityFiltered().sort((a,b)=>{
+   if(a.done!==b.done)return a.done?1:-1;
+   return `${a.data} ${a.hora||"09:00"}`.localeCompare(`${b.data} ${b.hora||"09:00"}`);
+ });
+
+ const pages=Math.max(1,Math.ceil(acts.length/FOLLOW_PAGE_SIZE));
+ if(followPage>=pages)followPage=pages-1;
+ if(followPage<0)followPage=0;
+
+ const pg=acts.slice(followPage*FOLLOW_PAGE_SIZE,(followPage+1)*FOLLOW_PAGE_SIZE);
+ const now=startOfDay(new Date()),todayStr=dateOnlyStr(now);
+
+ setText("fQtdPend",db.followups.filter(f=>!f.done).length);
+ setText("fQtdVenc",db.followups.filter(f=>!f.done&&startOfDay(activityDateTime(f))<now).length);
+ setText("fQtdHoje",db.followups.filter(f=>f.data===todayStr&&!f.done).length);
+ setText("fQtdConcl",db.followups.filter(f=>f.done).length);
+ setText("fQtdStageFollow",db.clientes.filter(c=>getStage(c.id)==="Follow-up").length);
+ setText("fQtdStageNeg",db.clientes.filter(c=>getStage(c.id)==="Negociação").length);
+ setText("followPageInfo",`Página ${followPage+1} de ${pages} • ${acts.length} atividade(s)`);
+
+ setHTML("activityBody",pg.map(f=>{
+   const c=getClient(f.clienteId),
+         due=followDue(f),
+         status=f.done?"Concluído":due?"Vencido":"Agendado",
+         sc=f.done?"ok":due?"no":"near",
+         icon=f.tipo==="WhatsApp"?"💬":f.tipo==="E-mail"?"📧":f.tipo==="Reunião"?"🤝":f.tipo==="Tarefa"?"📋":"📞",
+         stage=getStage(f.clienteId);
+
+   return `<tr class="${due&&!f.done?"activity-overdue":""}">
+     <td><input class="activity-check" type="checkbox" ${f.done?"checked":""} onchange="toggleFollow('${f.id}')"></td>
+     <td><span class="activity-type-pill">${icon} ${esc(f.tipo||"Ligação")}</span></td>
+     <td><b>${esc(f.texto)}</b></td>
+     <td><div class="table-main">${esc(c?.razao||"Cliente")}</div><div class="table-sub">${esc(c?.codigo||"")}</div></td>
+     <td>${esc(c?.representante||"—")}</td>
+     <td>
+       <select class="stage-select stage-${pipelineStageClass(stage)}" onchange="changeActivityStage('${f.clienteId}',this.value)">
+         <option ${stage==="Contato"?"selected":""}>Contato</option>
+         <option ${stage==="Follow-up"?"selected":""}>Follow-up</option>
+         <option ${stage==="Negociação"?"selected":""}>Negociação</option>
+         <option value="Venda" ${stage==="Venda"?"selected":""}>Venda concluída</option>
+       </select>
+     </td>
+     <td><span class="priority ${norm(f.prioridade)==="URGENTE"?"urgent":norm(f.prioridade)==="IMPORTANTE"?"important":"normal"}">${esc(f.prioridade||"Normal")}</span></td>
+     <td>${esc(f.resultado||"—")}</td>
+     <td>${esc(c?.tel1||c?.tel2||"—")}</td>
+     <td>${esc(c?.cidade||"")}${c?.uf?"/"+esc(c.uf):""}</td>
+     <td>${brdate(f.data)}</td>
+     <td>${esc(f.hora||"09:00")}</td>
+     <td><span class="pill ${sc}">${status}</span></td>
+     <td>
+       <div class="row-actions">
+         ${c&&(c.tel1||c.tel2)?`<button class="mini-btn whatsbtn" onclick="openWhats('${c.id}')" title="WhatsApp">💬</button>`:""}
+         <button class="mini-btn" onclick="openFollowV26('${f.clienteId}','${f.id}')" title="Editar">✏️</button>
+         <button class="mini-btn deletebtn" onclick="deleteFollow('${f.id}')" title="Excluir">🗑️</button>
+       </div>
+     </td>
+   </tr>`;
+ }).join("")||'<tr><td colspan="14" class="empty-row">Nenhuma atividade encontrada.</td></tr>');
 }
 
 function prevFollowPage(){if(followPage>0){followPage--;renderFollow()}}
@@ -260,7 +342,7 @@ function bind(id,event,fn){const e=$(id);if(e)e[event]=fn}
 ["buscaCliente","filtroDias"].forEach(id=>bind(id,"oninput",renderClientes));
 ["dashInicio","dashFim","dashRep","dashRegiao","dashMetric"].forEach(id=>bind(id,"onchange",renderDashboard));
 bind("pipeRep","onchange",()=>{pipePage=0;renderPipeline()});bind("pipeSort","onchange",()=>{pipePage=0;renderPipeline()});bind("pipeBusca","oninput",schedulePipeline);
-["followClienteBusca","statusFollow","activityPriority"].forEach(id=>bind(id,"oninput",()=>{followPage=0;renderFollow()}));bind("followRep","onchange",()=>{followPage=0;renderFollow()});
+["followClienteBusca","statusFollow","activityPriority","activityStage"].forEach(id=>bind(id,"oninput",()=>{followPage=0;renderFollow()}));bind("followRep","onchange",()=>{followPage=0;renderFollow()});
 ["buscaApuracao","filtroSupervisor","filtroAtingido"].forEach(id=>bind(id,"oninput",renderApuracao));
 
 function render(){fillSelectors();refreshSup();renderClientes();renderPipeline();renderFollow();renderApuracao();renderDashboard();checkNotifications()}
@@ -269,3 +351,5 @@ iniciarApp();
 
 function openFollow(id,activityId=""){return openFollowV26(id,activityId)}
 function saveFollow(){return saveFollowV26()}
+
+if($("activityStage"))$("activityStage").onchange=()=>{followPage=0;renderFollow()};

@@ -27,9 +27,9 @@
   <div>
     <h2 id="pageTitle">Dashboard</h2>
     <small id="todayLabel"></small><br>
-    <small class="version">V29 CORREÇÃO FOLLOW-UP / ALARME • 2026.09.03</small>
+    <small class="version">V30 NEGOCIAÇÃO + RETORNO + ALERTA • 2026.09.03</small>
   </div>
-  <button class="primary" onclick="enableNotifications()">🔔 Ativar notificações</button>
+  <button class="primary" onclick="enableNotifications()">🔔 Ativar alertas e som</button>
 </header>
 
 <section id="dashboard" class="tab active">
@@ -178,7 +178,7 @@
 </div>
 <div class="card activity-table-card">
 <div class="activity-table-scroll"><table class="activity-table"><thead><tr>
-<th>Concluído</th><th>Tipo</th><th>Assunto</th><th>Cliente</th><th>Representante</th><th>Pipeline</th><th>Prioridade</th><th>Resultado</th><th>Telefone</th><th>Cidade/UF</th><th>Data</th><th>Hora</th><th>Status</th><th>Ações</th>
+<th>Concluído</th><th>Tipo</th><th>Assunto</th><th>Cliente</th><th>Representante</th><th>Pipeline</th><th>Prioridade</th><th>Resultado</th><th>Telefone</th><th>Cidade/UF</th><th>Retorno</th><th>Status</th><th>Ações</th>
 </tr></thead><tbody id="activityBody"></tbody></table></div>
 <div class="follow-pagination"><button onclick="prevFollowPage()">◀ Anterior</button><span id="followPageInfo">Página 1</span><button onclick="nextFollowPage()">Próxima ▶</button></div>
 </div>
@@ -251,20 +251,20 @@
 
 <div class="modal" id="followModal"><div class="modalbox wide-modal">
 <button class="x" onclick="closeModal('followModal')">×</button>
-<h3 id="followModalTitle">📞 Nova atividade</h3>
+<h3 id="followModalTitle">📞 Follow-up / Próximo retorno</h3>
 <input type="hidden" id="fId"><input type="hidden" id="fClienteId">
 <div id="fClienteResumo" class="selected-box"></div>
 <div class="formgrid">
 <label>Tipo de atividade<select id="fTipo"><option>Ligação</option><option>WhatsApp</option><option>E-mail</option><option>Reunião</option><option>Tarefa</option></select></label>
 <label>Prioridade<select id="fPrioridade"><option>Normal</option><option>Importante</option><option>Urgente</option></select></label>
 </div>
-<div class="formgrid"><label>Data<input id="fData" type="date"></label><label>Horário<input id="fHora" type="time" value="09:00"></label></div>
+<div class="formgrid"><label>Data do retorno<input id="fData" type="date"></label><label>Horário do retorno<input id="fHora" type="time" value="09:00"></label></div>
 <label>Assunto / atividade<textarea id="fTexto" placeholder="Ex.: ligar sobre reposição, enviar catálogo, confirmar negociação..."></textarea></label>
 <div class="formgrid">
 <label>Resultado<select id="fResultado"><option value="">Sem resultado</option><option>Cliente não atendeu</option><option>Contato realizado</option><option>Catálogo enviado</option><option>Aguardando retorno</option><option>Negociação aberta</option><option>Venda realizada</option><option>Sem interesse</option></select></label>
 <label>Status<select id="fStatusNovo"><option value="pendente">Pendente</option><option value="concluido">Concluído</option></select></label>
 </div>
-<div class="alarm-info">⏰ Toda atividade pendente funciona como alarme. Ao concluir, o alarme é encerrado.</div>
+<div class="alarm-info">⏰ O retorno fica agendado para a data/hora acima. Quando chegar o horário, o sistema mostra um alerta na tela e tenta tocar um aviso sonoro.</div>
 <button class="primary" onclick="saveFollow()">Salvar atividade</button>
 </div></div>
 
@@ -278,6 +278,30 @@
 <label>Mensagem<textarea id="wMsg"></textarea></label>
 <button class="whatsapp" onclick="abrirWhatsApp()">💬 Abrir WhatsApp</button>
 </div></div>
+
+
+<div class="modal" id="negModal"><div class="modalbox wide-modal">
+<button class="x" onclick="closeModal('negModal')">×</button>
+<h3>🤝 Dados da negociação</h3>
+<input type="hidden" id="negClienteId">
+<div id="negClienteResumo" class="selected-box"></div>
+<div class="formgrid">
+<label>Valor negociado<input id="negValor" type="number" step="0.01" min="0" placeholder="0,00"></label>
+<label>Ordem de compra<input id="negOC" placeholder="Ex.: OC-2026-0158"></label>
+</div>
+<div class="formgrid">
+<label>Previsão de fechamento<input id="negPrevisao" type="date"></label>
+<label>Status da negociação<select id="negStatus"><option>Em negociação</option><option>Aguardando aprovação</option><option>Aguardando ordem de compra</option><option>Fechamento provável</option><option>Perdida</option></select></label>
+</div>
+<label>Observação da negociação<textarea id="negObs" placeholder="Ex.: Cliente aguardando aprovação..."></textarea></label>
+<button class="primary" onclick="saveNegotiation()">Salvar negociação</button>
+</div></div>
+
+<div id="alarmToast" class="alarm-toast">
+<div class="alarm-toast-head"><b>🔔 Retorno de follow-up</b><button onclick="closeAlarmToast()">×</button></div>
+<div id="alarmToastBody"></div>
+<div class="alarm-toast-actions"><button class="primary" id="alarmToastOpenBtn">Abrir cliente</button><button onclick="closeAlarmToast()">Fechar</button></div>
+</div>
 
 <script src="app.js"></script>
 </body>

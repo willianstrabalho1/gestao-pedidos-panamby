@@ -1,5 +1,5 @@
-console.info("Gestor Comercial Panamby V29 CORREÇÃO FOLLOW-UP / ALARME");
-const DB_NAME="gestor_comercial_panamby_v29",STORE="app",DB_KEY="principal";
+console.info("Gestor Comercial Panamby V30 NEGOCIAÇÃO + RETORNO + ALERTA");
+const DB_NAME="gestor_comercial_panamby_v30",STORE="app",DB_KEY="principal";
 let db={clientes:[],vendas:[],followups:[],apuracaoLinhas:[],apuracaoMetas:[],pipelineStages:[]};
 
 const $=id=>document.getElementById(id);
@@ -78,14 +78,36 @@ function renderClientes(){
 let pipelineCache=null,pipelineVersion=0,pipelineCacheVersion=-1,pipePage=0,pipeSearchTimer=null;
 const PIPE_PAGE_SIZE=60;
 function invalidatePipeline(){pipelineVersion++;pipelineCache=null}
+
+function getStageRecord(clienteId){return (db.pipelineStages||[]).find(x=>x.clienteId===clienteId)||null}
+function updateStageRecord(clienteId,patch){
+ let x=getStageRecord(clienteId);
+ if(!x){x={clienteId,stage:"Contato",updatedAt:new Date().toISOString()};db.pipelineStages.push(x)}
+ Object.assign(x,patch,{updatedAt:new Date().toISOString()});invalidatePipeline();return x;
+}
+function getNegotiation(clienteId){
+ const x=getStageRecord(clienteId)||{};
+ return {valorNegociado:Number(x.valorNegociado||0),ordemCompra:x.ordemCompra||"",previsaoFechamento:x.previsaoFechamento||"",statusNegociacao:x.statusNegociacao||"Em negociação",observacaoNegociacao:x.observacaoNegociacao||""};
+}
+function nextFollowForClient(clienteId){
+ return (db.followups||[]).filter(f=>f.clienteId===clienteId&&!f.done&&f.data).sort((a,b)=>`${a.data} ${a.hora||"09:00"}`.localeCompare(`${b.data} ${b.hora||"09:00"}`))[0]||null;
+}
 function stageMap(){return new Map((db.pipelineStages||[]).map(x=>[x.clienteId,x.stage]))}
 function getStage(id){return stageMap().get(id)||"Contato"}
-function setStage(id,stage){let x=db.pipelineStages.find(x=>x.clienteId===id);if(x)x.stage=stage;else db.pipelineStages.push({clienteId:id,stage,updatedAt:new Date().toISOString()});invalidatePipeline()}
+function setStage(id,stage){
+ let x=db.pipelineStages.find(x=>x.clienteId===id);
+ if(x){x.stage=stage;x.updatedAt=new Date().toISOString()}
+ else db.pipelineStages.push({clienteId:id,stage,updatedAt:new Date().toISOString()});
+ invalidatePipeline();
+}
 function pipelineBase(){
  if(pipelineCache&&pipelineCacheVersion===pipelineVersion)return pipelineCache;
  const sm=stageMap(),lastSale=new Map();
  for(const v of db.vendas){const old=lastSale.get(v.clienteId);if(!old||String(v.data||"")>String(old.data||""))lastSale.set(v.clienteId,v)}
- pipelineCache=db.clientes.map(c=>{const s=sm.get(c.id)||"Contato",v=lastSale.get(c.id);return{...c,stage:s,valorPipeline:s==="Venda"?Number(v?.valorSemImpostos||c.valor||0):Number(c.valor||0),search:norm([c.codigo,c.razao,c.representante,c.cidade,c.uf,c.tel1,c.tel2].join(" "))}});
+ pipelineCache=db.clientes.map(c=>{
+  const s=sm.get(c.id)||"Contato",v=lastSale.get(c.id),n=getNegotiation(c.id),f=nextFollowForClient(c.id);
+  return {...c,stage:s,valorPipeline:s==="Venda"?Number(v?.valorSemImpostos||c.valor||0):s==="Negociação"?Number(n.valorNegociado||0):Number(c.valor||0),neg:n,nextFollow:f,search:norm([c.codigo,c.razao,c.representante,c.cidade,c.uf,c.tel1,c.tel2,n.ordemCompra,n.statusNegociacao,n.observacaoNegociacao,f?.texto].join(" "))};
+ });
  pipelineCacheVersion=pipelineVersion;return pipelineCache;
 }
 function pipelineFiltered(){
@@ -94,7 +116,25 @@ function pipelineFiltered(){
  const sorter=(a,b)=>sort==="valor"?b.valorPipeline-a.valorPipeline:sort==="nome"?String(a.razao).localeCompare(String(b.razao),"pt-BR"):sort==="ultima"?String(b.ultima||"").localeCompare(String(a.ultima||"")):Number(b.dias||0)-Number(a.dias||0);
  return arr.sort(sorter);
 }
-function pipeCard(c){return `<div class="pipe-card" data-cliente-id="${c.id}"><div class="pipe-card-top"><div class="pipe-title"><b>${esc(c.razao)}</b><small>${esc(c.codigo)}</small></div><span class="pipe-value">${money(c.valorPipeline)}</span></div><div class="pipe-meta"><span>👔 ${esc(c.representante||"Sem representante")}</span><span>📍 ${esc(c.cidade||"")}/${esc(c.uf||"")}</span></div><div class="pipe-highlight"><span class="${Number(c.dias)>=90?"late":Number(c.dias)>=30?"warn":""}">⏳ ${Number(c.dias||0)} dias</span><span>🛒 ${brdate(c.ultima)}</span></div><div class="pipe-bottom"><button class="details-btn" onclick="togglePipeDetails(this)">Ver detalhes</button><div class="pipe-actions">${c.tel1||c.tel2?`<button class="pipe-icon whatsbtn" onclick="openWhats('${c.id}')">💬</button>`:""}<button class="pipe-icon" onclick="openFollow('${c.id}')">📞</button></div></div><div class="pipe-extra">Última compra: ${money(c.valor)}<br>Telefone: ${esc(c.tel1||c.tel2||"—")}<br>Etapa: ${esc(c.stage)}</div></div>`}
+
+function openNegotiation(clienteId){
+ const c=getClient(clienteId);if(!c)return alert("Cliente não encontrado.");
+ const n=getNegotiation(clienteId);
+ $("negClienteId").value=clienteId;
+ $("negClienteResumo").innerHTML=`<b>${esc(c.codigo)} — ${esc(c.razao)}</b><br>${esc(c.representante||"")} • ${esc(c.cidade||"")}/${esc(c.uf||"")}`;
+ $("negValor").value=n.valorNegociado||"";$("negOC").value=n.ordemCompra||"";$("negPrevisao").value=n.previsaoFechamento||"";$("negStatus").value=n.statusNegociacao||"Em negociação";$("negObs").value=n.observacaoNegociacao||"";
+ $("negModal").classList.add("open");
+}
+function saveNegotiation(){
+ const id=$("negClienteId").value;if(!id)return alert("Cliente não selecionado.");
+ updateStageRecord(id,{stage:"Negociação",valorNegociado:Number($("negValor").value||0),ordemCompra:$("negOC").value.trim(),previsaoFechamento:$("negPrevisao").value,statusNegociacao:$("negStatus").value,observacaoNegociacao:$("negObs").value.trim()});
+ closeModal("negModal");save();
+}
+function pipeCard(c){
+ const followHtml=c.stage==="Follow-up"&&c.nextFollow?`<div class="pipe-stage-box follow-box"><div><b>🔔 Próximo retorno</b></div><div>${brdate(c.nextFollow.data)} às ${esc(c.nextFollow.hora||"09:00")}</div><div class="pipe-small">${esc(c.nextFollow.tipo||"Ligação")} • ${esc(c.nextFollow.texto||"")}</div></div>`:"";
+ const negHtml=c.stage==="Negociação"?`<div class="pipe-stage-box neg-box"><div class="pipe-neg-row"><span>Valor negociado</span><b>${money(c.neg?.valorNegociado||0)}</b></div><div class="pipe-neg-row"><span>Ordem de compra</span><b>${esc(c.neg?.ordemCompra||"—")}</b></div><div class="pipe-neg-row"><span>Previsão</span><b>${brdate(c.neg?.previsaoFechamento)}</b></div><div class="pipe-small">${esc(c.neg?.statusNegociacao||"Em negociação")}</div></div>`:"";
+ return `<div class="pipe-card" data-cliente-id="${c.id}"><div class="pipe-card-top"><div class="pipe-title"><b>${esc(c.razao)}</b><small>${esc(c.codigo)}</small></div><span class="pipe-value">${money(c.valorPipeline)}</span></div><div class="pipe-meta"><span>👔 ${esc(c.representante||"Sem representante")}</span><span>📍 ${esc(c.cidade||"")}/${esc(c.uf||"")}</span></div><div class="pipe-highlight"><span class="${Number(c.dias)>=90?"late":Number(c.dias)>=30?"warn":""}">⏳ ${Number(c.dias||0)} dias</span><span>🛒 ${brdate(c.ultima)}</span></div>${followHtml}${negHtml}<div class="pipe-bottom"><button class="details-btn" onclick="togglePipeDetails(this)">Ver detalhes</button><div class="pipe-actions">${c.tel1||c.tel2?`<button class="pipe-icon whatsbtn" onclick="openWhats('${c.id}')" title="WhatsApp">💬</button>`:""}<button class="pipe-icon" onclick="openFollow('${c.id}')" title="Follow-up / retorno">📞</button>${c.stage==="Negociação"?`<button class="pipe-icon negbtn" onclick="openNegotiation('${c.id}')" title="Editar negociação">✏️</button>`:""}</div></div><div class="pipe-extra">Última compra: ${money(c.valor)}<br>Telefone: ${esc(c.tel1||c.tel2||"—")}<br>Etapa: ${esc(c.stage)}</div></div>`;
+}
 function togglePipeDetails(btn){const c=btn.closest(".pipe-card");c.classList.toggle("show-extra");btn.textContent=c.classList.contains("show-extra")?"Ocultar":"Ver detalhes"}
 function renderPipeline(){
  const arr=pipelineFiltered(),groups={Contato:[], "Follow-up":[],Negociação:[],Venda:[]};
@@ -118,7 +158,7 @@ function initPipelineDrag(){
  const board=document.querySelector(".pipeline-board");if(!board||board.dataset.ready==="1")return;board.dataset.ready="1";
  board.addEventListener("pointerdown",e=>{if(e.target.closest("button,input,select,textarea,a"))return;const card=e.target.closest(".pipe-card");if(!card)return;drag={id:card.dataset.clienteId,card,pointerId:e.pointerId,x:e.clientX,y:e.clientY,active:false,ghost:null,target:null};card.setPointerCapture?.(e.pointerId)});
  board.addEventListener("pointermove",e=>{if(!drag||drag.pointerId!==e.pointerId)return;const dx=e.clientX-drag.x,dy=e.clientY-drag.y;if(!drag.active&&Math.hypot(dx,dy)<7)return;if(!drag.active){drag.active=true;drag.card.classList.add("dragging-real");const g=drag.card.cloneNode(true);g.classList.add("pipe-ghost");g.style.width=drag.card.getBoundingClientRect().width+"px";document.body.appendChild(g);drag.ghost=g}e.preventDefault();drag.ghost.style.left=e.clientX+12+"px";drag.ghost.style.top=e.clientY+12+"px";drag.ghost.style.display="none";const el=document.elementFromPoint(e.clientX,e.clientY);drag.ghost.style.display="block";const col=el?.closest?.(".pipe-column");document.querySelectorAll(".pipe-column").forEach(x=>x.classList.remove("drag-over"));if(col){col.classList.add("drag-over");drag.target=col}else drag.target=null});
- const finish=e=>{if(!drag)return;const d=drag;drag=null;d.card?.classList.remove("dragging-real");d.ghost?.remove();document.querySelectorAll(".pipe-column").forEach(x=>x.classList.remove("drag-over"));if(!d.active||!d.target)return;const stage=d.target.dataset.stage;if(stage==="Venda"){setStage(d.id,"Venda");save();return}setStage(d.id,stage);if(stage==="Follow-up")openFollow(d.id);save()};
+ const finish=e=>{if(!drag)return;const d=drag;drag=null;d.card?.classList.remove("dragging-real");d.ghost?.remove();document.querySelectorAll(".pipe-column").forEach(x=>x.classList.remove("drag-over"));if(!d.active||!d.target)return;const stage=d.target.dataset.stage;if(stage==="Venda"){setStage(d.id,"Venda");save();return}if(stage==="Negociação"){setStage(d.id,"Negociação");save();openNegotiation(d.id);return}setStage(d.id,stage);if(stage==="Follow-up")openFollow(d.id);save()};
  board.addEventListener("pointerup",finish);board.addEventListener("pointercancel",finish);
 }
 
@@ -159,6 +199,12 @@ function saveFollowV26(){
  const editId=$("fId").value,payload={clienteId:id,tipo:$("fTipo").value||"Ligação",data,hora,texto,prioridade:$("fPrioridade").value||"Normal",resultado:$("fResultado").value||"",done:$("fStatusNovo").value==="concluido",notified:false,origem:"Manual"};
  if(editId){const idx=db.followups.findIndex(x=>x.id===editId);if(idx>=0)db.followups[idx]={...db.followups[idx],...payload}}else db.followups.push({id:uid(),...payload});
  setStage(id,"Follow-up");closeModal("followModal");save();
+}
+
+function scheduleNextReturn(activityId){
+ const old=db.followups.find(x=>x.id===activityId);if(!old)return;const c=getClient(old.clienteId);if(!c)return;
+ $("fId").value="";$("fClienteId").value=c.id;$("fClienteResumo").innerHTML=`<b>${esc(c.codigo)} — ${esc(c.razao)}</b><br>${esc(c.representante||"")} • ${esc(c.cidade||"")}/${esc(c.uf||"")}<br>☎ ${esc(c.tel1||c.tel2||"Sem telefone")}`;
+ setText("followModalTitle","🔁 Agendar próximo retorno");$("fTipo").value=old.tipo||"Ligação";const d=new Date();d.setDate(d.getDate()+1);$("fData").value=d.toISOString().slice(0,10);$("fHora").value=old.hora||"09:00";$("fTexto").value=`Retorno: ${old.texto||""}`.trim();$("fPrioridade").value=old.prioridade||"Normal";$("fResultado").value="";$("fStatusNovo").value="pendente";$("followModal").classList.add("open");
 }
 function deleteFollow(id){const f=db.followups.find(x=>x.id===id);if(!f||!confirm("Excluir esta atividade?"))return;db.followups=db.followups.filter(x=>x.id!==id);save()}
 
@@ -217,65 +263,12 @@ function activityFiltered(){
  });
 }
 function renderFollow(){
- const clientes=followFilteredClients();
- const acts=activityFiltered().sort((a,b)=>{
-   if(a.done!==b.done)return a.done?1:-1;
-   return `${a.data} ${a.hora||"09:00"}`.localeCompare(`${b.data} ${b.hora||"09:00"}`);
- });
-
- const pages=Math.max(1,Math.ceil(acts.length/FOLLOW_PAGE_SIZE));
- if(followPage>=pages)followPage=pages-1;
- if(followPage<0)followPage=0;
-
- const pg=acts.slice(followPage*FOLLOW_PAGE_SIZE,(followPage+1)*FOLLOW_PAGE_SIZE);
- const now=startOfDay(new Date()),todayStr=dateOnlyStr(now);
-
- setText("fQtdPend",db.followups.filter(f=>!f.done).length);
- setText("fQtdVenc",db.followups.filter(f=>!f.done&&startOfDay(activityDateTime(f))<now).length);
- setText("fQtdHoje",db.followups.filter(f=>f.data===todayStr&&!f.done).length);
- setText("fQtdConcl",db.followups.filter(f=>f.done).length);
- setText("fQtdStageFollow",db.clientes.filter(c=>getStage(c.id)==="Follow-up").length);
- setText("fQtdStageNeg",db.clientes.filter(c=>getStage(c.id)==="Negociação").length);
- setText("followPageInfo",`Página ${followPage+1} de ${pages} • ${acts.length} atividade(s)`);
-
- setHTML("activityBody",pg.map(f=>{
-   const c=getClient(f.clienteId),
-         due=followDue(f),
-         status=f.done?"Concluído":due?"Vencido":"Agendado",
-         sc=f.done?"ok":due?"no":"near",
-         icon=f.tipo==="WhatsApp"?"💬":f.tipo==="E-mail"?"📧":f.tipo==="Reunião"?"🤝":f.tipo==="Tarefa"?"📋":"📞",
-         stage=getStage(f.clienteId);
-
-   return `<tr class="${due&&!f.done?"activity-overdue":""}">
-     <td><input class="activity-check" type="checkbox" ${f.done?"checked":""} onchange="toggleFollow('${f.id}')"></td>
-     <td><span class="activity-type-pill">${icon} ${esc(f.tipo||"Ligação")}</span></td>
-     <td><b>${esc(f.texto)}</b></td>
-     <td><div class="table-main">${esc(c?.razao||"Cliente")}</div><div class="table-sub">${esc(c?.codigo||"")}</div></td>
-     <td>${esc(c?.representante||"—")}</td>
-     <td>
-       <select class="stage-select stage-${pipelineStageClass(stage)}" onchange="changeActivityStage('${f.clienteId}',this.value)">
-         <option ${stage==="Contato"?"selected":""}>Contato</option>
-         <option ${stage==="Follow-up"?"selected":""}>Follow-up</option>
-         <option ${stage==="Negociação"?"selected":""}>Negociação</option>
-         <option value="Venda" ${stage==="Venda"?"selected":""}>Venda concluída</option>
-       </select>
-     </td>
-     <td><span class="priority ${norm(f.prioridade)==="URGENTE"?"urgent":norm(f.prioridade)==="IMPORTANTE"?"important":"normal"}">${esc(f.prioridade||"Normal")}</span></td>
-     <td>${esc(f.resultado||"—")}</td>
-     <td>${esc(c?.tel1||c?.tel2||"—")}</td>
-     <td>${esc(c?.cidade||"")}${c?.uf?"/"+esc(c.uf):""}</td>
-     <td>${brdate(f.data)}</td>
-     <td>${esc(f.hora||"09:00")}</td>
-     <td><span class="pill ${sc}">${status}</span></td>
-     <td>
-       <div class="row-actions">
-         ${c&&(c.tel1||c.tel2)?`<button class="mini-btn whatsbtn" onclick="openWhats('${c.id}')" title="WhatsApp">💬</button>`:""}
-         <button class="mini-btn" onclick="openFollowV26('${f.clienteId}','${f.id}')" title="Editar">✏️</button>
-         <button class="mini-btn deletebtn" onclick="deleteFollow('${f.id}')" title="Excluir">🗑️</button>
-       </div>
-     </td>
-   </tr>`;
- }).join("")||'<tr><td colspan="14" class="empty-row">Nenhuma atividade encontrada.</td></tr>');
+ const clientes=followFilteredClients(),acts=activityFiltered().sort((a,b)=>a.done!==b.done?(a.done?1:-1):`${a.data} ${a.hora||"09:00"}`.localeCompare(`${b.data} ${b.hora||"09:00"}`));
+ const pages=Math.max(1,Math.ceil(acts.length/FOLLOW_PAGE_SIZE));if(followPage>=pages)followPage=pages-1;if(followPage<0)followPage=0;
+ const pg=acts.slice(followPage*FOLLOW_PAGE_SIZE,(followPage+1)*FOLLOW_PAGE_SIZE),now=startOfDay(new Date()),todayStr=dateOnlyStr(now);
+ setText("fQtdPend",db.followups.filter(f=>!f.done).length);setText("fQtdVenc",db.followups.filter(f=>!f.done&&startOfDay(activityDateTime(f))<now).length);setText("fQtdHoje",db.followups.filter(f=>f.data===todayStr&&!f.done).length);setText("fQtdConcl",db.followups.filter(f=>f.done).length);setText("fQtdStageFollow",db.clientes.filter(c=>getStage(c.id)==="Follow-up").length);setText("fQtdStageNeg",db.clientes.filter(c=>getStage(c.id)==="Negociação").length);setText("followPageInfo",`Página ${followPage+1} de ${pages} • ${acts.length} atividade(s)`);
+ setHTML("activityBody",pg.map(f=>{const c=getClient(f.clienteId),due=followDue(f),status=f.done?"Concluído":due?"Vencido":"Agendado",sc=f.done?"ok":due?"no":"near",icon=f.tipo==="WhatsApp"?"💬":f.tipo==="E-mail"?"📧":f.tipo==="Reunião"?"🤝":f.tipo==="Tarefa"?"📋":"📞",stage=getStage(f.clienteId);
+ return `<tr class="${due&&!f.done?"activity-overdue":""}"><td><input class="activity-check" type="checkbox" ${f.done?"checked":""} onchange="toggleFollow('${f.id}')"></td><td><span class="activity-type-pill">${icon} ${esc(f.tipo||"Ligação")}</span></td><td><b>${esc(f.texto)}</b></td><td><div class="table-main">${esc(c?.razao||"Cliente")}</div><div class="table-sub">${esc(c?.codigo||"")}</div></td><td>${esc(c?.representante||"—")}</td><td><select class="stage-select stage-${pipelineStageClass(stage)}" onchange="changeActivityStage('${f.clienteId}',this.value)"><option ${stage==="Contato"?"selected":""}>Contato</option><option ${stage==="Follow-up"?"selected":""}>Follow-up</option><option ${stage==="Negociação"?"selected":""}>Negociação</option><option value="Venda" ${stage==="Venda"?"selected":""}>Venda concluída</option></select></td><td><span class="priority ${norm(f.prioridade)==="URGENTE"?"urgent":norm(f.prioridade)==="IMPORTANTE"?"important":"normal"}">${esc(f.prioridade||"Normal")}</span></td><td>${esc(f.resultado||"—")}</td><td>${esc(c?.tel1||c?.tel2||"—")}</td><td>${esc(c?.cidade||"")}${c?.uf?"/"+esc(c.uf):""}</td><td><div class="return-cell ${due&&!f.done?"return-due":""}"><b>📅 ${brdate(f.data)}</b><span>🕒 ${esc(f.hora||"09:00")}</span></div></td><td><span class="pill ${sc}">${status}</span></td><td><div class="row-actions">${c&&(c.tel1||c.tel2)?`<button class="mini-btn whatsbtn" onclick="openWhats('${c.id}')">💬</button>`:""}<button class="mini-btn" onclick="openFollowV26('${f.clienteId}','${f.id}')">✏️</button><button class="mini-btn returnbtn" onclick="scheduleNextReturn('${f.id}')">🔁</button>${stage==="Negociação"?`<button class="mini-btn negbtn" onclick="openNegotiation('${f.clienteId}')">🤝</button>`:""}<button class="mini-btn deletebtn" onclick="deleteFollow('${f.id}')">🗑️</button></div></td></tr>`}).join("")||'<tr><td colspan="13" class="empty-row">Nenhuma atividade encontrada.</td></tr>');
 }
 
 function prevFollowPage(){if(followPage>0){followPage--;renderFollow()}}
@@ -335,17 +328,31 @@ async function restaurarBackup(e){const f=e.target.files[0];if(!f||!confirm("Sub
 function exportExcel(){const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(db.clientes),"Clientes");XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(db.vendas),"Vendas");XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(db.followups),"Follow-ups");XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(db.apuracaoLinhas),"Apuração");XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(db.pipelineStages),"Pipeline");XLSX.writeFile(wb,"Gestor_Comercial_Panamby_V24.xlsx")}
 async function limparTudo(){if(!confirm("Apagar todos os dados desta versão?"))return;await clearDB();db={clientes:[],vendas:[],followups:[],apuracaoLinhas:[],apuracaoMetas:[],pipelineStages:[]};invalidatePipeline();render();alert("Sistema zerado.")}
 
-async function enableNotifications(){if(!("Notification"in window))return alert("Navegador sem suporte.");const p=await Notification.requestPermission();if(p==="granted")alert("Notificações ativadas.")}
+
+let alarmAudioUnlocked=false,alarmAudioCtx=null,alarmToastActivityId="";
+function unlockAlarmSound(){try{const A=window.AudioContext||window.webkitAudioContext;if(!A)return false;if(!alarmAudioCtx)alarmAudioCtx=new A();if(alarmAudioCtx.state==="suspended")alarmAudioCtx.resume();alarmAudioUnlocked=true;return true}catch(e){return false}}
+function playAlarmSound(){if(!alarmAudioUnlocked||!alarmAudioCtx)return;try{const ctx=alarmAudioCtx,now=ctx.currentTime;[0,.28,.56].forEach((d,i)=>{const o=ctx.createOscillator(),g=ctx.createGain();o.type="sine";o.frequency.value=i===1?880:660;g.gain.setValueAtTime(.0001,now+d);g.gain.exponentialRampToValueAtTime(.22,now+d+.02);g.gain.exponentialRampToValueAtTime(.0001,now+d+.18);o.connect(g);g.connect(ctx.destination);o.start(now+d);o.stop(now+d+.2)})}catch(e){}}
+function showAlarmToast(f,c){
+ alarmToastActivityId=f.id;const t=$("alarmToast"),b=$("alarmToastBody");if(!t||!b)return;
+ b.innerHTML=`<b>${esc(c?.razao||"Cliente")}</b><br>${esc(f.tipo||"Follow-up")} • ${esc(f.texto||"")}<br><span>📅 ${brdate(f.data)} às ${esc(f.hora||"09:00")}</span>`;
+ const btn=$("alarmToastOpenBtn");if(btn)btn.onclick=()=>{closeAlarmToast();document.querySelector('[data-tab="followups"]')?.click();$("followClienteBusca").value=c?.razao||c?.codigo||"";followPage=0;renderFollow()};
+ t.classList.add("show");playAlarmSound();
+}
+function closeAlarmToast(){$("alarmToast")?.classList.remove("show");alarmToastActivityId=""}
+async function enableNotifications(){
+ unlockAlarmSound();
+ if(!("Notification"in window)){alert("Som de alerta ativado. Este navegador não oferece notificações do sistema.");return}
+ const p=await Notification.requestPermission();
+ if(p==="granted")alert("Alertas ativados. O sistema avisará na tela e tentará tocar um som no horário do retorno.");
+ else alert("Som ativado, mas a permissão de notificações do navegador não foi concedida.");
+}
 function checkNotifications(){
- if(!("Notification"in window)||Notification.permission!=="granted")return;
  let changed=false,now=new Date();
  db.followups.filter(f=>!f.done&&!f.notified).forEach(f=>{
-   const dt=new Date(`${f.data}T${f.hora||"09:00"}:00`);
-   if(isNaN(dt)||dt>now)return;
-   const c=getClient(f.clienteId);
-   new Notification("Follow-up / Alarme comercial",{body:`${c?.razao||"Cliente"} — ${f.texto}`,tag:`follow-${f.id}`});
-   f.notified=true;
-   changed=true;
+  const dt=new Date(`${f.data}T${f.hora||"09:00"}:00`);if(isNaN(dt)||dt>now)return;
+  const c=getClient(f.clienteId);showAlarmToast(f,c);
+  if("Notification"in window&&Notification.permission==="granted"){try{new Notification("Retorno de follow-up",{body:`${c?.razao||"Cliente"} — ${f.texto} — ${f.hora||"09:00"}`,tag:`follow-${f.id}`})}catch(e){}}
+  f.notified=true;changed=true;
  });
  if(changed)persistDB();
 }
@@ -366,3 +373,5 @@ function openFollow(id,activityId=""){return openFollowV26(id,activityId)}
 function saveFollow(){return saveFollowV26()}
 
 if($("activityStage"))$("activityStage").onchange=()=>{followPage=0;renderFollow()};
+
+document.addEventListener("click",()=>{if(!alarmAudioUnlocked)unlockAlarmSound()},{once:true});

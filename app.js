@@ -1,5 +1,5 @@
-console.info("Gestor Comercial Panamby V30 NEGOCIAÇÃO + RETORNO + ALERTA");
-const DB_NAME="gestor_comercial_panamby_v30",STORE="app",DB_KEY="principal";
+console.info("Gestor Comercial Panamby V32 ASSUNTOS PRONTOS");
+const DB_NAME="gestor_comercial_panamby_v32",STORE="app",DB_KEY="principal";
 let db={clientes:[],vendas:[],followups:[],apuracaoLinhas:[],apuracaoMetas:[],pipelineStages:[]};
 
 const $=id=>document.getElementById(id);
@@ -131,7 +131,7 @@ function saveNegotiation(){
  closeModal("negModal");save();
 }
 function pipeCard(c){
- const followHtml=c.stage==="Follow-up"&&c.nextFollow?`<div class="pipe-stage-box follow-box"><div><b>🔔 Próximo retorno</b></div><div>${brdate(c.nextFollow.data)} às ${esc(c.nextFollow.hora||"09:00")}</div><div class="pipe-small">${esc(c.nextFollow.tipo||"Ligação")} • ${esc(c.nextFollow.texto||"")}</div></div>`:"";
+ const followHtml=c.stage==="Follow-up"&&c.nextFollow?`<div class="pipe-stage-box follow-box"><div><b>🔔 Próximo alerta / retorno</b></div><div>${brdate(c.nextFollow.data)} às ${esc(c.nextFollow.hora||"09:00")}</div><div class="pipe-small">${esc(c.nextFollow.tipo||"Ligação")} • ${esc(c.nextFollow.texto||"")}</div></div>`:"";
  const negHtml=c.stage==="Negociação"?`<div class="pipe-stage-box neg-box"><div class="pipe-neg-row"><span>Valor negociado</span><b>${money(c.neg?.valorNegociado||0)}</b></div><div class="pipe-neg-row"><span>Ordem de compra</span><b>${esc(c.neg?.ordemCompra||"—")}</b></div><div class="pipe-neg-row"><span>Previsão</span><b>${brdate(c.neg?.previsaoFechamento)}</b></div><div class="pipe-small">${esc(c.neg?.statusNegociacao||"Em negociação")}</div></div>`:"";
  return `<div class="pipe-card" data-cliente-id="${c.id}"><div class="pipe-card-top"><div class="pipe-title"><b>${esc(c.razao)}</b><small>${esc(c.codigo)}</small></div><span class="pipe-value">${money(c.valorPipeline)}</span></div><div class="pipe-meta"><span>👔 ${esc(c.representante||"Sem representante")}</span><span>📍 ${esc(c.cidade||"")}/${esc(c.uf||"")}</span></div><div class="pipe-highlight"><span class="${Number(c.dias)>=90?"late":Number(c.dias)>=30?"warn":""}">⏳ ${Number(c.dias||0)} dias</span><span>🛒 ${brdate(c.ultima)}</span></div>${followHtml}${negHtml}<div class="pipe-bottom"><button class="details-btn" onclick="togglePipeDetails(this)">Ver detalhes</button><div class="pipe-actions">${c.tel1||c.tel2?`<button class="pipe-icon whatsbtn" onclick="openWhats('${c.id}')" title="WhatsApp">💬</button>`:""}<button class="pipe-icon" onclick="openFollow('${c.id}')" title="Follow-up / retorno">📞</button>${c.stage==="Negociação"?`<button class="pipe-icon negbtn" onclick="openNegotiation('${c.id}')" title="Editar negociação">✏️</button>`:""}</div></div><div class="pipe-extra">Última compra: ${money(c.valor)}<br>Telefone: ${esc(c.tel1||c.tel2||"—")}<br>Etapa: ${esc(c.stage)}</div></div>`;
 }
@@ -184,27 +184,128 @@ function openActivityNew(){
  if(!c)return alert("Selecione um representante ou pesquise um cliente para criar a atividade.");
  openFollowV26(c.id);
 }
+
+function onAssuntoChange(){
+ const sel=$("fAssunto");
+ const wrap=$("fTextoWrap");
+ const txt=$("fTexto");
+ if(!sel||!wrap||!txt)return;
+ const custom=sel.value==="__OUTRO__";
+ wrap.classList.toggle("show-custom",custom);
+ if(!custom)txt.value=sel.value||"";
+ else if(txt.value==="__OUTRO__")txt.value="";
+}
+function setFollowSubject(value){
+ const sel=$("fAssunto"),txt=$("fTexto"),wrap=$("fTextoWrap");
+ if(!sel||!txt||!wrap)return;
+ const options=[...sel.options].map(o=>o.value);
+ if(value && options.includes(value) && value!=="__OUTRO__"){
+   sel.value=value;
+   txt.value=value;
+   wrap.classList.remove("show-custom");
+ }else if(value){
+   sel.value="__OUTRO__";
+   txt.value=value;
+   wrap.classList.add("show-custom");
+ }else{
+   sel.value="";
+   txt.value="";
+   wrap.classList.remove("show-custom");
+ }
+}
+function getFollowSubject(){
+ const sel=$("fAssunto"),txt=$("fTexto");
+ if(!sel)return (txt?.value||"").trim();
+ if(sel.value==="__OUTRO__")return (txt?.value||"").trim();
+ return sel.value.trim();
+}
+
 function openFollowV26(id,activityId=""){
- const c=getClient(id);if(!c)return;const f=activityId?db.followups.find(x=>x.id===activityId):null;
- $("fId").value=f?.id||"";$("fClienteId").value=c.id;
+ const c=getClient(id);if(!c)return;
+ const f=activityId?db.followups.find(x=>x.id===activityId):null;
+
+ $("fId").value=f?.id||"";
+ $("fClienteId").value=c.id;
  $("fClienteResumo").innerHTML=`<b>${esc(c.codigo)} — ${esc(c.razao)}</b><br>${esc(c.representante||"")} • ${esc(c.cidade||"")}/${esc(c.uf||"")}<br>☎ ${esc(c.tel1||c.tel2||"Sem telefone")}`;
- setText("followModalTitle",f?"✏️ Editar atividade":"📞 Nova atividade");
- $("fTipo").value=f?.tipo||"Ligação";$("fData").value=f?.data||today();$("fHora").value=f?.hora||"09:00";$("fTexto").value=f?.texto||"";
- $("fPrioridade").value=f?.prioridade||"Normal";$("fResultado").value=f?.resultado||"";$("fStatusNovo").value=f?.done?"concluido":"pendente";
+ setText("followModalTitle",f?"✏️ Editar follow-up":"📞 Nova conversa / follow-up");
+
+ $("fTipo").value=f?.tipo||"Ligação";
+ $("fInicioData").value=f?.inicioData||f?.dataCriacao||today();
+
+ if(f){
+   $("fData").value=f.data||today();
+ }else{
+   const d=new Date();
+   d.setDate(d.getDate()+2);
+   $("fData").value=d.toISOString().slice(0,10);
+ }
+
+ $("fHora").value=f?.hora||"09:00";
+ setFollowSubject(f?.texto||"");
+ $("fPrioridade").value=f?.prioridade||"Normal";
+ $("fResultado").value=f?.resultado||"";
+ $("fStatusNovo").value=f?.done?"concluido":"pendente";
  $("followModal").classList.add("open");
 }
 function saveFollowV26(){
- const id=$("fClienteId").value,data=$("fData").value,hora=$("fHora").value||"09:00",texto=$("fTexto").value.trim();
- if(!id||!data||!texto)return alert("Preencha cliente, data e assunto.");
- const editId=$("fId").value,payload={clienteId:id,tipo:$("fTipo").value||"Ligação",data,hora,texto,prioridade:$("fPrioridade").value||"Normal",resultado:$("fResultado").value||"",done:$("fStatusNovo").value==="concluido",notified:false,origem:"Manual"};
- if(editId){const idx=db.followups.findIndex(x=>x.id===editId);if(idx>=0)db.followups[idx]={...db.followups[idx],...payload}}else db.followups.push({id:uid(),...payload});
- setStage(id,"Follow-up");closeModal("followModal");save();
+ const id=$("fClienteId").value;
+ const inicioData=$("fInicioData").value;
+ const data=$("fData").value;
+ const hora=$("fHora").value||"09:00";
+ const texto=getFollowSubject();
+
+ if(!id||!inicioData||!data||!texto)
+   return alert("Preencha cliente, data da conversa, data do alerta e assunto.");
+
+ const editId=$("fId").value;
+ const payload={
+   clienteId:id,
+   tipo:$("fTipo").value||"Ligação",
+   inicioData,
+   data,
+   hora,
+   texto,
+   prioridade:$("fPrioridade").value||"Normal",
+   resultado:$("fResultado").value||"",
+   done:$("fStatusNovo").value==="concluido",
+   notified:false,
+   origem:"Manual"
+ };
+
+ if(editId){
+   const idx=db.followups.findIndex(x=>x.id===editId);
+   if(idx>=0)db.followups[idx]={...db.followups[idx],...payload};
+ }else{
+   db.followups.push({id:uid(),criadoEm:new Date().toISOString(),...payload});
+ }
+
+ setStage(id,"Follow-up");
+ closeModal("followModal");
+ save();
 }
 
 function scheduleNextReturn(activityId){
- const old=db.followups.find(x=>x.id===activityId);if(!old)return;const c=getClient(old.clienteId);if(!c)return;
- $("fId").value="";$("fClienteId").value=c.id;$("fClienteResumo").innerHTML=`<b>${esc(c.codigo)} — ${esc(c.razao)}</b><br>${esc(c.representante||"")} • ${esc(c.cidade||"")}/${esc(c.uf||"")}<br>☎ ${esc(c.tel1||c.tel2||"Sem telefone")}`;
- setText("followModalTitle","🔁 Agendar próximo retorno");$("fTipo").value=old.tipo||"Ligação";const d=new Date();d.setDate(d.getDate()+1);$("fData").value=d.toISOString().slice(0,10);$("fHora").value=old.hora||"09:00";$("fTexto").value=`Retorno: ${old.texto||""}`.trim();$("fPrioridade").value=old.prioridade||"Normal";$("fResultado").value="";$("fStatusNovo").value="pendente";$("followModal").classList.add("open");
+ const old=db.followups.find(x=>x.id===activityId);if(!old)return;
+ const c=getClient(old.clienteId);if(!c)return;
+
+ $("fId").value="";
+ $("fClienteId").value=c.id;
+ $("fClienteResumo").innerHTML=`<b>${esc(c.codigo)} — ${esc(c.razao)}</b><br>${esc(c.representante||"")} • ${esc(c.cidade||"")}/${esc(c.uf||"")}<br>☎ ${esc(c.tel1||c.tel2||"Sem telefone")}`;
+ setText("followModalTitle","🔁 Agendar próximo retorno");
+
+ $("fTipo").value=old.tipo||"Ligação";
+ $("fInicioData").value=today();
+
+ const d=new Date();
+ d.setDate(d.getDate()+2);
+ $("fData").value=d.toISOString().slice(0,10);
+
+ $("fHora").value=old.hora||"09:00";
+ setFollowSubject(old.texto||"Retornar contato");
+ $("fPrioridade").value=old.prioridade||"Normal";
+ $("fResultado").value="";
+ $("fStatusNovo").value="pendente";
+ $("followModal").classList.add("open");
 }
 function deleteFollow(id){const f=db.followups.find(x=>x.id===id);if(!f||!confirm("Excluir esta atividade?"))return;db.followups=db.followups.filter(x=>x.id!==id);save()}
 
@@ -263,12 +364,69 @@ function activityFiltered(){
  });
 }
 function renderFollow(){
- const clientes=followFilteredClients(),acts=activityFiltered().sort((a,b)=>a.done!==b.done?(a.done?1:-1):`${a.data} ${a.hora||"09:00"}`.localeCompare(`${b.data} ${b.hora||"09:00"}`));
- const pages=Math.max(1,Math.ceil(acts.length/FOLLOW_PAGE_SIZE));if(followPage>=pages)followPage=pages-1;if(followPage<0)followPage=0;
- const pg=acts.slice(followPage*FOLLOW_PAGE_SIZE,(followPage+1)*FOLLOW_PAGE_SIZE),now=startOfDay(new Date()),todayStr=dateOnlyStr(now);
- setText("fQtdPend",db.followups.filter(f=>!f.done).length);setText("fQtdVenc",db.followups.filter(f=>!f.done&&startOfDay(activityDateTime(f))<now).length);setText("fQtdHoje",db.followups.filter(f=>f.data===todayStr&&!f.done).length);setText("fQtdConcl",db.followups.filter(f=>f.done).length);setText("fQtdStageFollow",db.clientes.filter(c=>getStage(c.id)==="Follow-up").length);setText("fQtdStageNeg",db.clientes.filter(c=>getStage(c.id)==="Negociação").length);setText("followPageInfo",`Página ${followPage+1} de ${pages} • ${acts.length} atividade(s)`);
- setHTML("activityBody",pg.map(f=>{const c=getClient(f.clienteId),due=followDue(f),status=f.done?"Concluído":due?"Vencido":"Agendado",sc=f.done?"ok":due?"no":"near",icon=f.tipo==="WhatsApp"?"💬":f.tipo==="E-mail"?"📧":f.tipo==="Reunião"?"🤝":f.tipo==="Tarefa"?"📋":"📞",stage=getStage(f.clienteId);
- return `<tr class="${due&&!f.done?"activity-overdue":""}"><td><input class="activity-check" type="checkbox" ${f.done?"checked":""} onchange="toggleFollow('${f.id}')"></td><td><span class="activity-type-pill">${icon} ${esc(f.tipo||"Ligação")}</span></td><td><b>${esc(f.texto)}</b></td><td><div class="table-main">${esc(c?.razao||"Cliente")}</div><div class="table-sub">${esc(c?.codigo||"")}</div></td><td>${esc(c?.representante||"—")}</td><td><select class="stage-select stage-${pipelineStageClass(stage)}" onchange="changeActivityStage('${f.clienteId}',this.value)"><option ${stage==="Contato"?"selected":""}>Contato</option><option ${stage==="Follow-up"?"selected":""}>Follow-up</option><option ${stage==="Negociação"?"selected":""}>Negociação</option><option value="Venda" ${stage==="Venda"?"selected":""}>Venda concluída</option></select></td><td><span class="priority ${norm(f.prioridade)==="URGENTE"?"urgent":norm(f.prioridade)==="IMPORTANTE"?"important":"normal"}">${esc(f.prioridade||"Normal")}</span></td><td>${esc(f.resultado||"—")}</td><td>${esc(c?.tel1||c?.tel2||"—")}</td><td>${esc(c?.cidade||"")}${c?.uf?"/"+esc(c.uf):""}</td><td><div class="return-cell ${due&&!f.done?"return-due":""}"><b>📅 ${brdate(f.data)}</b><span>🕒 ${esc(f.hora||"09:00")}</span></div></td><td><span class="pill ${sc}">${status}</span></td><td><div class="row-actions">${c&&(c.tel1||c.tel2)?`<button class="mini-btn whatsbtn" onclick="openWhats('${c.id}')">💬</button>`:""}<button class="mini-btn" onclick="openFollowV26('${f.clienteId}','${f.id}')">✏️</button><button class="mini-btn returnbtn" onclick="scheduleNextReturn('${f.id}')">🔁</button>${stage==="Negociação"?`<button class="mini-btn negbtn" onclick="openNegotiation('${f.clienteId}')">🤝</button>`:""}<button class="mini-btn deletebtn" onclick="deleteFollow('${f.id}')">🗑️</button></div></td></tr>`}).join("")||'<tr><td colspan="13" class="empty-row">Nenhuma atividade encontrada.</td></tr>');
+ const clientes=followFilteredClients();
+ const acts=activityFiltered().sort((a,b)=>a.done!==b.done?(a.done?1:-1):`${a.data} ${a.hora||"09:00"}`.localeCompare(`${b.data} ${b.hora||"09:00"}`));
+
+ const pages=Math.max(1,Math.ceil(acts.length/FOLLOW_PAGE_SIZE));
+ if(followPage>=pages)followPage=pages-1;
+ if(followPage<0)followPage=0;
+
+ const pg=acts.slice(followPage*FOLLOW_PAGE_SIZE,(followPage+1)*FOLLOW_PAGE_SIZE);
+ const now=startOfDay(new Date()),todayStr=dateOnlyStr(now);
+
+ setText("fQtdPend",db.followups.filter(f=>!f.done).length);
+ setText("fQtdVenc",db.followups.filter(f=>!f.done&&startOfDay(activityDateTime(f))<now).length);
+ setText("fQtdHoje",db.followups.filter(f=>f.data===todayStr&&!f.done).length);
+ setText("fQtdConcl",db.followups.filter(f=>f.done).length);
+ setText("fQtdStageFollow",db.clientes.filter(c=>getStage(c.id)==="Follow-up").length);
+ setText("fQtdStageNeg",db.clientes.filter(c=>getStage(c.id)==="Negociação").length);
+ setText("followPageInfo",`Página ${followPage+1} de ${pages} • ${acts.length} atividade(s)`);
+
+ setHTML("activityBody",pg.map(f=>{
+   const c=getClient(f.clienteId),
+         due=followDue(f),
+         status=f.done?"Concluído":due?"Vencido":"Agendado",
+         sc=f.done?"ok":due?"no":"near",
+         icon=f.tipo==="WhatsApp"?"💬":f.tipo==="E-mail"?"📧":f.tipo==="Reunião"?"🤝":f.tipo==="Tarefa"?"📋":"📞",
+         stage=getStage(f.clienteId),
+         inicio=f.inicioData||f.dataCriacao||f.data;
+
+   return `<tr class="${due&&!f.done?"activity-overdue":""}">
+     <td><input class="activity-check" type="checkbox" ${f.done?"checked":""} onchange="toggleFollow('${f.id}')"></td>
+     <td><span class="activity-type-pill">${icon} ${esc(f.tipo||"Ligação")}</span></td>
+     <td><b>${esc(f.texto)}</b></td>
+     <td><div class="table-main">${esc(c?.razao||"Cliente")}</div><div class="table-sub">${esc(c?.codigo||"")}</div></td>
+     <td>${esc(c?.representante||"—")}</td>
+     <td>
+       <select class="stage-select stage-${pipelineStageClass(stage)}" onchange="changeActivityStage('${f.clienteId}',this.value)">
+         <option ${stage==="Contato"?"selected":""}>Contato</option>
+         <option ${stage==="Follow-up"?"selected":""}>Follow-up</option>
+         <option ${stage==="Negociação"?"selected":""}>Negociação</option>
+         <option value="Venda" ${stage==="Venda"?"selected":""}>Venda concluída</option>
+       </select>
+     </td>
+     <td><span class="priority ${norm(f.prioridade)==="URGENTE"?"urgent":norm(f.prioridade)==="IMPORTANTE"?"important":"normal"}">${esc(f.prioridade||"Normal")}</span></td>
+     <td>${esc(f.resultado||"—")}</td>
+     <td>${esc(c?.tel1||c?.tel2||"—")}</td>
+     <td>${esc(c?.cidade||"")}${c?.uf?"/"+esc(c.uf):""}</td>
+     <td>
+       <div class="return-cell ${due&&!f.done?"return-due":""}">
+         <span class="conversation-date">💬 Conversa: <b>${brdate(inicio)}</b></span>
+         <span class="alert-date">🔔 Alerta: <b>${brdate(f.data)} às ${esc(f.hora||"09:00")}</b></span>
+       </div>
+     </td>
+     <td><span class="pill ${sc}">${status}</span></td>
+     <td>
+       <div class="row-actions">
+         ${c&&(c.tel1||c.tel2)?`<button class="mini-btn whatsbtn" onclick="openWhats('${c.id}')">💬</button>`:""}
+         <button class="mini-btn" onclick="openFollowV26('${f.clienteId}','${f.id}')">✏️</button>
+         <button class="mini-btn returnbtn" onclick="scheduleNextReturn('${f.id}')" title="Agendar próximo retorno">🔁</button>
+         ${stage==="Negociação"?`<button class="mini-btn negbtn" onclick="openNegotiation('${f.clienteId}')">🤝</button>`:""}
+         <button class="mini-btn deletebtn" onclick="deleteFollow('${f.id}')">🗑️</button>
+       </div>
+     </td>
+   </tr>`;
+ }).join("")||'<tr><td colspan="13" class="empty-row">Nenhuma atividade encontrada.</td></tr>');
 }
 
 function prevFollowPage(){if(followPage>0){followPage--;renderFollow()}}
@@ -351,7 +509,7 @@ function checkNotifications(){
  db.followups.filter(f=>!f.done&&!f.notified).forEach(f=>{
   const dt=new Date(`${f.data}T${f.hora||"09:00"}:00`);if(isNaN(dt)||dt>now)return;
   const c=getClient(f.clienteId);showAlarmToast(f,c);
-  if("Notification"in window&&Notification.permission==="granted"){try{new Notification("Retorno de follow-up",{body:`${c?.razao||"Cliente"} — ${f.texto} — ${f.hora||"09:00"}`,tag:`follow-${f.id}`})}catch(e){}}
+  if("Notification"in window&&Notification.permission==="granted"){try{new Notification("Alerta de retorno do follow-up",{body:`${c?.razao||"Cliente"} — ${f.texto} — ${f.hora||"09:00"}`,tag:`follow-${f.id}`})}catch(e){}}
   f.notified=true;changed=true;
  });
  if(changed)persistDB();

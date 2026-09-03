@@ -27,7 +27,7 @@
   <div>
     <h2 id="pageTitle">Dashboard</h2>
     <small id="todayLabel"></small><br>
-    <small class="version">V30 NEGOCIAÇÃO + RETORNO + ALERTA • 2026.09.03</small>
+    <small class="version">V32 ASSUNTOS PRONTOS • 2026.09.03</small>
   </div>
   <button class="primary" onclick="enableNotifications()">🔔 Ativar alertas e som</button>
 </header>
@@ -178,7 +178,7 @@
 </div>
 <div class="card activity-table-card">
 <div class="activity-table-scroll"><table class="activity-table"><thead><tr>
-<th>Concluído</th><th>Tipo</th><th>Assunto</th><th>Cliente</th><th>Representante</th><th>Pipeline</th><th>Prioridade</th><th>Resultado</th><th>Telefone</th><th>Cidade/UF</th><th>Retorno</th><th>Status</th><th>Ações</th>
+<th>Concluído</th><th>Tipo</th><th>Assunto</th><th>Cliente</th><th>Representante</th><th>Pipeline</th><th>Prioridade</th><th>Resultado</th><th>Telefone</th><th>Cidade/UF</th><th>Conversa / Próximo retorno</th><th>Status</th><th>Ações</th>
 </tr></thead><tbody id="activityBody"></tbody></table></div>
 <div class="follow-pagination"><button onclick="prevFollowPage()">◀ Anterior</button><span id="followPageInfo">Página 1</span><button onclick="nextFollowPage()">Próxima ▶</button></div>
 </div>
@@ -258,13 +258,120 @@
 <label>Tipo de atividade<select id="fTipo"><option>Ligação</option><option>WhatsApp</option><option>E-mail</option><option>Reunião</option><option>Tarefa</option></select></label>
 <label>Prioridade<select id="fPrioridade"><option>Normal</option><option>Importante</option><option>Urgente</option></select></label>
 </div>
-<div class="formgrid"><label>Data do retorno<input id="fData" type="date"></label><label>Horário do retorno<input id="fHora" type="time" value="09:00"></label></div>
-<label>Assunto / atividade<textarea id="fTexto" placeholder="Ex.: ligar sobre reposição, enviar catálogo, confirmar negociação..."></textarea></label>
+<div class="formgrid three-fields">
+<label>Data do início da conversa
+<input id="fInicioData" type="date">
+</label>
+<label>Data do alerta / próximo retorno
+<input id="fData" type="date">
+</label>
+<label>Horário do alerta
+<input id="fHora" type="time" value="09:00">
+</label>
+</div>
+<label>Assunto / atividade
+<select id="fAssunto" onchange="onAssuntoChange()">
+  <option value="">Selecione o assunto...</option>
+  <optgroup label="Contato e retorno">
+    <option>Ligar para o cliente</option>
+    <option>Retornar ligação</option>
+    <option>Cobrar retorno do cliente</option>
+    <option>Cliente não atendeu</option>
+    <option>Tentar novo contato</option>
+    <option>Confirmar interesse do cliente</option>
+    <option>Agendar nova conversa</option>
+    <option>Marcar reunião</option>
+    <option>Confirmar reunião</option>
+  </optgroup>
+  <optgroup label="Catálogo e produtos">
+    <option>Enviar catálogo</option>
+    <option>Apresentar catálogo</option>
+    <option>Apresentar lançamentos</option>
+    <option>Apresentar novos produtos</option>
+    <option>Enviar fotos dos produtos</option>
+    <option>Enviar ficha técnica</option>
+    <option>Enviar amostra</option>
+    <option>Apresentar linha infantil</option>
+    <option>Apresentar linha de utilidades</option>
+    <option>Apresentar produtos em promoção</option>
+  </optgroup>
+  <optgroup label="Preços e condições">
+    <option>Enviar tabela de preços</option>
+    <option>Atualizar tabela de preços</option>
+    <option>Negociar preço</option>
+    <option>Negociar desconto</option>
+    <option>Negociar condição de pagamento</option>
+    <option>Negociar prazo de pagamento</option>
+    <option>Negociar frete</option>
+    <option>Revisar condição comercial</option>
+    <option>Enviar condição comercial</option>
+  </optgroup>
+  <optgroup label="Pedido e compra">
+    <option>Confirmar pedido</option>
+    <option>Verificar intenção de compra</option>
+    <option>Verificar reposição</option>
+    <option>Solicitar pedido</option>
+    <option>Acompanhar pedido</option>
+    <option>Confirmar itens do pedido</option>
+    <option>Confirmar quantidade</option>
+    <option>Confirmar ordem de compra</option>
+    <option>Cobrar ordem de compra</option>
+    <option>Aguardar ordem de compra</option>
+  </optgroup>
+  <optgroup label="Negociação">
+    <option>Iniciar negociação</option>
+    <option>Acompanhar negociação</option>
+    <option>Cobrar retorno da negociação</option>
+    <option>Confirmar aprovação da negociação</option>
+    <option>Enviar proposta comercial</option>
+    <option>Reenviar proposta comercial</option>
+    <option>Ajustar proposta comercial</option>
+    <option>Confirmar fechamento</option>
+    <option>Negociação em análise</option>
+  </optgroup>
+  <optgroup label="Financeiro">
+    <option>Confirmar pagamento</option>
+    <option>Cobrar pagamento</option>
+    <option>Enviar dados para pagamento</option>
+    <option>Confirmar prazo financeiro</option>
+    <option>Verificar pendência financeira</option>
+    <option>Solicitar liberação financeira</option>
+  </optgroup>
+  <optgroup label="Pós-venda">
+    <option>Realizar pós-venda</option>
+    <option>Confirmar recebimento</option>
+    <option>Verificar satisfação do cliente</option>
+    <option>Verificar necessidade de reposição</option>
+    <option>Solicitar feedback</option>
+    <option>Resolver pendência do cliente</option>
+    <option>Acompanhar atendimento</option>
+  </optgroup>
+  <optgroup label="Clientes inativos">
+    <option>Cliente sem comprar</option>
+    <option>Reativar cliente</option>
+    <option>Entender motivo da inatividade</option>
+    <option>Apresentar condição para reativação</option>
+    <option>Oferecer reposição</option>
+  </optgroup>
+  <optgroup label="Outros">
+    <option>Enviar WhatsApp</option>
+    <option>Enviar e-mail</option>
+    <option>Enviar documentação</option>
+    <option>Atualizar cadastro</option>
+    <option>Confirmar dados cadastrais</option>
+    <option value="__OUTRO__">Outro / Personalizado</option>
+  </optgroup>
+</select>
+</label>
+
+<label id="fTextoWrap" class="hidden-custom">Assunto personalizado
+<textarea id="fTexto" placeholder="Digite apenas se escolher Outro / Personalizado"></textarea>
+</label>
 <div class="formgrid">
 <label>Resultado<select id="fResultado"><option value="">Sem resultado</option><option>Cliente não atendeu</option><option>Contato realizado</option><option>Catálogo enviado</option><option>Aguardando retorno</option><option>Negociação aberta</option><option>Venda realizada</option><option>Sem interesse</option></select></label>
 <label>Status<select id="fStatusNovo"><option value="pendente">Pendente</option><option value="concluido">Concluído</option></select></label>
 </div>
-<div class="alarm-info">⏰ O retorno fica agendado para a data/hora acima. Quando chegar o horário, o sistema mostra um alerta na tela e tenta tocar um aviso sonoro.</div>
+<div class="alarm-info">🗓️ A primeira data registra quando a conversa aconteceu. A segunda data + horário definem quando você quer ser lembrado de falar com o cliente novamente.</div>
 <button class="primary" onclick="saveFollow()">Salvar atividade</button>
 </div></div>
 

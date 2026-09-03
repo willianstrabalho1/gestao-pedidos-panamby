@@ -1,5 +1,53 @@
-GESTOR COMERCIAL PANAMBY — V30
-NEGOCIAÇÃO + RETORNO + ALERTA
+GESTOR COMERCIAL PANAMBY — V32
+ASSUNTOS PRONTOS
+Data: 2026.09.03
+
+MELHORIA NO FOLLOW-UP
+O campo Assunto / Atividade agora é uma lista pronta para evitar digitação.
+
+GRUPOS DE ASSUNTOS
+- Contato e retorno
+- Catálogo e produtos
+- Preços e condições
+- Pedido e compra
+- Negociação
+- Financeiro
+- Pós-venda
+- Clientes inativos
+- Outros
+
+EXEMPLOS
+- Ligar para o cliente
+- Retornar ligação
+- Cobrar retorno do cliente
+- Enviar catálogo
+- Apresentar lançamentos
+- Enviar tabela de preços
+- Negociar desconto
+- Negociar condição de pagamento
+- Confirmar pedido
+- Verificar reposição
+- Confirmar ordem de compra
+- Cobrar ordem de compra
+- Acompanhar negociação
+- Enviar proposta comercial
+- Confirmar pagamento
+- Realizar pós-venda
+- Reativar cliente
+- Enviar WhatsApp
+- Enviar e-mail
+
+OUTRO / PERSONALIZADO
+Só aparece um campo para digitação se escolher:
+Outro / Personalizado
+
+CONVERSA E ALERTA
+- Data do início da conversa
+- Data do alerta / próximo retorno
+- Horário do alerta
+- Aviso na tela
+- Som
+- Notificação do navegador
 
 NEGOCIAÇÃO
 - Valor negociado
@@ -7,20 +55,14 @@ NEGOCIAÇÃO
 - Previsão de fechamento
 - Status
 - Observação
-- Dados aparecem no cartão da coluna Negociação.
-- Ao arrastar para Negociação, abre o cadastro.
 
-FOLLOW-UP / RETORNO
-- Data e horário representam o próximo retorno.
-- Botão 🔁 agenda um novo retorno.
-- Próximo retorno aparece no cartão do Pipeline.
+BANCO
+- IndexedDB
+- gestor_comercial_panamby_v32
 
-ALERTA
-- No horário do retorno: alerta na tela + tentativa de som + notificação do navegador.
-- Clique em "Ativar alertas e som" para liberar o áudio/notificações.
-
-DASHBOARD
-- Mantido.
-- Importação DIGITAÇÃO DE ORDEM.xls continua alimentando o Dashboard.
-
-BANCO: gestor_comercial_panamby_v30
+GITHUB
+Substitua:
+- index.html
+- app.js
+- style.css
+- README.txt

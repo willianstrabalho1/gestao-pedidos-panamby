@@ -127,3 +127,7 @@
 .pipeline-fastbar #pipePageContato{font-weight:800;color:#273653;min-width:180px;text-align:center}
 .pipe-cards{contain:layout paint style}
 .pipe-card{contain:layout paint style;content-visibility:auto;contain-intrinsic-size:145px}
+
+.follow-search-grid{display:grid;grid-template-columns:260px 1fr 240px;gap:10px;margin-top:12px}.follow-search-grid label{display:block;font-size:11px;font-weight:700;margin-bottom:5px}
+.follow-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:12px 0}.follow-layout{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(360px,.8fr);gap:12px}
+.follow-client-card,.follow-card{background:#fff;border:1px solid #dfe6ef;border-radius:11px;padding:12px;margin-bottom:8px}.follow-client-details{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px;padding:7px;background:#f7f9fc;border-radius:7px;font-size:10px;color:#65748b}.last-follow,.follow-text{margin-top:7px;font-size:10px;color:#536176}.follow-pagination{display:flex;justify-content:center;align-items:center;gap:10px;margin-top:12px}.follow-selected-client{background:#f7f9fc;border:1px solid #e3e8f0;border-radius:9px;padding:10px;margin-bottom:10px;font-size:11px;line-height:1.5}.follow-card.done{opacity:.72}@media(max-width:1050px){.follow-search-grid{grid-template-columns:1fr 1fr}.follow-layout{grid-template-columns:1fr}.follow-kpis{grid-template-columns:1fr 1fr}}@media(max-width:650px){.follow-search-grid,.follow-kpis{grid-template-columns:1fr}}

@@ -27,7 +27,7 @@ function combinedSales(){let p=db.pedidos.map(x=>({...x,pedido:x.ordem})),ord=ne
 let charts={}; function makeChart(id,type,labels,data,label){let el=$(id);if(!el||typeof Chart==="undefined")return;if(charts[id])charts[id].destroy();charts[id]=new Chart(el,{type,data:{labels,datasets:[{label,data,borderWidth:2,tension:.25}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:type==="pie"}},scales:type==="pie"?{}:{y:{beginAtZero:true}}}})}
 document.querySelectorAll(".nav").forEach(b=>b.onclick=()=>{document.querySelectorAll(".nav,.tab").forEach(x=>x.classList.remove("active"));b.classList.add("active");$(b.dataset.tab)?.classList.add("active");setText("pageTitle",b.textContent.replace(/^[^\s]+\s/,""))});
 setText("todayLabel",new Date().toLocaleDateString("pt-BR",{weekday:"long",day:"2-digit",month:"long",year:"numeric"}));
-function fillSelectors(){let r=reps(),opts='<option value="">Todos</option>'+r.map(x=>`<option>${esc(x)}</option>`).join(""),dr=$("dashRep")?.value||"",pr=$("repPedido")?.value||"";if($("dashRep")){$("dashRep").innerHTML=opts;$("dashRep").value=dr}if($("repPedido")){$("repPedido").innerHTML=opts;$("repPedido").value=pr}if($("vRep"))$("vRep").innerHTML=r.map(x=>`<option>${esc(x)}</option>`).join("");if($("orcRep"))$("orcRep").innerHTML=r.map(x=>`<option>${esc(x)}</option>`).join("");if($("pipeRep")){let cur=$("pipeRep").value||"";$("pipeRep").innerHTML=opts;$("pipeRep").value=cur}if($("fCliente"))$("fCliente").innerHTML=db.clientes.map(c=>`<option value="${c.id}">${esc(c.codigo)} — ${esc(c.razao)}</option>`).join("")}
+function fillSelectors(){let r=reps(),opts='<option value="">Todos</option>'+r.map(x=>`<option>${esc(x)}</option>`).join(""),dr=$("dashRep")?.value||"",pr=$("repPedido")?.value||"";if($("dashRep")){$("dashRep").innerHTML=opts;$("dashRep").value=dr}if($("repPedido")){$("repPedido").innerHTML=opts;$("repPedido").value=pr}if($("vRep"))$("vRep").innerHTML=r.map(x=>`<option>${esc(x)}</option>`).join("");if($("orcRep"))$("orcRep").innerHTML=r.map(x=>`<option>${esc(x)}</option>`).join("");if($("pipeRep")){let cur=$("pipeRep").value||"";$("pipeRep").innerHTML=opts;$("pipeRep").value=cur}if($("followRep")){let cur=$("followRep").value||"";$("followRep").innerHTML='<option value="">Todos os representantes</option>'+r.map(x=>`<option>${esc(x)}</option>`).join("");$("followRep").value=cur}}
 
 function animateValue(id,end,currency=false,duration=650){
  const el=$(id); if(!el)return;
@@ -190,42 +190,58 @@ function printOrc(id){let o=db.orcamentos.find(x=>x.id===id);if(!o)return;let w=
 function cleanPhone(v){let n=String(v||"").replace(/\D/g,"");if(!n)return"";if(n.startsWith("55")&&n.length>=12)return n;if(n.length===10||n.length===11)return"55"+n;return n}
 function whatsOrc(id){let o=db.orcamentos.find(x=>x.id===id),c=getClient(o?.clienteId);if(!o||!c)return;let p=cleanPhone(c.tel1||c.tel2);if(!p)return alert("Cliente sem telefone.");let msg=`Olá! Segue o orçamento ${o.numero}:\n\n${o.itens.map(i=>`• ${i.descricao}: ${i.qtd} x ${money(i.preco)}`).join("\n")}\n\nTotal: ${money(o.total)}`;window.open(`https://wa.me/${p}?text=${encodeURIComponent(msg)}`,"_blank")}
 
-function openFollow(id){fillSelectors();if(id)$("fCliente").value=id;$("fData").value=today();$("fTexto").value="";$("followModal").classList.add("open")}
-function saveFollow(){if(!$("fCliente").value||!$("fData").value||!$("fTexto").value.trim())return alert("Preencha os campos.");db.followups.push({id:uid(),clienteId:$("fCliente").value,data:$("fData").value,texto:$("fTexto").value.trim(),done:false});closeModal("followModal");save()}
-
-function renderFollow(){
- const q=norm($("buscaFollow")?.value||"");
- const status=$("statusFollow")?.value||"";
-
- let arr=(db.followups||[]).slice().sort((a,b)=>(a.data||"").localeCompare(b.data||""));
- arr=arr.filter(f=>{
-   const c=getClient(f.clienteId);
-   const okQ=!q||norm([c?.codigo,c?.razao,f.texto].join(" ")).includes(q);
-   const okS=!status||(status==="pendente"?!f.done:f.done);
-   return okQ&&okS;
- });
-
- setText("fQtdTotal",(db.followups||[]).length);
- setText("fQtdPend",(db.followups||[]).filter(f=>!f.done).length);
- setText("fQtdConcl",(db.followups||[]).filter(f=>f.done).length);
-
- setHTML("followList",arr.map(f=>{
-   const c=getClient(f.clienteId);
-   return `<div class="follow-card ${f.done?"done":""}">
-     <div class="toprow">
-       <div>
-         <b>${esc(c?.codigo||"")} ${esc(c?.razao||"Cliente")}</b>
-         <div class="muted">${brdate(f.data)} • ${esc(f.texto)}</div>
-       </div>
-       <span class="pill ${f.done?"ok":"near"}">${f.done?"Concluído":"Pendente"}</span>
-     </div>
-     <div class="actions">
-       ${c&&(c.tel1||c.tel2)?`<button class="whatsbtn" onclick="openWhats('${c.id}')">💬 WhatsApp</button>`:""}
-       <button onclick="toggleFollow('${f.id}')">${f.done?"Reabrir":"Concluir"}</button>
-     </div>
-   </div>`;
- }).join("")||'<div class="card muted">Nenhum follow-up encontrado.</div>');
+function openFollow(id){
+ if(!id){const first=followFilteredClients()[0];if(!first)return alert("Nenhum cliente disponível.");id=first.id}
+ const c=getClient(id);if(!c)return alert("Cliente não encontrado.");
+ $("fClienteId").value=c.id;
+ $("fClienteResumo").innerHTML=`<b>${esc(c.codigo)} — ${esc(c.razao)}</b><br><span>${esc(c.representante||"Sem representante")} • ${esc(c.cidade||"")}/${esc(c.uf||"")}</span><br><span>☎ ${esc(c.tel1||c.tel2||"Sem telefone")}</span>`;
+ $("fData").value=today();$("fTexto").value="";$("fStatusNovo").value="pendente";$("followModal").classList.add("open");
 }
+function saveFollow(){
+ const clienteId=$("fClienteId").value,data=$("fData").value,texto=$("fTexto").value.trim(),status=$("fStatusNovo").value;
+ if(!clienteId)return alert("Cliente não selecionado.");
+ if(!data)return alert("Informe a data.");
+ if(!texto)return alert("Informe o assunto.");
+ db.followups.push({id:uid(),clienteId,data,texto,done:status==="concluido",origem:"Manual"});
+ closeModal("followModal");save();
+}
+
+const FOLLOW_PAGE_SIZE=40;
+let followPage=0;
+function followFilteredClients(){
+ const rep=$("followRep")?.value||"",q=norm($("followClienteBusca")?.value||""),status=$("statusFollow")?.value||"";
+ return (db.clientes||[]).filter(c=>{
+   if(rep&&norm(c.representante)!==norm(rep))return false;
+   if(q&&!norm([c.codigo,c.razao,c.cidade,c.uf,c.tel1,c.tel2].join(" ")).includes(q))return false;
+   const fs=(db.followups||[]).filter(f=>f.clienteId===c.id),pend=fs.some(f=>!f.done),concl=fs.some(f=>f.done);
+   if(status==="sem"&&fs.length)return false;
+   if(status==="pendente"&&!pend)return false;
+   if(status==="concluido"&&!concl)return false;
+   return true;
+ });
+}
+function renderFollow(){
+ const clientes=followFilteredClients(),totalPages=Math.max(1,Math.ceil(clientes.length/FOLLOW_PAGE_SIZE));
+ if(followPage>=totalPages)followPage=totalPages-1;if(followPage<0)followPage=0;
+ const pagina=clientes.slice(followPage*FOLLOW_PAGE_SIZE,(followPage+1)*FOLLOW_PAGE_SIZE);
+ setText("fClientesQtd",clientes.length);setText("fQtdTotal",(db.followups||[]).length);
+ setText("fQtdPend",(db.followups||[]).filter(f=>!f.done).length);setText("fQtdConcl",(db.followups||[]).filter(f=>f.done).length);
+ setText("followPageInfo",`Página ${followPage+1} de ${totalPages}`);
+ setHTML("followClientesList",pagina.map(c=>{
+   const fs=(db.followups||[]).filter(f=>f.clienteId===c.id).sort((a,b)=>(b.data||"").localeCompare(a.data||""));
+   const pend=fs.filter(f=>!f.done).length,ultimo=fs[0];
+   return `<div class="follow-client-card"><div class="toprow"><div><b>${esc(c.codigo)} — ${esc(c.razao)}</b><div class="muted">${esc(c.representante||"Sem representante")} • ${esc(c.cidade||"")}/${esc(c.uf||"")}</div></div><span class="pill ${pend?"near":"ok"}">${pend?pend+" pendente(s)":"Sem pendência"}</span></div>
+   <div class="follow-client-details"><span>☎ ${esc(c.tel1||c.tel2||"Sem telefone")}</span><span>🛒 Última compra: ${brdate(c.ultima)}</span><span>⏳ ${Number(c.dias||0)} dias sem comprar</span></div>
+   ${ultimo?`<div class="last-follow">Último: ${brdate(ultimo.data)} • ${esc(ultimo.texto)}</div>`:""}
+   <div class="actions"><button class="primary" onclick="openFollow('${c.id}')">📞 Novo follow-up</button>${c.tel1||c.tel2?`<button class="whatsbtn" onclick="openWhats('${c.id}')">💬 WhatsApp</button>`:""}<button class="alertbtn" onclick="openAlert('${c.id}')">🔔 Alerta</button></div></div>`;
+ }).join("")||'<div class="muted">Nenhum cliente encontrado.</div>');
+ const rep=$("followRep")?.value||"";
+ let hist=(db.followups||[]).slice().sort((a,b)=>(b.data||"").localeCompare(a.data||""));
+ if(rep)hist=hist.filter(f=>norm(getClient(f.clienteId)?.representante)===norm(rep));
+ setHTML("followList",hist.slice(0,120).map(f=>{const c=getClient(f.clienteId);return `<div class="follow-card ${f.done?"done":""}"><div class="toprow"><div><b>${esc(c?.codigo||"")} — ${esc(c?.razao||"Cliente")}</b><div class="muted">${esc(c?.representante||"")} • ${brdate(f.data)}</div></div><span class="pill ${f.done?"ok":"near"}">${f.done?"Concluído":"Pendente"}</span></div><div class="follow-text">${esc(f.texto)}</div><div class="actions">${c&&(c.tel1||c.tel2)?`<button class="whatsbtn" onclick="openWhats('${c.id}')">💬 WhatsApp</button>`:""}<button onclick="toggleFollow('${f.id}')">${f.done?"Reabrir":"Concluir"}</button></div></div>`}).join("")||'<div class="muted">Nenhum follow-up registrado.</div>');
+}
+function prevFollowPage(){if(followPage>0){followPage--;renderFollow()}}
+function nextFollowPage(){const max=Math.max(0,Math.ceil(followFilteredClients().length/FOLLOW_PAGE_SIZE)-1);if(followPage<max){followPage++;renderFollow()}}
 
 function toggleFollow(id){let f=db.followups.find(x=>x.id===id);if(f)f.done=!f.done;save()}
 function openAlert(id){let c=getClient(id);$("aClienteId").value=id;$("aClienteNome").textContent=`${c?.codigo||""} — ${c?.razao||""}`;$("aData").value=today();$("aTexto").value="";$("alertModal").classList.add("open")}
@@ -625,68 +641,6 @@ function renderApuracao(){let q=norm($("buscaApuracao").value),sup=$("filtroSupe
 function refreshSup(){let e=$("filtroSupervisor"),cur=e.value,s=[...new Set((db.apuracaoLinhas||[]).map(x=>x.supervisor).filter(Boolean))].sort();e.innerHTML='<option value="">Todos os supervisores</option>'+s.map(x=>`<option>${esc(x)}</option>`).join("");e.value=cur}
 
 
-async function importFollowups(){
- const f=$("followFile")?.files?.[0];
- if(!f)return alert("Selecione uma planilha de follow-up.");
-
- const r=new FileReader();
- r.onload=async e=>{
-   try{
-     const wb=XLSX.read(e.target.result,{type:"array",cellDates:true,raw:true});
-     let imported=0,notFound=0,newRows=[];
-
-     for(const sn of wb.SheetNames){
-       const raw=XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,defval:"",raw:true});
-       const h=localizarCabecalho(raw,[["CODIGO CLIENTE","CLIENTE"],["DATA"],["ASSUNTO","FOLLOW UP","FOLLOWUP"]]);
-       if(h<0)continue;
-
-       const hd=raw[h].map(v=>String(v??"").trim());
-       const cCod=findCol(hd,["CODIGO CLIENTE","CÓDIGO CLIENTE","CODIGO","CÓDIGO"]);
-       const cCli=findCol(hd,["CLIENTE","RAZAO SOCIAL","RAZÃO SOCIAL"]);
-       const cData=findCol(hd,["DATA","DATA FOLLOW UP","DATA FOLLOWUP"]);
-       const cAss=findCol(hd,["ASSUNTO","FOLLOW UP","FOLLOWUP","OBSERVACAO","OBSERVAÇÃO"]);
-       const cStatus=findCol(hd,["STATUS","SITUACAO","SITUAÇÃO"]);
-
-       for(let i=h+1;i<raw.length;i++){
-         const row=raw[i];
-         const cod=cCod>=0?String(row[cCod]??"").trim():"";
-         const nome=cCli>=0?String(row[cCli]??"").trim():"";
-         if(!cod&&!nome)continue;
-
-         let cli=cod?findClientCode(cod):null;
-         if(!cli&&nome)cli=findClientRazao(nome);
-         if(!cli){notFound++;continue}
-
-         const data=cData>=0?excelDate(row[cData]):today();
-         const texto=cAss>=0?String(row[cAss]??"").trim():"Follow-up importado";
-         const st=cStatus>=0?norm(row[cStatus]):"";
-         const done=["CONCLUIDO","CONCLUÍDO","FINALIZADO","FEITO","SIM"].includes(st);
-
-         newRows.push({
-           id:uid(),
-           clienteId:cli.id,
-           data:data||today(),
-           texto:texto||"Follow-up importado",
-           done,
-           origem:"Importado"
-         });
-         imported++;
-       }
-     }
-
-     db.followups.push(...newRows);
-     invalidatePipelineCache();
-     await persistDB();
-     render();
-
-     setHTML("followMsg",`✅ <b>${imported}</b> follow-ups importados.${notFound?`<br>⚠️ ${notFound} linhas sem cliente correspondente.`:""}`);
-   }catch(err){
-     console.error(err);
-     alert("Erro ao importar follow-ups: "+(err?.message||err));
-   }
- };
- r.readAsArrayBuffer(f);
-}
 
 async function importClientes(){let f=$("clientesFile").files[0];if(!f)return alert("Selecione TODOS OS CLIENTES.xls.");let r=new FileReader();r.onload=async e=>{try{let wb=XLSX.read(e.target.result,{type:"array",cellDates:true,raw:true}),map=new Map(),lidos=0,oldByCode=new Map((db.clientes||[]).map(c=>[String(c.codigo),c]));let totalSheet=wb.SheetNames.find(s=>normHeader(s)==="TOTAL");let sheets=totalSheet?[totalSheet]:wb.SheetNames;for(const sn of sheets){let raw=XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,defval:"",raw:true}),h=localizarCabecalho(raw,[["CODIGO CLIENTE"],["RAZAO CLIENTE"]]);if(h<0)continue;let hd=raw[h].map(v=>String(v??"").trim()),cCod=findCol(hd,["CODIGO CLIENTE","CÓDIGO CLIENTE"]),cRaz=findCol(hd,["RAZAO CLIENTE","RAZÃO CLIENTE"]),cCnpj=findCol(hd,["CNPJ"]),cRep=findCol(hd,["REPRESENTANTE"]),cCid=findCol(hd,["CIDADE"]),cUf=findCol(hd,["UF"]),cUlt=findCol(hd,["ULTIMA COMPRA","ÚLTIMA COMPRA"]),cDias=findCol(hd,["DIAS SEM COMPRAR"]),cVal=findCol(hd,["VALOR ULTIMA COMPRA","VALOR ÚLTIMA COMPRA"]),cResp=findCol(hd,["RESPONSAVEL","RESPONSÁVEL"]),cTel1=findCol(hd,["TELEFONE 1"]),cTel2=findCol(hd,["TELEFONE 2"]);for(let i=h+1;i<raw.length;i++){let row=raw[i],codigo=cCod>=0?row[cCod]:"",razao=cRaz>=0?row[cRaz]:"";if(String(codigo).trim()===""||String(razao).trim()==="")continue;let key=String(codigo).trim(),old=oldByCode.get(key);map.set(key,{id:old?.id||("CLI-"+key),codigo:key,razao:String(razao).trim(),cnpj:cCnpj>=0?String(row[cCnpj]??"").trim():"",representante:cRep>=0?String(row[cRep]??"").trim():"",cidade:cCid>=0?String(row[cCid]??"").trim():"",uf:cUf>=0?String(row[cUf]??"").trim():"",ultima:cUlt>=0?excelDate(row[cUlt]):"",dias:cDias>=0?numBR(row[cDias]):0,valor:cVal>=0?numBR(row[cVal]):0,responsavel:cResp>=0?String(row[cResp]??"").trim():"",tel1:cTel1>=0?String(row[cTel1]??"").trim():"",tel2:cTel2>=0?String(row[cTel2]??"").trim():""});lidos++}}db.clientes=[...map.values()];db.pipelineStages=[];invalidatePipelineCache();await persistDB();render();setHTML("clientesMsg",`✅ <b>${lidos}</b> linhas lidas • <b>${db.clientes.length}</b> clientes.`)}catch(err){console.error(err);alert("Erro ao importar clientes: "+err.message)}};r.readAsArrayBuffer(f)}
 async function importPedidos(){let f=$("pedidosFile").files[0];if(!f)return alert("Selecione DIGITAÇÃO DE ORDEM.xls.");let r=new FileReader();r.onload=async e=>{try{let wb=XLSX.read(e.target.result,{type:"array",cellDates:true,raw:true}),map=new Map(),count=0;for(const sn of wb.SheetNames){let raw=XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,defval:"",raw:true}),h=localizarCabecalho(raw,[["ORDEM"],["RAZAO SOCIAL"],["VR TOTAL (S/IMPOSTOS)"]]);if(h<0)continue;let hd=raw[h].map(v=>String(v??"").trim()),cStatus=findCol(hd,["Status"]),cEtapa=findCol(hd,["Etapa"]),cOrdem=findCol(hd,["Ordem"]),cRaz=findCol(hd,["Razão Social","Razao Social"]),cDig=findCol(hd,["Digitação","Digitacao"]),cFat=findCol(hd,["Faturamento"]),cLib=findCol(hd,["Data Liberação/Crédito"]),cSem=findCol(hd,["Vr Total (s/impostos)"]),cLiq=findCol(hd,["Vr Total (Liquido)","Vr Total (Líquido)"]),cRep=findCol(hd,["Representante"]),cUf=findCol(hd,["UF"]);for(let i=h+1;i<raw.length;i++){let row=raw[i],ord=cOrdem>=0?row[cOrdem]:"",razao=cRaz>=0?String(row[cRaz]??"").trim():"";if(String(ord).trim()===""||razao==="")continue;let cli=findClientRazao(razao);map.set(String(ord).trim(),{id:uid(),ordem:String(ord).trim(),clienteId:cli?.id||"",codigoCliente:cli?.codigo||"",cliente:razao,data:cDig>=0?excelDate(row[cDig]):"",faturamento:cFat>=0?excelDate(row[cFat]):"",liberacao:cLib>=0?excelDate(row[cLib]):"",representante:(cRep>=0?String(row[cRep]??"").trim():"")||cli?.representante||"",valorSemImpostos:cSem>=0?numBR(row[cSem]):0,valorLiquido:cLiq>=0?numBR(row[cLiq]):0,cidade:cli?.cidade||"",uf:(cUf>=0?String(row[cUf]??"").trim():"")||cli?.uf||"",status:(cEtapa>=0?String(row[cEtapa]??"").trim():"")||(cStatus>=0?String(row[cStatus]??"").trim():""),origem:"DIGITAÇÃO DE ORDEM",vendaId:""});count++}}db.pedidos=[...map.values()];invalidatePipelineCache();await persistDB();render();let sem=db.pedidos.reduce((s,p)=>s+saleValue(p,"sem"),0),liq=db.pedidos.reduce((s,p)=>s+saleValue(p,"liq"),0);setHTML("pedidosMsg",`✅ <b>${count}</b> linhas • <b>${db.pedidos.length}</b> pedidos únicos.<br>Sem impostos: <b>${money(sem)}</b> • Líquido: <b>${money(liq)}</b>`)}catch(err){console.error(err);alert("Erro ao importar pedidos: "+err.message)}};r.readAsArrayBuffer(f)}
@@ -697,7 +651,8 @@ function exportExcel(){let wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet
 async function limparTudo(){if(!confirm("Apagar todos os dados desta versão?"))return;await clearDB();db={clientes:[],pedidos:[],vendas:[],orcamentos:[],followups:[],alertas:[],apuracaoLinhas:[],apuracaoMetas:[],pipelineStages:[]};render();alert("Sistema zerado.")}
 function bind(id,event,fn){let e=$(id);if(e)e[event]=fn}
 ["buscaCliente","filtroDias"].forEach(id=>bind(id,"oninput",renderClientes));
-["buscaFollow","statusFollow"].forEach(id=>bind(id,"oninput",renderFollow));
+["followClienteBusca","statusFollow"].forEach(id=>bind(id,"oninput",()=>{followPage=0;renderFollow()}));
+bind("followRep","onchange",()=>{followPage=0;renderFollow()});
 ["buscaVenda","vendaInicio","vendaFim"].forEach(id=>bind(id,"oninput",renderVendas));
 ["buscaPedido","pedidoInicio","pedidoFim","repPedido"].forEach(id=>bind(id,"oninput",renderPedidos));
 ["buscaOrcamento","statusOrcamento"].forEach(id=>bind(id,"oninput",renderOrcamentos));

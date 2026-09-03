@@ -136,3 +136,13 @@ V22 PIPELINE OTIMIZADO
 - Cache interno de clientes/pedidos/orçamentos/vendas elimina filtros repetidos para cada cliente.
 - Busca tem debounce de 250 ms.
 - Filtros e pesquisa continuam atuando sobre a base completa.
+
+V23 FOLLOW-UP POR REPRESENTANTE
+- Usa diretamente os clientes de TODOS OS CLIENTES.xls.
+- Não precisa importar uma planilha separada de follow-up.
+- Filtro principal por representante.
+- Busca por código, cliente, cidade e telefone.
+- Filtro sem follow-up / pendente / concluído.
+- 40 clientes por página.
+- Criação de follow-up direto no cliente.
+- Histórico de follow-ups separado.

@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Gestor Comercial Panamby</title>
 <link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="multiuser.css">
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 </head>
@@ -258,10 +259,10 @@
   <div class="card intro">
     <h3>💾 Backup e exportação</h3>
     <button class="primary" onclick="backupDados()">💾 Fazer backup</button>
-    <button onclick="$('restoreFile').click()">♻️ Restaurar backup</button>
+    <button onclick="$('restoreFile').click()">♻️ Importar backup inicial</button>
     <input type="file" id="restoreFile" accept=".json" style="display:none" onchange="restaurarBackup(event)">
     <button onclick="exportExcel()">📗 Exportar Excel</button>
-    <button class="deletebtn" onclick="limparTudo()">🗑️ Limpar tudo</button>
+    <button class="deletebtn" disabled title="Desativado para proteger o banco compartilhado">🗑️ Limpar tudo</button>
   </div>
 </section>
 </main>
@@ -428,6 +429,9 @@
 <div class="alarm-toast-actions"><button class="primary" id="alarmToastOpenBtn">Abrir cliente</button><button onclick="closeAlarmToast()">Fechar</button></div>
 </div>
 
+<script src="supabase-config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="multiuser.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

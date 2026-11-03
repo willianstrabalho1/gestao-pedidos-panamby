@@ -21,8 +21,9 @@ function localizarCabecalho(raw,req,limit=60){for(let i=0;i<Math.min(raw.length,
 function normalizeDB(){for(const k of ["clientes","vendas","followups","apuracaoLinhas","apuracaoMetas","pipelineStages"])if(!Array.isArray(db[k]))db[k]=[]}
 
 function openDB(){return new Promise((res,rej)=>{const r=indexedDB.open(DB_NAME,1);r.onupgradeneeded=()=>{if(!r.result.objectStoreNames.contains(STORE))r.result.createObjectStore(STORE)};r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)})}
-async function loadDB(){const d=await openDB();return new Promise((res,rej)=>{const r=d.transaction(STORE,"readonly").objectStore(STORE).get(DB_KEY);r.onsuccess=()=>res(r.result||null);r.onerror=()=>rej(r.error)})}
-async function persistDB(){try{normalizeDB();const d=await openDB();await new Promise((res,rej)=>{const t=d.transaction(STORE,"readwrite");t.objectStore(STORE).put(db,DB_KEY);t.oncomplete=res;t.onerror=()=>rej(t.error)});return true}catch(e){alert("Erro ao salvar dados: "+e.message);return false}}
+async function loadLocalDB(){const d=await openDB();return new Promise((res,rej)=>{const r=d.transaction(STORE,"readonly").objectStore(STORE).get(DB_KEY);r.onsuccess=()=>res(r.result||null);r.onerror=()=>rej(r.error)})}
+async function loadDB(){return window.CRMCloud.load()}
+async function persistDB(){normalizeDB();return window.CRMCloud.persist(db)}
 async function clearDB(){const d=await openDB();await new Promise((res,rej)=>{const t=d.transaction(STORE,"readwrite");t.objectStore(STORE).delete(DB_KEY);t.oncomplete=res;t.onerror=()=>rej(t.error)})}
 function save(){invalidatePipeline();render();persistDB()}
 function getClient(id){return db.clientes.find(c=>c.id===id)}
@@ -600,7 +601,8 @@ async function importClientes(){
    const wb=XLSX.read(e.target.result,{type:"array",cellDates:true,raw:true}),total=wb.SheetNames.find(s=>normHeader(s)==="TOTAL"),sheets=total?[total]:wb.SheetNames,map=new Map(),old=new Map(db.clientes.map(c=>[String(c.codigo),c]));let lidos=0;
    for(const sn of sheets){const raw=XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,defval:"",raw:true}),h=localizarCabecalho(raw,[["CODIGO CLIENTE"],["RAZAO CLIENTE"]]);if(h<0)continue;const hd=raw[h],cCod=findCol(hd,["CODIGO CLIENTE"]),cRaz=findCol(hd,["RAZAO CLIENTE","RAZÃO CLIENTE"]),cCnpj=findCol(hd,["CNPJ"]),cRep=findCol(hd,["REPRESENTANTE"]),cCid=findCol(hd,["CIDADE"]),cUf=findCol(hd,["UF"]),cUlt=findCol(hd,["ULTIMA COMPRA","ÚLTIMA COMPRA"]),cDias=findCol(hd,["DIAS SEM COMPRAR"]),cVal=findCol(hd,["VALOR ULTIMA COMPRA","VALOR ÚLTIMA COMPRA"]),cTel1=findCol(hd,["TELEFONE 1"]),cTel2=findCol(hd,["TELEFONE 2"]);
      for(let i=h+1;i<raw.length;i++){const row=raw[i],codigo=String(row[cCod]??"").trim(),razao=String(row[cRaz]??"").trim();if(!codigo||!razao)continue;const prev=old.get(codigo);map.set(codigo,{id:prev?.id||("CLI-"+codigo),codigo,razao,cnpj:cCnpj>=0?String(row[cCnpj]??"").trim():"",representante:cRep>=0?String(row[cRep]??"").trim():"",cidade:cCid>=0?String(row[cCid]??"").trim():"",uf:cUf>=0?String(row[cUf]??"").trim():"",ultima:cUlt>=0?excelDate(row[cUlt]):"",dias:cDias>=0?numBR(row[cDias]):0,valor:cVal>=0?numBR(row[cVal]):0,tel1:cTel1>=0?String(row[cTel1]??"").trim():"",tel2:cTel2>=0?String(row[cTel2]??"").trim():""});lidos++}}
-   db.clientes=[...map.values()];db.pipelineStages=db.pipelineStages.filter(x=>db.clientes.some(c=>c.id===x.clienteId));invalidatePipeline();await persistDB();render();setHTML("clientesMsg",`✅ <b>${db.clientes.length.toLocaleString("pt-BR")}</b> clientes importados.`);
+   if(!confirm("Importar esta planilha substituirá a lista de CLIENTES para toda a equipe. Deseja continuar?"))return;
+   db.clientes=[...map.values()];db.pipelineStages=db.pipelineStages.filter(x=>db.clientes.some(c=>c.id===x.clienteId));invalidatePipeline();if(!await persistDB())return;render();setHTML("clientesMsg",`✅ <b>${db.clientes.length.toLocaleString("pt-BR")}</b> clientes importados.`);
  }catch(err){console.error(err);alert("Erro ao importar clientes: "+err.message)}};r.readAsArrayBuffer(f);
 }
 
@@ -610,7 +612,8 @@ async function importVendas(){
    const wb=XLSX.read(e.target.result,{type:"array",cellDates:true,raw:true}),map=new Map();let count=0;
    for(const sn of wb.SheetNames){const raw=XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,defval:"",raw:true}),h=localizarCabecalho(raw,[["ORDEM"],["RAZAO SOCIAL"],["VR TOTAL (S/IMPOSTOS)"]]);if(h<0)continue;const hd=raw[h],cOrd=findCol(hd,["ORDEM"]),cRaz=findCol(hd,["RAZAO SOCIAL","RAZÃO SOCIAL"]),cDig=findCol(hd,["DIGITACAO","DIGITAÇÃO"]),cSem=findCol(hd,["VR TOTAL (S/IMPOSTOS)"]),cLiq=findCol(hd,["VR TOTAL (LIQUIDO)","VR TOTAL (LÍQUIDO)"]),cRep=findCol(hd,["REPRESENTANTE"]),cUf=findCol(hd,["UF"]);
      for(let i=h+1;i<raw.length;i++){const row=raw[i],doc=String(row[cOrd]??"").trim(),razao=String(row[cRaz]??"").trim();if(!doc||!razao)continue;const c=findClientRazao(razao);map.set(doc,{id:"VEN-"+doc,clienteId:c?.id||"",codigoCliente:c?.codigo||"",cliente:razao,representante:(cRep>=0?String(row[cRep]??"").trim():"")||c?.representante||"",data:cDig>=0?excelDate(row[cDig]):"",documento:doc,valorSemImpostos:cSem>=0?numBR(row[cSem]):0,valorLiquido:cLiq>=0?numBR(row[cLiq]):0,cidade:c?.cidade||"",uf:(cUf>=0?String(row[cUf]??"").trim():"")||c?.uf||"",origem:"DIGITAÇÃO DE ORDEM"});count++}}
-   db.vendas=[...map.values()];invalidatePipeline();await persistDB();render();setHTML("vendasMsg",`✅ <b>${db.vendas.length}</b> vendas importadas.<br>Sem impostos: <b>${money(db.vendas.reduce((s,v)=>s+Number(v.valorSemImpostos||0),0))}</b> • Líquido: <b>${money(db.vendas.reduce((s,v)=>s+Number(v.valorLiquido||0),0))}</b>`);
+   if(!confirm("Importar esta planilha substituirá a lista de VENDAS para toda a equipe. Deseja continuar?"))return;
+   db.vendas=[...map.values()];invalidatePipeline();if(!await persistDB())return;render();setHTML("vendasMsg",`✅ <b>${db.vendas.length}</b> vendas importadas.<br>Sem impostos: <b>${money(db.vendas.reduce((s,v)=>s+Number(v.valorSemImpostos||0),0))}</b> • Líquido: <b>${money(db.vendas.reduce((s,v)=>s+Number(v.valorLiquido||0),0))}</b>`);
  }catch(err){console.error(err);alert("Erro ao importar vendas: "+err.message)}};r.readAsArrayBuffer(f);
 }
 
@@ -620,14 +623,24 @@ async function importApuracao(){
    const wb=XLSX.read(e.target.result,{type:"array",raw:true}),linhas=[];
    for(const sn of wb.SheetNames){const raw=XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,defval:"",raw:true}),h=localizarCabecalho(raw,[["ATINGIDO"],["REPRESENTANTE"],["RAZAO SOCIAL"],["META"],["VR ATINGIDO"],["NOME DO SUPERVISOR"]]);if(h<0)continue;const hd=raw[h],cAt=findCol(hd,["ATINGIDO"]),cRep=findCol(hd,["REPRESENTANTE"]),cRaz=findCol(hd,["RAZAO SOCIAL","RAZÃO SOCIAL"]),cMeta=findCol(hd,["META"]),cVr=findCol(hd,["VR ATINGIDO"]),cSup=findCol(hd,["NOME DO SUPERVISOR"]);
      for(let i=h+1;i<raw.length;i++){const row=raw[i],rep=String(row[cRep]??"").trim(),raz=String(row[cRaz]??"").trim();if(!rep&&!raz)continue;const meta=numBR(row[cMeta]),vr=numBR(row[cVr]),atRaw=String(row[cAt]??"").trim();linhas.push({atingido:/^SIM$/i.test(atRaw)||(meta>0&&vr>=meta)?"Sim":"Não",representante:rep,razaoSocial:raz,meta,vrAtingido:vr,supervisor:String(row[cSup]??"").trim()})}}
-   db.apuracaoLinhas=linhas;const m=new Map();linhas.forEach(x=>{const k=norm(x.representante||x.razaoSocial);if(!k)return;if(!m.has(k))m.set(k,{...x});else{const a=m.get(k);a.meta=Math.max(Number(a.meta||0),Number(x.meta||0));a.vrAtingido=Math.max(Number(a.vrAtingido||0),Number(x.vrAtingido||0));if(!a.razaoSocial)a.razaoSocial=x.razaoSocial;if(!a.supervisor)a.supervisor=x.supervisor;a.atingido=a.meta>0&&a.vrAtingido>=a.meta?"Sim":"Não"}});db.apuracaoMetas=[...m.values()];await persistDB();render();setHTML("apuracaoMsg",`✅ <b>${linhas.length}</b> linhas • <b>${db.apuracaoMetas.length}</b> representantes.`);
+   if(!confirm("Importar esta planilha substituirá a APURAÇÃO DE METAS de toda a equipe. Deseja continuar?"))return;
+   db.apuracaoLinhas=linhas;const m=new Map();linhas.forEach(x=>{const k=norm(x.representante||x.razaoSocial);if(!k)return;if(!m.has(k))m.set(k,{...x});else{const a=m.get(k);a.meta=Math.max(Number(a.meta||0),Number(x.meta||0));a.vrAtingido=Math.max(Number(a.vrAtingido||0),Number(x.vrAtingido||0));if(!a.razaoSocial)a.razaoSocial=x.razaoSocial;if(!a.supervisor)a.supervisor=x.supervisor;a.atingido=a.meta>0&&a.vrAtingido>=a.meta?"Sim":"Não"}});db.apuracaoMetas=[...m.values()];if(!await persistDB())return;render();setHTML("apuracaoMsg",`✅ <b>${linhas.length}</b> linhas • <b>${db.apuracaoMetas.length}</b> representantes.`);
  }catch(err){console.error(err);alert("Erro ao importar apuração: "+err.message)}};r.readAsArrayBuffer(f);
 }
 
 function backupDados(){const blob=new Blob([JSON.stringify({versao:"V24",data:new Date().toISOString(),dados:db},null,2)],{type:"application/json"}),a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=`Backup_Gestor_Comercial_V24_${today()}.json`;a.click()}
-async function restaurarBackup(e){const f=e.target.files[0];if(!f||!confirm("Substituir os dados atuais pelo backup?"))return;const r=new FileReader();r.onload=async x=>{try{const p=JSON.parse(x.target.result);db=p.dados||p;normalizeDB();invalidatePipeline();await persistDB();render();alert("Backup restaurado.")}catch(err){alert("Backup inválido: "+err.message)}};r.readAsText(f)}
+async function restaurarBackup(e){
+ const f=e.target.files[0];if(!f)return;
+ const r=new FileReader();r.onload=async x=>{
+   try {
+     const p=JSON.parse(x.target.result);
+     if(await window.CRMCloud.importBackup(p.dados||p))alert("Backup inicial enviado para o banco compartilhado.");
+   }catch(err){alert("Não foi possível importar o backup: "+err.message)}
+   finally { e.target.value="" }
+ };r.readAsText(f);
+}
 function exportExcel(){const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(db.clientes),"Clientes");XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(db.vendas),"Vendas");XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(db.followups),"Follow-ups");XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(db.apuracaoLinhas),"Apuração");XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(db.pipelineStages),"Pipeline");XLSX.writeFile(wb,"Gestor_Comercial_Panamby_V24.xlsx")}
-async function limparTudo(){if(!confirm("Apagar todos os dados desta versão?"))return;await clearDB();db={clientes:[],vendas:[],followups:[],apuracaoLinhas:[],apuracaoMetas:[],pipelineStages:[]};invalidatePipeline();render();alert("Sistema zerado.")}
+async function limparTudo(){alert("A limpeza total foi desativada no modo multiusuário para proteger a base da equipe.")}
 
 
 let alarmAudioUnlocked=false,alarmAudioCtx=null,alarmToastActivityId="";
@@ -667,7 +680,18 @@ bind("pipeRep","onchange",()=>{pipePage=0;renderPipeline()});bind("pipeSort","on
 ["buscaApuracao","filtroSupervisor","filtroAtingido"].forEach(id=>bind(id,"oninput",renderApuracao));
 
 function render(){fillSelectors();refreshSup();renderClientes();renderPipeline();renderFollow();renderApuracao();renderDashboard();checkNotifications()}
-async function iniciarApp(){try{const saved=await loadDB();if(saved){db=saved;normalizeDB()}const d=new Date(),first=new Date(d.getFullYear(),d.getMonth(),1).toISOString().slice(0,10);$("dashInicio").value=first;$("dashFim").value=today();render();setInterval(checkNotifications,60000)}catch(e){console.error(e);alert("Erro ao iniciar: "+e.message)}}
+async function iniciarApp(){try{
+window.CRMCloud.setup({
+  getLocal:()=>loadLocalDB(),
+  getCurrent:()=>db,
+  onUpdate:fresh=>{db=fresh;normalizeDB();invalidatePipeline();render()}
+});
+const saved=await loadDB();
+if(saved){db=saved;normalizeDB()}
+const d=new Date(),first=new Date(d.getFullYear(),d.getMonth(),1).toISOString().slice(0,10);
+$("dashInicio").value=first;$("dashFim").value=today();
+render();setInterval(checkNotifications,60000)
+}catch(e){console.error(e);alert("Erro ao iniciar o modo multiusuário: "+e.message)}}
 iniciarApp();
 
 function openFollow(id,activityId=""){return openFollowV26(id,activityId)}

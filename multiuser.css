@@ -18,3 +18,34 @@
 #crm-cloud-bar button{background:#fff;color:#123e55;border:0;border-radius:7px;font-size:11px;padding:8px 10px;cursor:pointer;font-weight:700}
 #crm-cloud-bar button:hover{background:#d5f1fc}
 #crm-cloud-bar button:disabled{opacity:.5}
+
+/* Hierarquia de usuários — versão 2 */
+#crm-cloud-bar .crm-role-line{font-size:12px;color:#e5f5fa;margin:5px 0 9px}
+#crm-cloud-bar [hidden]{display:none!important}
+.crm-members-overlay{position:fixed;inset:0;background:#001e36a8;z-index:2147483600;display:flex;align-items:center;justify-content:center;padding:16px;font:14px/1.45 system-ui,sans-serif;box-sizing:border-box}
+.crm-members-overlay *{box-sizing:border-box}
+.crm-members-panel{background:#fff;color:#183445;border-radius:14px;padding:22px;width:min(710px,100%);max-height:92vh;overflow-y:auto;box-shadow:0 15px 70px #0006}
+.crm-members-header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.crm-members-header h2{font-size:22px;margin:0 0 5px}
+.crm-members-header p,.crm-member-add p,.crm-members-hint{color:#587084;font-size:12px;margin:0 0 12px}
+.crm-members-header button{background:#f0f3f5;border:0;border-radius:8px;color:#123e55;padding:7px 10px;cursor:pointer}
+#crm-members-msg{min-height:22px;color:#08634f;font-weight:650;margin:10px 0}
+#crm-members-msg[data-error=true]{color:#ab2323}
+.crm-team-row{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:12px 0;border-bottom:1px solid #e3eaf0}
+.crm-member-uid{display:block;color:#526779;font-size:12px;overflow-wrap:anywhere;margin-top:5px}
+.crm-team-controls{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+.crm-members-panel select,.crm-members-panel input{border:1px solid #bfcfd9;border-radius:8px;background:#fff;color:#142e42;padding:9px;max-width:100%}
+.crm-members-panel button{cursor:pointer}
+.crm-members-panel button:disabled,.crm-members-panel select:disabled{opacity:.55;cursor:not-allowed}
+.crm-members-remove{border:1px solid #ca9797;background:#fff;color:#8e2525;border-radius:8px;padding:9px}
+.crm-member-add{background:#f2f7fa;padding:14px;border-radius:11px;margin-top:20px;display:grid;gap:9px}
+.crm-member-add label{font-weight:650;display:grid;gap:4px}
+.crm-member-add .crm-members-main-btn{background:#006e88;color:white;border:0;border-radius:8px;padding:11px;font-weight:700}
+.crm-members-hint{margin-top:13px}
+@media(max-width:560px){.crm-team-row{align-items:flex-start;flex-direction:column}.crm-team-controls{width:100%}.crm-members-panel{padding:15px}}
+
+/* Área Excel / Backup invisível até o Supabase confirmar cargo de administrador. */
+[data-admin-only][hidden],
+body:not([data-crm-role="administrador"]) [data-admin-only] {
+  display: none !important;
+}

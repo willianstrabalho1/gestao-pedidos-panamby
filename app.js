@@ -25,13 +25,13 @@ async function loadLocalDB(){const d=await openDB();return new Promise((res,rej)
 async function loadDB(){return window.CRMCloud.load()}
 async function persistDB(){normalizeDB();return window.CRMCloud.persist(db)}
 async function clearDB(){const d=await openDB();await new Promise((res,rej)=>{const t=d.transaction(STORE,"readwrite");t.objectStore(STORE).delete(DB_KEY);t.oncomplete=res;t.onerror=()=>rej(t.error)})}
-function save(){invalidatePipeline();render();persistDB()}
+function save(){invalidatePipeline();const writing=persistDB();render();return writing}
 function getClient(id){return db.clientes.find(c=>c.id===id)}
 function findClientCode(code){return db.clientes.find(c=>String(c.codigo)===String(code))}
 function findClientRazao(r){const n=norm(r);return db.clientes.find(c=>norm(c.razao)===n)||db.clientes.find(c=>norm(c.razao).includes(n)||n.includes(norm(c.razao)))||null}
 function reps(){return [...new Set([...db.clientes,...db.vendas].map(x=>x.representante).filter(Boolean))].sort()}
 
-document.querySelectorAll(".nav").forEach(b=>b.onclick=()=>{document.querySelectorAll(".nav,.tab").forEach(x=>x.classList.remove("active"));b.classList.add("active");$(b.dataset.tab)?.classList.add("active");setText("pageTitle",b.textContent.replace(/^[^\s]+\s/,""))});
+document.querySelectorAll(".nav").forEach(b=>b.onclick=()=>{if(b.dataset.tab==="excel" && window.CRMCloud?.role!=="administrador"){alert("Área Excel / Backup exclusiva do Administrador.");return;}document.querySelectorAll(".nav,.tab").forEach(x=>x.classList.remove("active"));b.classList.add("active");$(b.dataset.tab)?.classList.add("active");setText("pageTitle",b.textContent.replace(/^[^\s]+\s/,""))});
 setText("todayLabel",new Date().toLocaleDateString("pt-BR",{weekday:"long",day:"2-digit",month:"long",year:"numeric"}));
 
 function fillSelectors(){
@@ -447,7 +447,7 @@ function scheduleNextReturn(activityId){
  $("fStatusNovo").value="pendente";
  $("followModal").classList.add("open");
 }
-function deleteFollow(id){const f=db.followups.find(x=>x.id===id);if(!f||!confirm("Excluir esta atividade?"))return;db.followups=db.followups.filter(x=>x.id!==id);save()}
+function deleteFollow(id){if(!window.CRMCloud?.canDelete)return alert("Seu cargo não permite excluir registros.");const f=db.followups.find(x=>x.id===id);if(!f||!confirm("Excluir esta atividade?"))return;db.followups=db.followups.filter(x=>x.id!==id);save()}
 
 const FOLLOW_PAGE_SIZE=40;let followPage=0;
 
@@ -595,51 +595,65 @@ function renderApuracao(){
 }
 function refreshSup(){const e=$("filtroSupervisor"),cur=e.value,s=[...new Set(db.apuracaoLinhas.map(x=>x.supervisor).filter(Boolean))].sort();e.innerHTML='<option value="">Todos os supervisores</option>'+s.map(x=>`<option>${esc(x)}</option>`).join("");e.value=cur}
 
+
+async function allowExcelAdmin(){
+ try { await window.CRMCloud.requireAdmin(); return true; }
+ catch(e){ alert(e.message || 'Área exclusiva do Administrador.'); return false; }
+}
+
 async function importClientes(){
+ if(!(await allowExcelAdmin()))return;
  const f=$("clientesFile").files[0];if(!f)return alert("Selecione TODOS OS CLIENTES.xls.");
  const r=new FileReader();r.onload=async e=>{try{
    const wb=XLSX.read(e.target.result,{type:"array",cellDates:true,raw:true}),total=wb.SheetNames.find(s=>normHeader(s)==="TOTAL"),sheets=total?[total]:wb.SheetNames,map=new Map(),old=new Map(db.clientes.map(c=>[String(c.codigo),c]));let lidos=0;
    for(const sn of sheets){const raw=XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,defval:"",raw:true}),h=localizarCabecalho(raw,[["CODIGO CLIENTE"],["RAZAO CLIENTE"]]);if(h<0)continue;const hd=raw[h],cCod=findCol(hd,["CODIGO CLIENTE"]),cRaz=findCol(hd,["RAZAO CLIENTE","RAZÃO CLIENTE"]),cCnpj=findCol(hd,["CNPJ"]),cRep=findCol(hd,["REPRESENTANTE"]),cCid=findCol(hd,["CIDADE"]),cUf=findCol(hd,["UF"]),cUlt=findCol(hd,["ULTIMA COMPRA","ÚLTIMA COMPRA"]),cDias=findCol(hd,["DIAS SEM COMPRAR"]),cVal=findCol(hd,["VALOR ULTIMA COMPRA","VALOR ÚLTIMA COMPRA"]),cTel1=findCol(hd,["TELEFONE 1"]),cTel2=findCol(hd,["TELEFONE 2"]);
      for(let i=h+1;i<raw.length;i++){const row=raw[i],codigo=String(row[cCod]??"").trim(),razao=String(row[cRaz]??"").trim();if(!codigo||!razao)continue;const prev=old.get(codigo);map.set(codigo,{id:prev?.id||("CLI-"+codigo),codigo,razao,cnpj:cCnpj>=0?String(row[cCnpj]??"").trim():"",representante:cRep>=0?String(row[cRep]??"").trim():"",cidade:cCid>=0?String(row[cCid]??"").trim():"",uf:cUf>=0?String(row[cUf]??"").trim():"",ultima:cUlt>=0?excelDate(row[cUlt]):"",dias:cDias>=0?numBR(row[cDias]):0,valor:cVal>=0?numBR(row[cVal]):0,tel1:cTel1>=0?String(row[cTel1]??"").trim():"",tel2:cTel2>=0?String(row[cTel2]??"").trim():""});lidos++}}
    if(!confirm("Importar esta planilha substituirá a lista de CLIENTES para toda a equipe. Deseja continuar?"))return;
-   db.clientes=[...map.values()];db.pipelineStages=db.pipelineStages.filter(x=>db.clientes.some(c=>c.id===x.clienteId));invalidatePipeline();if(!await persistDB())return;render();setHTML("clientesMsg",`✅ <b>${db.clientes.length.toLocaleString("pt-BR")}</b> clientes importados.`);
+   if(!(await allowExcelAdmin()))return;
+   db.clientes=[...map.values()];db.pipelineStages=db.pipelineStages.filter(x=>db.clientes.some(c=>c.id===x.clienteId));invalidatePipeline();if(!await window.CRMCloud.persistAdmin(db))return;render();setHTML("clientesMsg",`✅ <b>${db.clientes.length.toLocaleString("pt-BR")}</b> clientes importados.`);
  }catch(err){console.error(err);alert("Erro ao importar clientes: "+err.message)}};r.readAsArrayBuffer(f);
 }
 
 async function importVendas(){
+ if(!(await allowExcelAdmin()))return;
  const f=$("vendasFile").files[0];if(!f)return alert("Selecione DIGITAÇÃO DE ORDEM.xls.");
  const r=new FileReader();r.onload=async e=>{try{
    const wb=XLSX.read(e.target.result,{type:"array",cellDates:true,raw:true}),map=new Map();let count=0;
    for(const sn of wb.SheetNames){const raw=XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,defval:"",raw:true}),h=localizarCabecalho(raw,[["ORDEM"],["RAZAO SOCIAL"],["VR TOTAL (S/IMPOSTOS)"]]);if(h<0)continue;const hd=raw[h],cOrd=findCol(hd,["ORDEM"]),cRaz=findCol(hd,["RAZAO SOCIAL","RAZÃO SOCIAL"]),cDig=findCol(hd,["DIGITACAO","DIGITAÇÃO"]),cSem=findCol(hd,["VR TOTAL (S/IMPOSTOS)"]),cLiq=findCol(hd,["VR TOTAL (LIQUIDO)","VR TOTAL (LÍQUIDO)"]),cRep=findCol(hd,["REPRESENTANTE"]),cUf=findCol(hd,["UF"]);
      for(let i=h+1;i<raw.length;i++){const row=raw[i],doc=String(row[cOrd]??"").trim(),razao=String(row[cRaz]??"").trim();if(!doc||!razao)continue;const c=findClientRazao(razao);map.set(doc,{id:"VEN-"+doc,clienteId:c?.id||"",codigoCliente:c?.codigo||"",cliente:razao,representante:(cRep>=0?String(row[cRep]??"").trim():"")||c?.representante||"",data:cDig>=0?excelDate(row[cDig]):"",documento:doc,valorSemImpostos:cSem>=0?numBR(row[cSem]):0,valorLiquido:cLiq>=0?numBR(row[cLiq]):0,cidade:c?.cidade||"",uf:(cUf>=0?String(row[cUf]??"").trim():"")||c?.uf||"",origem:"DIGITAÇÃO DE ORDEM"});count++}}
    if(!confirm("Importar esta planilha substituirá a lista de VENDAS para toda a equipe. Deseja continuar?"))return;
-   db.vendas=[...map.values()];invalidatePipeline();if(!await persistDB())return;render();setHTML("vendasMsg",`✅ <b>${db.vendas.length}</b> vendas importadas.<br>Sem impostos: <b>${money(db.vendas.reduce((s,v)=>s+Number(v.valorSemImpostos||0),0))}</b> • Líquido: <b>${money(db.vendas.reduce((s,v)=>s+Number(v.valorLiquido||0),0))}</b>`);
+   if(!(await allowExcelAdmin()))return;
+   db.vendas=[...map.values()];invalidatePipeline();if(!await window.CRMCloud.persistAdmin(db))return;render();setHTML("vendasMsg",`✅ <b>${db.vendas.length}</b> vendas importadas.<br>Sem impostos: <b>${money(db.vendas.reduce((s,v)=>s+Number(v.valorSemImpostos||0),0))}</b> • Líquido: <b>${money(db.vendas.reduce((s,v)=>s+Number(v.valorLiquido||0),0))}</b>`);
  }catch(err){console.error(err);alert("Erro ao importar vendas: "+err.message)}};r.readAsArrayBuffer(f);
 }
 
 async function importApuracao(){
+ if(!(await allowExcelAdmin()))return;
  const f=$("apuracaoFile").files[0];if(!f)return alert("Selecione APURAÇÃO DE VENDAS.xls.");
  const r=new FileReader();r.onload=async e=>{try{
    const wb=XLSX.read(e.target.result,{type:"array",raw:true}),linhas=[];
    for(const sn of wb.SheetNames){const raw=XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,defval:"",raw:true}),h=localizarCabecalho(raw,[["ATINGIDO"],["REPRESENTANTE"],["RAZAO SOCIAL"],["META"],["VR ATINGIDO"],["NOME DO SUPERVISOR"]]);if(h<0)continue;const hd=raw[h],cAt=findCol(hd,["ATINGIDO"]),cRep=findCol(hd,["REPRESENTANTE"]),cRaz=findCol(hd,["RAZAO SOCIAL","RAZÃO SOCIAL"]),cMeta=findCol(hd,["META"]),cVr=findCol(hd,["VR ATINGIDO"]),cSup=findCol(hd,["NOME DO SUPERVISOR"]);
      for(let i=h+1;i<raw.length;i++){const row=raw[i],rep=String(row[cRep]??"").trim(),raz=String(row[cRaz]??"").trim();if(!rep&&!raz)continue;const meta=numBR(row[cMeta]),vr=numBR(row[cVr]),atRaw=String(row[cAt]??"").trim();linhas.push({atingido:/^SIM$/i.test(atRaw)||(meta>0&&vr>=meta)?"Sim":"Não",representante:rep,razaoSocial:raz,meta,vrAtingido:vr,supervisor:String(row[cSup]??"").trim()})}}
    if(!confirm("Importar esta planilha substituirá a APURAÇÃO DE METAS de toda a equipe. Deseja continuar?"))return;
-   db.apuracaoLinhas=linhas;const m=new Map();linhas.forEach(x=>{const k=norm(x.representante||x.razaoSocial);if(!k)return;if(!m.has(k))m.set(k,{...x});else{const a=m.get(k);a.meta=Math.max(Number(a.meta||0),Number(x.meta||0));a.vrAtingido=Math.max(Number(a.vrAtingido||0),Number(x.vrAtingido||0));if(!a.razaoSocial)a.razaoSocial=x.razaoSocial;if(!a.supervisor)a.supervisor=x.supervisor;a.atingido=a.meta>0&&a.vrAtingido>=a.meta?"Sim":"Não"}});db.apuracaoMetas=[...m.values()];if(!await persistDB())return;render();setHTML("apuracaoMsg",`✅ <b>${linhas.length}</b> linhas • <b>${db.apuracaoMetas.length}</b> representantes.`);
+   if(!(await allowExcelAdmin()))return;
+   db.apuracaoLinhas=linhas;const m=new Map();linhas.forEach(x=>{const k=norm(x.representante||x.razaoSocial);if(!k)return;if(!m.has(k))m.set(k,{...x});else{const a=m.get(k);a.meta=Math.max(Number(a.meta||0),Number(x.meta||0));a.vrAtingido=Math.max(Number(a.vrAtingido||0),Number(x.vrAtingido||0));if(!a.razaoSocial)a.razaoSocial=x.razaoSocial;if(!a.supervisor)a.supervisor=x.supervisor;a.atingido=a.meta>0&&a.vrAtingido>=a.meta?"Sim":"Não"}});db.apuracaoMetas=[...m.values()];if(!await window.CRMCloud.persistAdmin(db))return;render();setHTML("apuracaoMsg",`✅ <b>${linhas.length}</b> linhas • <b>${db.apuracaoMetas.length}</b> representantes.`);
  }catch(err){console.error(err);alert("Erro ao importar apuração: "+err.message)}};r.readAsArrayBuffer(f);
 }
 
-function backupDados(){const blob=new Blob([JSON.stringify({versao:"V24",data:new Date().toISOString(),dados:db},null,2)],{type:"application/json"}),a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=`Backup_Gestor_Comercial_V24_${today()}.json`;a.click()}
+async function backupDados(){if(!(await allowExcelAdmin()))return;const blob=new Blob([JSON.stringify({versao:"V24",data:new Date().toISOString(),dados:db},null,2)],{type:"application/json"}),a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=`Backup_Gestor_Comercial_V24_${today()}.json`;a.click()}
 async function restaurarBackup(e){
+ if(!(await allowExcelAdmin()))return;
  const f=e.target.files[0];if(!f)return;
  const r=new FileReader();r.onload=async x=>{
    try {
+     if(!(await allowExcelAdmin()))return;
      const p=JSON.parse(x.target.result);
      if(await window.CRMCloud.importBackup(p.dados||p))alert("Backup inicial enviado para o banco compartilhado.");
    }catch(err){alert("Não foi possível importar o backup: "+err.message)}
    finally { e.target.value="" }
  };r.readAsText(f);
 }
-function exportExcel(){const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(db.clientes),"Clientes");XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(db.vendas),"Vendas");XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(db.followups),"Follow-ups");XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(db.apuracaoLinhas),"Apuração");XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(db.pipelineStages),"Pipeline");XLSX.writeFile(wb,"Gestor_Comercial_Panamby_V24.xlsx")}
+async function exportExcel(){if(!(await allowExcelAdmin()))return;const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(db.clientes),"Clientes");XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(db.vendas),"Vendas");XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(db.followups),"Follow-ups");XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(db.apuracaoLinhas),"Apuração");XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(db.pipelineStages),"Pipeline");XLSX.writeFile(wb,"Gestor_Comercial_Panamby_V24.xlsx")}
 async function limparTudo(){alert("A limpeza total foi desativada no modo multiusuário para proteger a base da equipe.")}
 
 

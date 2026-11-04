@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Gestor Comercial Panamby</title>
 <link rel="stylesheet" href="style.css">
-<link rel="stylesheet" href="multiuser.css">
+<link rel="stylesheet" href="multiuser.css?v=admin-backup-1">
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 </head>
@@ -20,7 +20,7 @@
   <button class="nav" data-tab="pipeline">🗂️ Pipeline Comercial</button>
   <button class="nav" data-tab="followups">📞 Follow-ups / Alarmes</button>
   <button class="nav" data-tab="apuracao">📋 Apuração de Metas</button>
-  <button class="nav" data-tab="excel">📗 Excel / Backup</button>
+  <button class="nav" data-tab="excel" data-admin-only hidden aria-hidden="true">📗 Excel / Backup</button>
 </aside>
 
 <main>
@@ -28,7 +28,7 @@
   <div>
     <h2 id="pageTitle">Dashboard</h2>
     <small id="todayLabel"></small><br>
-    <small class="version">V36 DASHBOARD + PIPELINE SEPARADOS • 2026.09.03</small>
+    <small class="version">V36 MULTIUSUÁRIO + HIERARQUIA + BACKUP ADMIN • 2026.11</small>
   </div>
   <button class="primary" onclick="enableNotifications()">🔔 Ativar alertas e som</button>
 </header>
@@ -228,8 +228,8 @@
   </div>
 </section>
 
-<section id="excel" class="tab">
-  <div class="card intro storage-ok"><b>💾 IndexedDB ativo.</b> Base principal salva no navegador.</div>
+<section id="excel" class="tab" data-admin-only hidden aria-hidden="true">
+  <div class="card intro storage-ok"><b>☁️ Dados compartilhados no Supabase.</b> Registros salvos são preservados ao atualizar a página. Confira o aviso de sincronização antes de fechar a aba.</div>
 
   <div class="grid2">
     <div class="card import-card">
@@ -431,7 +431,7 @@
 
 <script src="supabase-config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="multiuser.js"></script>
-<script src="app.js"></script>
+<script src="multiuser.js?v=admin-backup-1"></script>
+<script src="app.js?v=admin-backup-1"></script>
 </body>
 </html>
